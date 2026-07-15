@@ -1,0 +1,67 @@
+# Compilação do .NET
+[Bb]in/
+[Oo]bj/
+artifacts/
+
+# Publicação
+publish/
+*.publish.xml
+*.pubxml
+*.pubxml.user
+
+# Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# Visual Studio Code
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# JetBrains Rider e IntelliJ
+.idea/
+*.sln.iml
+
+# ReSharper
+_ReSharper*/
+*.[Rr]e[Ss]harper
+*.DotSettings.user
+
+# NuGet
+*.nupkg
+*.snupkg
+packages/
+.nuget/
+
+# Testes e cobertura
+TestResults/
+coverage/
+coverage.*
+*.coverage
+*.coveragexml
+*.trx
+
+# Logs e arquivos temporários
+*.log
+*.tmp
+*.temp
+*.bak
+*.swp
+*~
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Dados locais gerados pela aplicação
+data/*.json
+data/experiments/
+exports/*.csv
+
+# Preservar arquivos de orientação dos diretórios
+!data/README.md
+!exports/README.md

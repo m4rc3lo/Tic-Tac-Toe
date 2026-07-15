@@ -33,12 +33,26 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-07-15
+
 ### Added
 
+- Solução `TicTacToe.sln` configurada para .NET 9.
+- Projeto Console em `src/TicTacToe.Console`.
+- Projeto de testes xUnit em `tests/TicTacToe.Tests`.
+- Configuração compartilhada de nullable, implicit usings, UTF-8 e documentação XML.
+- `.editorconfig` com indentação de quatro espaços e proibição de tabulações.
+- `.gitignore` para C#/.NET, ambientes de desenvolvimento, testes, cobertura, publicação e dados locais.
+- Diretórios iniciais para documentação, dados, exportações, patches e prompts.
 - Inventário técnico do projeto legado em `docs/01-projeto-original.md`.
 - Registro das responsabilidades, dependências, riscos e oportunidades de reutilização.
 - Classificação inicial dos arquivos para a refatoração.
 - Diagrama de dependências do código legado.
+
+### Changed
+
+- Arquivos C# legados movidos para `legacy/`, fora da compilação da nova solução.
+- `README.md` ampliado com requisitos, estrutura e comandos básicos.
 
 ## [1.0.0] - 2026-07-15
 
