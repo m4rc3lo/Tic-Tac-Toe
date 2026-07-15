@@ -1,0 +1,23 @@
+Tic-Tac-Toe Console AI
+Copyright 2020-2026 Marcelo Dornbusch Lopes
+
+Este produto inclui uma refatoração e ampliação de uma implementação anterior
+do jogo da velha, criada pelo mesmo autor e preservada na tag v1.0.0.
+
+O estado legado foi originalmente distribuído sob a licença MIT. A partir da
+linha de refatoração posterior à versão v1.0.0, o projeto passa a ser
+licenciado sob a Apache License 2.0.
+
+Os arquivos mantidos no diretório legacy/ possuem finalidade histórica,
+didática e comparativa. Eles não integram a compilação da nova solução.
+
+Até a versão 1.1.0, não foram incorporados recursos artísticos, fontes,
+trechos de código ou bibliotecas de terceiros que exijam atribuições
+adicionais neste arquivo.
+
+O projeto utiliza componentes do ecossistema .NET e, exclusivamente no
+projeto de testes, o framework xUnit. As licenças desses componentes permanecem
+sob responsabilidade de seus respectivos titulares.
+
+Este arquivo NOTICE possui caráter informativo e não modifica os termos da
+Apache License 2.0.
