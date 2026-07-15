@@ -39,6 +39,9 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - `NOTICE` com origem, atribuições e observações sobre o legado.
 - `CITATION.cff` com metadados para citação acadêmica do software.
 - `docs/00-decisoes-e-escopo.md` com convenções, política de idioma, documentação XML, fluxo Git, dependências e versionamento.
+- `docs/02-requisitos.md` com escopo, requisitos funcionais, requisitos não funcionais, restrições e critérios de aceitação.
+- `docs/03-arquitetura.md` com camadas, responsabilidades, contratos e regras de dependência.
+- Diagramas Mermaid de contexto, componentes, sequência e estados com interpretação textual.
 
 ### Changed
 
