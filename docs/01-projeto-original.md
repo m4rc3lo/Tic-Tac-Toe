@@ -1,0 +1,304 @@
+# Projeto original — inventário do legado
+
+## 1. Identificação do estado analisado
+
+Este documento registra o inventário técnico do estado legado do projeto **Tic-Tac-Toe**, preservado no repositório pela tag `v1.0.0`. A análise foi realizada sem modificar os arquivos de código dessa versão.
+
+A tag constitui o marco histórico anterior à refatoração arquitetural. As decisões apresentadas neste documento descrevem o código como ele existe nesse ponto e orientam as etapas posteriores, sem reescrever retrospectivamente o legado.
+
+## 2. Visão geral
+
+O projeto implementa um jogo da velha para duas pessoas em uma aplicação de terminal. O código está organizado no namespace `TTT` e utiliza apenas recursos da biblioteca padrão do .NET, principalmente `System.Console`, `System.Random`, matrizes e tipos primitivos.
+
+A implementação possui separação inicial entre entrada, desenho, representação de participantes, atualização do tabuleiro e controle da partida. Entretanto, essa separação é predominantemente procedural: as classes compartilham diretamente a matriz `char[,]`, dependem de métodos estáticos e conhecem detalhes umas das outras.
+
+Não foram encontrados, no estado `v1.0.0`, arquivos de solução ou projeto, como `.sln` ou `.csproj`, nem projeto de testes automatizados. Assim, o código-fonte está preservado, mas o ambiente de compilação não está descrito de forma reprodutível no próprio repositório.
+
+## 3. Estrutura de arquivos
+
+```text
+Tic-Tac-Toe/
+├── Atualizacao.cs
+├── Desenho.cs
+├── Entrada.cs
+├── Jogador.cs
+├── Jogo.cs
+├── Program.cs
+├── LICENSE
+└── README.md
+```
+
+A estrutura é plana: todos os arquivos de código permanecem na raiz e pertencem ao mesmo namespace. Não há separação física entre domínio, aplicação, apresentação, persistência ou testes.
+
+## 4. Responsabilidades observadas
+
+### 4.1 `Program.cs`
+
+Define o ponto de entrada da aplicação. O método `Main` instancia `Jogo` e chama, sequencialmente:
+
+1. `inicializa_game()`;
+2. `start_game()`;
+3. `end_game()`.
+
+O arquivo funciona como inicializador do fluxo, mas ainda não atua como uma raiz de composição, pois a classe `Jogo` instancia internamente todas as suas dependências.
+
+### 4.2 `Jogo.cs`
+
+A classe `Jogo` concentra a maior parte da coordenação da aplicação. Suas responsabilidades incluem:
+
+- criar e inicializar o tabuleiro;
+- criar os dois participantes;
+- sortear quem começa;
+- atribuir símbolos e turnos;
+- iniciar a apresentação;
+- solicitar nomes;
+- controlar o laço principal;
+- alternar os turnos;
+- aplicar jogadas;
+- verificar vitória;
+- contar jogadas;
+- detectar empate;
+- selecionar e apresentar o resultado;
+- controlar o encerramento da interação.
+
+Essa concentração caracteriza a classe como um controlador monolítico. Regras de domínio, fluxo de aplicação e apresentação encontram-se coordenados no mesmo componente.
+
+### 4.3 `Atualizacao.cs`
+
+A classe estática `Atualizacao` reúne operações relacionadas ao tabuleiro:
+
+- verificar se uma posição numerada está livre;
+- verificar vitória;
+- escrever uma jogada na matriz.
+
+A classe representa uma tentativa inicial de isolar regras do jogo. Contudo, recebe e modifica diretamente `char[,]`, utiliza números de `1` a `9` como posições externas e depende de `Pessoa` para obter o símbolo aplicado.
+
+### 4.4 `Entrada.cs`
+
+A classe `Entrada` executa leitura direta do terminal. Suas responsabilidades incluem:
+
+- ler os nomes dos participantes;
+- converter a entrada da jogada para inteiro;
+- validar o intervalo de `1` a `9`;
+- consultar `Atualizacao` para verificar ocupação;
+- repetir a leitura até obter uma posição válida.
+
+A conversão utiliza `Convert.ToInt16` sem tratamento de exceções. Entradas não numéricas podem interromper a aplicação.
+
+### 4.5 `Desenho.cs`
+
+A classe `Desenho` concentra a apresentação textual:
+
+- cabeçalho inicial;
+- indicação de quem inicia;
+- instruções;
+- desenho do tabuleiro;
+- mensagem de vitória;
+- mensagem de empate;
+- controle de cores;
+- limpeza da tela;
+- pausas por teclado.
+
+Embora o nome sugira apenas renderização, a classe também controla espera por entrada e navegação entre momentos da aplicação. Ela depende diretamente de `Console` e de `Pessoa`.
+
+### 4.6 `Jogador.cs`
+
+O arquivo declara a classe `Pessoa`, responsável por armazenar:
+
+- nome;
+- símbolo;
+- indicação de primeiro participante;
+- estado do turno.
+
+A classe oferece métodos de leitura e escrita para todos os campos. O nome do arquivo não coincide com o nome da classe pública, e os estados `first` e `turno` podem tornar-se inconsistentes entre os dois objetos.
+
+### 4.7 `README.md`
+
+Contém apenas o título do projeto. Não documenta compilação, execução, requisitos, arquitetura, limitações ou histórico.
+
+### 4.8 `LICENSE`
+
+Registra o legado sob a licença MIT, com atribuição a Marcelo Dornbusch Lopes. A tag `v1.0.0` deve preservar esse estado histórico. A alteração de licenciamento planejada para a nova versão deverá ser tratada em etapa específica, mantendo rastreabilidade e atribuições adequadas.
+
+## 5. Dependências
+
+Não foram identificadas bibliotecas externas no código legado. As dependências técnicas observadas são:
+
+- namespace `System`;
+- `Console` para entrada, saída, cores, limpeza e pausas;
+- `Random` para escolha do primeiro participante;
+- `DateTime` para a apresentação;
+- matriz bidimensional `char[,]` como representação compartilhada do tabuleiro;
+- matriz denteada `char[][]` usada separadamente nas instruções.
+
+As dependências entre os componentes do código legado são apresentadas no diagrama a seguir. As setas indicam conhecimento direto ou chamada de métodos entre as classes.
+
+```mermaid
+flowchart LR
+    Program[Program]
+    Jogo[Jogo]
+    Entrada[Entrada]
+    Desenho[Desenho]
+    Atualizacao[Atualizacao]
+    Pessoa[Pessoa]
+    Console[System.Console]
+    Random[System.Random]
+    Board["char[,]"]
+
+    Program --> Jogo
+    Jogo --> Entrada
+    Jogo --> Desenho
+    Jogo --> Atualizacao
+    Jogo --> Pessoa
+    Jogo --> Random
+    Jogo --> Console
+    Jogo --> Board
+
+    Entrada --> Atualizacao
+    Entrada --> Pessoa
+    Entrada --> Console
+    Entrada --> Board
+
+    Desenho --> Pessoa
+    Desenho --> Console
+    Desenho --> Board
+
+    Atualizacao --> Pessoa
+    Atualizacao --> Board
+```
+
+O diagrama evidencia que `Jogo` funciona como centro de coordenação, mas também que a matriz do tabuleiro e a classe `Pessoa` atravessam diferentes responsabilidades. `Entrada` conhece regras de ocupação, `Desenho` controla parte da interação e `Atualizacao` depende do participante para modificar o estado. Essa rede impede que regras e fluxo sejam testados sem o terminal ou sem objetos concretos.
+
+## 6. Problemas de acoplamento e coesão
+
+### 6.1 Acoplamento ao `Console`
+
+`Entrada`, `Desenho` e `Jogo` chamam `Console` diretamente. Esse acoplamento:
+
+- impede testes unitários simples do fluxo;
+- mistura regras e apresentação;
+- dificulta modos automáticos;
+- dificulta execução experimental sem renderização;
+- torna as pausas e limpezas de tela efeitos colaterais obrigatórios.
+
+### 6.2 Representação do tabuleiro exposta
+
+A matriz `char[,]` é compartilhada entre diversas classes e modificada fora de um objeto responsável por manter suas invariantes. Não existe uma abstração `Board` que garanta:
+
+- dimensões válidas;
+- símbolos permitidos;
+- posição disponível;
+- histórico;
+- aplicação e desfazimento seguro;
+- cópia controlada para algoritmos de busca.
+
+### 6.3 Mapeamento duplicado de posições
+
+Os métodos `eh_livre` e `set_jogada` repetem dois blocos `switch` para transformar posições de `1` a `9` em coordenadas. A duplicação aumenta o risco de divergência e dificulta generalização ou teste isolado.
+
+### 6.4 Classe controladora monolítica
+
+`Jogo` acumula criação de objetos, configuração, regras de turno, laço principal, detecção de fim e apresentação. Alterações na interface, na modalidade de jogo ou nos participantes exigem modificação dessa classe.
+
+### 6.5 Estado redundante dos participantes
+
+Os campos `first` e `turno` são mantidos em ambos os objetos `Pessoa`. A alternância exige atualizar dois valores complementares. Uma falha intermediária pode deixar ambos verdadeiros ou ambos falsos.
+
+### 6.6 Métodos estáticos e dependências rígidas
+
+`Atualizacao`, `Entrada` e grande parte de `Desenho` utilizam métodos estáticos. Não há contratos para substituir entrada, saída, gerador aleatório ou regras em testes.
+
+### 6.7 Regra de empate acoplada ao contador
+
+O empate é estabelecido quando `contador >= 9`, em vez de ser derivado do estado do tabuleiro e da ausência de vitória. A solução funciona para o fluxo atual, mas a regra não está encapsulada e depende de o contador permanecer sincronizado.
+
+### 6.8 Tratamento insuficiente de entrada
+
+A conversão direta de texto com `Convert.ToInt16` não trata entradas vazias, não numéricas ou fora do intervalo do tipo. Isso pode encerrar o programa inesperadamente.
+
+### 6.9 Inconsistências de representação
+
+O tabuleiro real usa `char[,]`, enquanto a tela de instruções usa `char[][]`. Essa duplicidade não produz erro imediato, mas introduz duas representações para o mesmo conceito.
+
+### 6.10 Documentação e nomenclatura
+
+Os comentários são informais e não utilizam documentação XML. Há erros ortográficos em comentários e mensagens. O arquivo `Jogador.cs` contém a classe `Pessoa`, contrariando a correspondência desejada entre arquivo e tipo principal.
+
+## 7. Riscos técnicos
+
+| Risco | Evidência no legado | Impacto |
+|---|---|---|
+| Falta de build reprodutível | ausência de `.sln` e `.csproj` | não há comando de compilação versionado |
+| Regressões em regras | ausência de testes automatizados | alterações podem quebrar vitória, turno ou empate |
+| Entrada inválida encerra o programa | conversão direta para inteiro | baixa robustez |
+| Estado inconsistente de turno | dois booleanos complementares | fluxo pode ficar sem participante ativo |
+| Dificuldade para adicionar IA | fluxo exige duas `Pessoa` e leitura pelo Console | grande retrabalho |
+| Dificuldade para experimentos | renderização e interação são obrigatórias | métricas seriam contaminadas |
+| Dificuldade para persistência | não existem registros ou contratos de repositório | acoplamento futuro ao controlador |
+| Alteração de interface afeta regras | `Jogo` coordena regras e apresentação | baixa manutenibilidade |
+| Defeitos visuais permanecem no código | texto `in{2}` no desenho da linha central | apresentação incorreta |
+| Dependência temporal não determinística | `new Random()` dentro de `Jogo` | testes não reprodutíveis |
+| Mudança de licença sem rastreabilidade | legado está sob MIT e planejamento prevê Apache 2.0 | risco documental e jurídico |
+
+## 8. Oportunidades de reutilização
+
+A refatoração não deverá copiar mecanicamente a estrutura atual, mas vários elementos podem ser preservados como requisitos ou comportamento de referência:
+
+- tabuleiro de três linhas por três colunas;
+- numeração externa das posições de `1` a `9`;
+- símbolos `X` e `O`;
+- sorteio ou configuração do primeiro participante;
+- alternância de turnos;
+- verificação de linhas, colunas e diagonais;
+- detecção de empate após preenchimento do tabuleiro;
+- apresentação textual no terminal;
+- uso de cores como recurso opcional;
+- separação conceitual inicial entre entrada, desenho e atualização;
+- mensagens de instrução e resultado como base para revisão textual.
+
+A principal reutilização recomendada é **comportamental**: preservar as regras e a experiência essencial, reimplementando-as em componentes testáveis e desacoplados.
+
+## 9. Classificação dos arquivos
+
+A classificação indica o tratamento recomendado durante a refatoração. “Substituir” não significa apagar imediatamente o arquivo legado; significa criar uma nova implementação e remover o componente antigo somente quando seu comportamento estiver coberto por testes e pela nova arquitetura.
+
+| Arquivo | Classificação | Justificativa |
+|---|---|---|
+| `Atualizacao.cs` | Substituir | contém regras úteis, mas depende de matriz exposta, `Pessoa`, métodos estáticos e mapeamentos duplicados |
+| `Desenho.cs` | Substituir | conceitos de apresentação serão preservados, porém o componente mistura renderização, pausas e navegação |
+| `Entrada.cs` | Substituir | leitura está acoplada ao Console e à validação de domínio; não trata conversões inválidas |
+| `Jogador.cs` | Substituir | `Pessoa` será remodelada como participantes e estratégias; possui estado redundante e nome de arquivo inconsistente |
+| `Jogo.cs` | Substituir | classe monolítica; suas responsabilidades serão distribuídas entre domínio, aplicação e apresentação |
+| `Program.cs` | Adaptar | o ponto de entrada permanece, mas deverá tornar-se uma raiz de composição mínima |
+| `README.md` | Adaptar | título pode ser preservado, mas o documento precisa ser ampliado integralmente |
+| `LICENSE` | Substituir com revisão legal | o legado MIT permanece preservado em `v1.0.0`; a nova política Apache 2.0 exige atualização rastreável e atribuições |
+| estrutura raiz plana | Substituir | será criada solução .NET 9 com diretórios `src`, `tests`, `docs`, `data`, `exports`, `patches` e `prompts` |
+
+## 10. Estratégia recomendada de migração
+
+A migração deverá ocorrer por substituição incremental, evitando alteração direta das regras legadas antes de existirem testes equivalentes.
+
+Ordem recomendada:
+
+1. criar solução e projetos .NET 9;
+2. documentar requisitos observáveis do legado;
+3. criar objetos de valor e enumerações;
+4. implementar `Board`;
+5. implementar `GameRules`;
+6. implementar `Match`;
+7. criar testes que reproduzam o comportamento esperado;
+8. introduzir contratos de aplicação e apresentação;
+9. migrar o fluxo para a nova arquitetura;
+10. remover os componentes legados somente após validação.
+
+## 11. Limitações desta análise
+
+A análise considera os arquivos versionados na tag `v1.0.0`. Como não há projeto de build, testes ou especificação formal no legado, algumas intenções foram inferidas a partir do código.
+
+Não foi executada alteração corretiva nesta etapa. Defeitos encontrados, como ausência de tratamento de entrada e texto incorreto no desenho do tabuleiro, foram apenas registrados para orientar prompts posteriores.
+
+## 12. Conclusão
+
+O legado apresenta valor didático por demonstrar uma primeira decomposição orientada a objetos, mas sua estrutura ainda mantém forte caráter procedural. A matriz do tabuleiro, o estado dos participantes e o `Console` atravessam várias classes, e `Jogo` concentra o fluxo principal.
+
+A refatoração deverá preservar o comportamento essencial, mas substituir as dependências rígidas por objetos de domínio encapsulados, contratos de aplicação, serviços periféricos e testes automatizados. A tag `v1.0.0` permanece como referência imutável para comparação com a evolução até `v2.0.0`.
