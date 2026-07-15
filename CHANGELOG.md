@@ -33,6 +33,19 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- `LICENSE.md` com síntese acessível das condições de licenciamento.
+- `NOTICE` com origem, atribuições e observações sobre o legado.
+- `CITATION.cff` com metadados para citação acadêmica do software.
+- `docs/00-decisoes-e-escopo.md` com convenções, política de idioma, documentação XML, fluxo Git, dependências e versionamento.
+
+### Changed
+
+- Licença da linha de refatoração alterada de MIT para Apache License 2.0.
+- Timeline do projeto consolidada entre `v1.0.0` e `v2.0.0`.
+- Política de dependências definida para privilegiar a biblioteca padrão do .NET.
+
 ## [1.1.0] - 2026-07-15
 
 ### Added

@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+title: "Tic-Tac-Toe Console AI"
+type: software
+version: "1.1.0"
+date-released: "2026-07-15"
+license: Apache-2.0
+repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+authors:
+  - family-names: "Lopes"
+    given-names: "Marcelo Dornbusch"
+keywords:
+  - tic-tac-toe
+  - artificial-intelligence
+  - console-application
+  - software-architecture
+  - refactoring
+  - dotnet
+abstract: >-
+  Aplicação Console didática em C# e .NET 9 para estudo de refatoração de
+  software legado, arquitetura modular, estratégias de inteligência artificial,
+  persistência, testes automatizados e experimentação reprodutível.
