@@ -42,6 +42,10 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - `docs/02-requisitos.md` com escopo, requisitos funcionais, requisitos não funcionais, restrições e critérios de aceitação.
 - `docs/03-arquitetura.md` com camadas, responsabilidades, contratos e regras de dependência.
 - Diagramas Mermaid de contexto, componentes, sequência e estados com interpretação textual.
+- `docs/04-modelo-conceitual.md` com entidades, objetos de valor, enumerações e relações do domínio.
+- Enumerações `Symbol`, `GameState` e `GameResult`.
+- Objetos de valor imutáveis `BoardPosition` e `Move`.
+- Testes básicos das invariantes e da igualdade dos objetos de valor.
 
 ### Changed
 
