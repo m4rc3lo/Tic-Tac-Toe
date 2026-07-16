@@ -33,6 +33,8 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-07-16
+
 ### Added
 
 - `LICENSE.md` com síntese acessível das condições de licenciamento.
@@ -45,19 +47,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - `docs/04-modelo-conceitual.md` com entidades, objetos de valor, enumerações e relações do domínio.
 - Enumerações `Symbol`, `GameState` e `GameResult`.
 - Objetos de valor imutáveis `BoardPosition` e `Move`.
-- Testes básicos das invariantes e da igualdade dos objetos de valor.
 - `Board` com armazenamento encapsulado, consulta de símbolos, casas livres, aplicação e desfazimento de jogadas.
-- Testes completos do comportamento e das invariantes de `Board`.
 - `GameRules` para detecção de vitória, empate e partida em andamento.
 - `GameEvaluation` com resultado e sequência vencedora imutável.
-- Testes de linhas, colunas, diagonais, empates e falsos positivos.
+- `Player`, `HumanPlayer` e `ComputerPlayer`.
+- Agregado `Match` com tabuleiro, jogadores, turno, histórico, estado e resultado.
 - `docs/05-game-rules.md` com diagramas e interpretação das regras.
+- `docs/06-match-aggregate.md` com invariantes e diagrama de sequência.
+- Testes automatizados do domínio, das regras e do agregado.
 
 ### Changed
 
 - Licença da linha de refatoração alterada de MIT para Apache License 2.0.
 - Timeline do projeto consolidada entre `v1.0.0` e `v2.0.0`.
 - Política de dependências definida para privilegiar a biblioteca padrão do .NET.
+- Descoberta de testes xUnit habilitada no projeto de testes.
+- Versão do projeto atualizada para `1.2.0`.
 
 ## [1.1.0] - 2026-07-15
 
