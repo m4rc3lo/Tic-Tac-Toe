@@ -48,6 +48,10 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - Testes básicos das invariantes e da igualdade dos objetos de valor.
 - `Board` com armazenamento encapsulado, consulta de símbolos, casas livres, aplicação e desfazimento de jogadas.
 - Testes completos do comportamento e das invariantes de `Board`.
+- `GameRules` para detecção de vitória, empate e partida em andamento.
+- `GameEvaluation` com resultado e sequência vencedora imutável.
+- Testes de linhas, colunas, diagonais, empates e falsos positivos.
+- `docs/05-game-rules.md` com diagramas e interpretação das regras.
 
 ### Changed
 
