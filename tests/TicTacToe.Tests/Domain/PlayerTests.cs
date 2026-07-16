@@ -1,3 +1,4 @@
+using TicTacToe.AI;
 using TicTacToe.Domain;
 using Xunit;
 
@@ -26,7 +27,10 @@ public class PlayerTests
     [Fact]
     public void player_should_trim_name()
     {
-        ComputerPlayer player = new("  CPU  ", Symbol.O);
+        ComputerPlayer player = new(
+            "  CPU  ",
+            Symbol.O,
+            new RandomMoveStrategy(1));
 
         Assert.Equal("CPU", player.Name);
     }
@@ -48,6 +52,9 @@ public class PlayerTests
     public void player_should_reject_empty_symbol()
     {
         Assert.Throws<ArgumentException>(
-            () => new ComputerPlayer("CPU", Symbol.Empty));
+            () => new ComputerPlayer(
+                "CPU",
+                Symbol.Empty,
+                new RandomMoveStrategy(1)));
     }
 }

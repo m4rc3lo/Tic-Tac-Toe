@@ -33,6 +33,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-07-16
+
+### Added
+
+- Contrato `IMoveStrategy` para algoritmos intercambiáveis de decisão.
+- Contrato `IRandomSource` para geração pseudoaleatória injetável.
+- `SystemRandomSource` com suporte a semente controlável.
+- `RandomMoveStrategy` para seleção de casas livres.
+- Associação obrigatória entre `ComputerPlayer` e uma estratégia.
+- Testes de validade, delegação, intervalo e reprodutibilidade.
+- `docs/10-inteligencia-artificial.md` com documentação do padrão Strategy.
+
+### Changed
+
+- Versão do projeto e metadados de citação atualizados para `1.3.0`.
+
 ## [1.2.0] - 2026-07-16
 
 ### Added
