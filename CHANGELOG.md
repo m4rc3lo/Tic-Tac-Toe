@@ -46,6 +46,8 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - Enumerações `Symbol`, `GameState` e `GameResult`.
 - Objetos de valor imutáveis `BoardPosition` e `Move`.
 - Testes básicos das invariantes e da igualdade dos objetos de valor.
+- `Board` com armazenamento encapsulado, consulta de símbolos, casas livres, aplicação e desfazimento de jogadas.
+- Testes completos do comportamento e das invariantes de `Board`.
 
 ### Changed
 
