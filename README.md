@@ -5,9 +5,12 @@ em C# para .NET 9.
 
 ## Estado do projeto
 
-- `v1.0.0`: estado legado preservado;
-- `v1.1.0`: solução .NET 9, projeto Console e infraestrutura inicial de testes;
-- `v2.0.0`: versão final planejada da refatoração.
+- `v1.0.0` — 2026-07-15: estado legado preservado;
+- `v1.1.0` — 2026-07-15: solução .NET 9, governança e infraestrutura inicial;
+- `v1.2.0` — 2026-07-16: domínio, regras e agregado de partida;
+- `v1.3.0` — 2026-07-16: padrão Strategy e estratégia aleatória;
+- `Unreleased` — desde 2026-07-16: fluxo básico da camada de aplicação;
+- `v2.0.0` — data a definir: consolidação final da refatoração.
 
 O código legado foi movido para `legacy/` e não participa da compilação. A nova
 implementação será construída em `src/`, com testes em `tests/`.

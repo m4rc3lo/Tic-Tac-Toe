@@ -100,6 +100,13 @@ Uma jogada inválida é rejeitada por `Board` antes de entrar no histórico. Con
 
 Ao receber uma avaliação de vitória ou empate, `Match` altera `State` para `Finished`. O `CurrentPlayer` permanece como o autor da última jogada, o que permite identificar diretamente quem encerrou a partida.
 
-## 6. Limites desta versão
+## 6. Evolução após a versão 1.2.0
 
-`ComputerPlayer` ainda não possui uma estratégia. A interface de estratégia e os agentes aleatórios serão introduzidos na versão `1.3.0`. O agregado continuará recebendo posições, independentemente da origem humana ou computacional.
+Na versão `1.3.0`, `ComputerPlayer` passou a possuir uma `IMoveStrategy`, e a
+estratégia aleatória foi implementada. Após o Prompt 10, `DefaultMoveSelector`
+resolve a origem da posição: participantes humanos usam `IGameInput` e
+participantes computacionais delegam à Strategy.
+
+`Match` permanece independente da origem da jogada e continua recebendo apenas
+uma `BoardPosition`. Essa decisão mantém as regras de turno e histórico no
+agregado.

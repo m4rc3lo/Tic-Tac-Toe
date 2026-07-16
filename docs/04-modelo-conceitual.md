@@ -2,146 +2,56 @@
 
 ## 1. Finalidade
 
-Este documento descreve o modelo conceitual inicial do domínio do **Tic-Tac-Toe Console AI**. O modelo identifica entidades, objetos de valor, enumerações e serviços de domínio sem antecipar detalhes completos de implementação.
+Este documento descreve o modelo conceitual implementado até 2026-07-16, após o
+Prompt 10. O núcleo já contém tabuleiro, regras, participantes, agregado de
+partida, Strategy aleatória e fluxo básico de aplicação.
 
-Nesta etapa, somente as enumerações `Symbol`, `GameState` e `GameResult`, além dos objetos de valor `BoardPosition` e `Move`, são implementados. Os demais conceitos serão materializados nos prompts posteriores.
+## 2. Conceitos implementados
 
-## 2. Conceitos centrais
+### 2.1 Domínio
 
-### 2.1 `Board`
+- `Board`: encapsula as nove casas e controla aplicação e desfazimento;
+- `BoardPosition`: objeto de valor para coordenadas entre zero e dois;
+- `Move`: objeto de valor com posição, símbolo e número do turno;
+- `Player`: abstração de participante;
+- `HumanPlayer`: participante humano, sem dependência de entrada;
+- `ComputerPlayer`: participante computacional associado a uma estratégia;
+- `Match`: agregado que controla tabuleiro, turnos, histórico, estado e resultado;
+- `GameRules`: serviço puro para vitória, empate e partida em andamento;
+- `GameEvaluation`: resultado imutável da avaliação;
+- `Symbol`, `GameState` e `GameResult`: enumerações do domínio.
 
-Representa o tabuleiro 3 × 3 e é responsável por preservar suas invariantes.
+### 2.2 Inteligência artificial
 
-Responsabilidades previstas:
+- `IMoveStrategy`: contrato do padrão Strategy;
+- `RandomMoveStrategy`: linha de base aleatória;
+- `IRandomSource`: abstração do gerador pseudoaleatório;
+- `SystemRandomSource`: implementação com semente opcional.
 
-- armazenar o conteúdo das nove casas;
-- consultar símbolos por posição;
-- informar posições disponíveis;
-- verificar se uma posição está livre;
-- aplicar uma jogada válida;
-- desfazer uma jogada para simulações;
-- indicar se o tabuleiro está completo;
-- impedir exposição mutável de seu armazenamento interno.
+### 2.3 Aplicação
 
-`Board` não deverá decidir sozinho o resultado global da partida nem executar entrada e saída.
+- `MatchController`: coordena uma partida até seu encerramento;
+- `IGameInput`: porta para jogadas humanas;
+- `IGameOutput`: porta para apresentação;
+- `IMoveSelector`: porta para seleção da próxima posição;
+- `DefaultMoveSelector`: encaminha humanos à entrada e computadores à Strategy.
 
-### 2.2 `BoardPosition`
+## 3. Diagrama conceitual atual
 
-Objeto de valor que representa uma coordenada válida do tabuleiro.
-
-As coordenadas utilizam índices de zero a dois:
-
-- linha `0`, `1` ou `2`;
-- coluna `0`, `1` ou `2`.
-
-A validação ocorre no construtor, impedindo a criação de posições inválidas. A igualdade é determinada pelos valores de linha e coluna.
-
-### 2.3 `Move`
-
-Objeto de valor imutável que registra:
-
-- posição;
-- símbolo;
-- número do turno.
-
-Uma jogada não pode utilizar `Symbol.Empty`, e sua numeração começa em um. Informações experimentais, como tempo de decisão e estados avaliados, deverão ser registradas em modelos específicos de telemetria, não no objeto básico `Move`.
-
-### 2.4 `Match`
-
-Agregado que representa uma partida completa.
-
-Responsabilidades previstas:
-
-- possuir um `Board`;
-- associar dois participantes;
-- controlar o participante atual;
-- manter o histórico de `Move`;
-- controlar `GameState`;
-- consolidar `GameResult`;
-- aceitar jogadas válidas;
-- alternar turnos;
-- impedir jogadas após o encerramento.
-
-`Match` será o limite principal de consistência do domínio.
-
-### 2.5 `Player`
-
-Abstração conceitual de um participante.
-
-Propriedades previstas:
-
-- nome;
-- símbolo;
-- tipo de participante.
-
-O participante não armazenará um booleano redundante de turno. A responsabilidade de determinar o participante atual pertence a `Match`.
-
-### 2.6 `HumanPlayer`
-
-Especialização de `Player` que representa uma pessoa. A obtenção da entrada não deverá ocorrer dentro dessa classe; a camada de apresentação fornecerá a jogada selecionada.
-
-### 2.7 `ComputerPlayer`
-
-Especialização de `Player` que representa um agente computacional. A escolha da jogada será delegada a um contrato de estratégia, posteriormente denominado `IMoveStrategy`.
-
-### 2.8 `Symbol`
-
-Enumeração que representa:
-
-- `Empty`;
-- `X`;
-- `O`.
-
-O valor padrão é `Empty`, reduzindo o risco de uma casa recém-criada assumir implicitamente um símbolo jogável.
-
-### 2.9 `GameState`
-
-Enumeração que representa o ciclo de vida:
-
-- `NotStarted`;
-- `InProgress`;
-- `Finished`.
-
-O estado indica a fase da partida, enquanto `GameResult` descreve seu desfecho.
-
-### 2.10 `GameResult`
-
-Enumeração que representa:
-
-- `None`;
-- `XWins`;
-- `OWins`;
-- `Draw`.
-
-`None` é utilizado enquanto não existe resultado consolidado.
-
-### 2.11 `GameRules`
-
-Serviço de domínio responsável por avaliar um estado de tabuleiro.
-
-Responsabilidades previstas:
-
-- detectar vitória de `X`;
-- detectar vitória de `O`;
-- detectar empate;
-- indicar partida em andamento;
-- retornar as posições da sequência vencedora.
-
-`GameRules` não deverá modificar o tabuleiro.
-
-## 3. Diagrama conceitual
-
-O diagrama apresenta as relações planejadas entre os conceitos centrais. As operações listadas possuem caráter conceitual e poderão ser refinadas quando as classes forem implementadas.
+O diagrama apresenta os conceitos efetivamente existentes. Ele também torna
+visível a dependência atual de `ComputerPlayer` para `IMoveStrategy`, registrada
+como dívida arquitetural em `docs/03-arquitetura.md`.
 
 ```mermaid
 classDiagram
     class Board {
+        +int OccupiedCount
+        +bool IsFull
         +get_symbol(position) Symbol
         +get_available_positions() IReadOnlyList
         +is_position_available(position) bool
         +apply_move(move)
-        +undo_move(position)
-        +is_full() bool
+        +undo_move(position) Symbol
     }
 
     class BoardPosition {
@@ -157,12 +67,15 @@ classDiagram
 
     class Match {
         +Board Board
+        +Player FirstPlayer
+        +Player SecondPlayer
         +Player CurrentPlayer
+        +IReadOnlyList~Move~ Moves
         +GameState State
         +GameResult Result
-        +IReadOnlyList~Move~ Moves
-        +start()
-        +apply_move(move)
+        +IReadOnlyList~BoardPosition~ WinningPositions
+        +apply_move(position) Move
+        +get_player(symbol) Player
     }
 
     class Player {
@@ -175,123 +88,88 @@ classDiagram
 
     class ComputerPlayer {
         +IMoveStrategy Strategy
+        +choose_move(board) BoardPosition
     }
 
     class IMoveStrategy {
         <<interface>>
-        +choose_move(board) Move
+        +choose_move(board, symbol) BoardPosition
     }
+
+    class RandomMoveStrategy
 
     class GameRules {
-        +evaluate(board) GameResult
-        +get_winning_positions(board) IReadOnlyList
+        <<static>>
+        +evaluate(board) GameEvaluation
     }
 
-    class Symbol {
-        <<enumeration>>
-        Empty
-        X
-        O
+    class GameEvaluation {
+        +GameResult Result
+        +IReadOnlyList~BoardPosition~ WinningPositions
+        +bool IsInProgress
+        +bool HasWinner
     }
 
-    class GameState {
-        <<enumeration>>
-        NotStarted
-        InProgress
-        Finished
+    class MatchController {
+        +run(match) Match
     }
 
-    class GameResult {
-        <<enumeration>>
-        None
-        XWins
-        OWins
-        Draw
-    }
+    Player <|-- HumanPlayer
+    Player <|-- ComputerPlayer
+    ComputerPlayer --> IMoveStrategy
+    IMoveStrategy <|.. RandomMoveStrategy
 
     Match *-- Board
     Match *-- Player
     Match *-- Move
     Match --> GameRules
-
-    Player <|-- HumanPlayer
-    Player <|-- ComputerPlayer
-    ComputerPlayer --> IMoveStrategy
+    GameRules --> GameEvaluation
 
     Board --> BoardPosition
     Board --> Symbol
     Move --> BoardPosition
     Move --> Symbol
-    Match --> GameState
-    Match --> GameResult
+    MatchController --> Match
 ```
 
-`Match` agrega o tabuleiro, os participantes e o histórico. `BoardPosition` e `Move` são objetos de valor. `GameRules` avalia o tabuleiro sem modificá-lo. A decisão de um participante computacional fica fora de `Match` e é delegada à estratégia.
+`Match` é o limite de consistência pretendido para a partida. Contudo, como
+`Board` é exposto publicamente e possui operações mutáveis públicas, esse limite
+ainda pode ser contornado. Essa restrição deve ser corrigida antes das etapas de
+persistência e simulação intensiva.
 
-## 4. Classificação dos conceitos
+## 4. Invariantes consolidadas
 
-| Conceito | Classificação | Implementação nesta etapa |
-|---|---|---|
-| `Board` | Entidade de domínio | Não |
-| `BoardPosition` | Objeto de valor | Sim |
-| `Move` | Objeto de valor | Sim |
-| `Match` | Agregado e entidade | Não |
-| `Player` | Entidade abstrata | Não |
-| `HumanPlayer` | Entidade especializada | Não |
-| `ComputerPlayer` | Entidade especializada | Não |
-| `Symbol` | Enumeração | Sim |
-| `GameState` | Enumeração | Sim |
-| `GameResult` | Enumeração | Sim |
-| `GameRules` | Serviço de domínio | Não |
-| `IMoveStrategy` | Contrato de estratégia | Não |
+1. posições pertencem ao intervalo válido do tabuleiro;
+2. jogadas usam `X` ou `O` e possuem turno positivo;
+3. casas ocupadas não podem ser sobrescritas;
+4. participantes da mesma partida possuem símbolos distintos;
+5. somente jogadas válidas entram no histórico;
+6. o turno alterna apenas após jogada válida;
+7. vitória ou empate encerram a partida;
+8. partidas encerradas não aceitam novas jogadas;
+9. avaliações de vitória possuem exatamente três posições;
+10. Strategy não modifica permanentemente o tabuleiro;
+11. sementes iguais reproduzem a mesma sequência pseudoaleatória;
+12. o controlador de aplicação não depende de Console.
 
-## 5. Invariantes iniciais
+## 5. Estado de implementação
 
-As invariantes implementadas nesta etapa são:
+| Conceito | Situação em 2026-07-16 |
+|---|---|
+| `Board`, objetos de valor e enumerações | Implementado |
+| `GameRules` e `GameEvaluation` | Implementado |
+| `Player`, `HumanPlayer`, `ComputerPlayer` | Implementado |
+| `Match` | Implementado |
+| Strategy aleatória e gerador injetável | Implementado |
+| Fluxo básico de aplicação | Implementado em `Unreleased` |
+| Estratégia heurística | Planejada |
+| Minimax | Planejada |
+| Console e navegação | Planejados |
+| Persistência JSON/CSV | Planejada |
+| Experimentação automatizada | Planejada |
 
-1. uma posição deve estar dentro do tabuleiro 3 × 3;
-2. uma jogada deve utilizar `X` ou `O`;
-3. a numeração do turno deve ser maior ou igual a um;
-4. objetos de valor equivalentes devem possuir igualdade por valor;
-5. o valor padrão de `Symbol` deve ser `Empty`;
-6. o valor padrão de `GameState` deve ser `NotStarted`;
-7. o valor padrão de `GameResult` deve ser `None`.
+## 6. Testabilidade
 
-## 6. Decisões de modelagem
-
-### 6.1 Coordenadas iniciadas em zero
-
-O domínio utiliza coordenadas de zero a dois, alinhadas à indexação de estruturas em C#. A apresentação poderá converter números de um a nove para coordenadas sem transferir essa convenção ao núcleo.
-
-### 6.2 Imutabilidade dos objetos de valor
-
-`BoardPosition` e `Move` são `readonly record struct`. Essa escolha oferece:
-
-- semântica de valor;
-- imutabilidade;
-- igualdade estrutural;
-- baixo custo para objetos pequenos;
-- ausência de dependência externa.
-
-### 6.3 Separação entre estado e resultado
-
-`GameState` representa o ciclo de vida, enquanto `GameResult` representa o desfecho. Uma partida pode estar `InProgress` com resultado `None`, ou `Finished` com vitória ou empate.
-
-### 6.4 Ausência de classes prematuras
-
-`Board`, `Match`, `Player` e `GameRules` não são implementados nesta etapa. Antecipar essas classes antes dos requisitos específicos poderia produzir APIs especulativas e aumentar o retrabalho.
-
-## 7. Testes básicos
-
-Os testes desta etapa verificam:
-
-- aceitação de coordenadas válidas;
-- rejeição de coordenadas inválidas;
-- igualdade de posições;
-- criação de jogadas válidas;
-- rejeição de símbolo vazio;
-- rejeição de turno zero;
-- igualdade de jogadas;
-- valores padrão das enumerações.
-
-Os testes não verificam regras de vitória, ocupação do tabuleiro ou alternância de turnos, pois essas responsabilidades pertencem aos próximos prompts.
+A suíte cobre objetos de valor, tabuleiro, regras, agregado, Strategy,
+reprodutibilidade e fluxo de aplicação com portas falsas. Os testes podem ser
+executados sem teclado, terminal, áudio ou arquivos.

@@ -9,23 +9,28 @@ a conclusão da nova arquitetura.
 
 ## Linha do tempo
 
-O diagrama apresenta o planejamento geral da evolução entre a preservação
-do sistema legado e a conclusão da refatoração arquitetural.
+O diagrama distingue o histórico original, os marcos efetivamente concluídos
+e as versões futuras, cujas datas ainda não foram definidas.
 
 ```mermaid
 timeline
     title Evolução do Tic-Tac-Toe Console AI
-    v1.0.0 : Preservação do projeto legado
-    v1.1.0 : Estrutura e documentação inicial
-    v1.2.0 : Domínio e regras
-    v1.3.0 : Aplicação e estratégia aleatória
-    v1.4.0 : Estratégia heurística
-    v1.5.0 : Estratégia Minimax
-    v1.6.0 : Interface e estados
-    v1.7.0 : ASCII art, animações e áudio
-    v1.8.0 : Persistência JSON e CSV
-    v1.9.0 : Experimentação e consolidação
-    v2.0.0 : Refatoração completa
+    section Histórico original
+        2020-11-23 : Código legado publicado no repositório
+    section Marcos concluídos
+        2026-07-15 : v1.0.0 — estado legado preservado
+        2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
+        2026-07-16 : v1.2.0 — domínio, regras e agregado Match
+        2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
+        2026-07-16 : Unreleased — fluxo básico de aplicação
+    section Marcos planejados
+        Data a definir : v1.4.0 — estratégia heurística
+        Data a definir : v1.5.0 — estratégia Minimax
+        Data a definir : v1.6.0 — apresentação e estados
+        Data a definir : v1.7.0 — recursos audiovisuais
+        Data a definir : v1.8.0 — persistência e exportação
+        Data a definir : v1.9.0 — experimentação e consolidação
+        Data a definir : v2.0.0 — refatoração completa
 ```
 
 As versões intermediárias poderão ser ajustadas conforme a granularidade
@@ -35,6 +40,7 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- Revisão documental após o Prompt 10, com datas na timeline e atualização do estado do projeto.
 - Camada `Application` com controlador mínimo de partidas.
 - Portas `IGameInput`, `IGameOutput` e `IMoveSelector`.
 - `DefaultMoveSelector` para participantes humanos e computacionais.

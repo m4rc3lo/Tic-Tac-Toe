@@ -490,3 +490,28 @@ A arquitetura deverá ser revista quando ocorrer:
 - introdução de nova dependência externa;
 - divergência entre diagrama e código;
 - dificuldade para executar o modo experimental sem efeitos periféricos.
+
+## 19. Situação arquitetural após o Prompt 10
+
+A implementação disponível em 2026-07-16 materializa `Domain`, `AI` e parte de
+`Application`. As portas `IGameInput`, `IGameOutput` e `IMoveSelector` já foram
+introduzidas, enquanto apresentação, persistência e áudio ainda não possuem
+implementações concretas.
+
+Existe uma divergência arquitetural a corrigir antes da expansão da inteligência
+artificial: `Domain.ComputerPlayer` referencia `AI.IMoveStrategy`, ao mesmo tempo
+em que o módulo `AI` depende de `Domain`. Embora os tipos estejam atualmente no
+mesmo projeto .NET, essa relação constitui um ciclo conceitual `Domain ↔ AI` e
+contraria a regra de que o domínio deve permanecer no centro.
+
+A correção recomendada é retirar a estratégia de `ComputerPlayer` e associar
+participantes computacionais às estratégias na camada `Application`, por meio de
+um seletor ou registro de estratégias. Alternativamente, a fronteira abstrata
+precisaria ser reposicionada em um módulo interno que não dependa de `AI`.
+
+Outro ponto de atenção é a exposição pública de `Match.Board`. Como `Board`
+também expõe `apply_move` e `undo_move`, consumidores externos podem modificar o
+tabuleiro sem atualizar histórico, turno, estado e resultado. Antes de
+persistência ou Minimax, recomenda-se introduzir uma visão somente para leitura
+do tabuleiro e restringir as operações mutáveis ao agregado e às simulações
+controladas.
