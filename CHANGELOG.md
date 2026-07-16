@@ -33,6 +33,14 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- Camada `Application` com controlador mínimo de partidas.
+- Portas `IGameInput`, `IGameOutput` e `IMoveSelector`.
+- `DefaultMoveSelector` para participantes humanos e computacionais.
+- Testes do fluxo completo sem Console ou interação humana.
+- `docs/07-fluxo-aplicacao.md` com componentes e sequência.
+
 ## [1.3.0] - 2026-07-16
 
 ### Added
