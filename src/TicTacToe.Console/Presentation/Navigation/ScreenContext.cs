@@ -1,4 +1,5 @@
 using TicTacToe.Domain;
+using TicTacToe.Presentation;
 
 namespace TicTacToe.Presentation.Navigation;
 
@@ -7,6 +8,22 @@ namespace TicTacToe.Presentation.Navigation;
 /// </summary>
 public sealed class ScreenContext
 {
+    public ScreenContext()
+        : this(new PresentationPreferences())
+    {
+    }
+
+    public ScreenContext(PresentationPreferences presentation_preferences)
+    {
+        ArgumentNullException.ThrowIfNull(presentation_preferences);
+        PresentationPreferences = presentation_preferences;
+    }
+
+    /// <summary>
+    /// Obtém as preferências visuais compartilhadas pelas telas.
+    /// </summary>
+    public PresentationPreferences PresentationPreferences { get; }
+
     /// <summary>
     /// Obtém a configuração selecionada para a próxima partida.
     /// </summary>

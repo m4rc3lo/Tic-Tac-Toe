@@ -3,26 +3,34 @@ using TicTacToe.Domain;
 namespace TicTacToe.Presentation;
 
 /// <summary>
-/// Renderiza um tabuleiro somente para leitura em formato ASCII.
+/// Renderiza um tabuleiro somente para leitura em Unicode ou ASCII.
 /// </summary>
 public sealed class ConsoleBoardRenderer
 {
     private readonly TextWriter writer;
+    private readonly ConsoleTheme theme;
 
-    /// <summary>
-    /// Inicializa o renderizador.
-    /// </summary>
-    /// <param name="writer">Destino textual da renderização.</param>
     public ConsoleBoardRenderer(TextWriter writer)
+        : this(
+            writer,
+            new ConsoleTheme(
+                new PresentationPreferences(
+                    use_unicode: false,
+                    visual_effects: false)))
     {
-        ArgumentNullException.ThrowIfNull(writer);
-        this.writer = writer;
     }
 
-    /// <summary>
-    /// Escreve coordenadas, casas e separadores do tabuleiro.
-    /// </summary>
-    /// <param name="board">Tabuleiro consultado.</param>
+    public ConsoleBoardRenderer(
+        TextWriter writer,
+        ConsoleTheme theme)
+    {
+        ArgumentNullException.ThrowIfNull(writer);
+        ArgumentNullException.ThrowIfNull(theme);
+
+        this.writer = writer;
+        this.theme = theme;
+    }
+
     public void render(IReadOnlyBoard board)
     {
         ArgumentNullException.ThrowIfNull(board);
@@ -42,7 +50,8 @@ public sealed class ConsoleBoardRenderer
 
                 if (column < BoardPosition.BoardSize - 1)
                 {
-                    writer.Write(" | ");
+                    writer.Write(
+                        $" {theme.VerticalSeparator} ");
                 }
             }
 
@@ -50,7 +59,8 @@ public sealed class ConsoleBoardRenderer
 
             if (row < BoardPosition.BoardSize - 1)
             {
-                writer.WriteLine("   ---+---+---");
+                writer.WriteLine(
+                    $"   {theme.HorizontalSeparator}");
             }
         }
     }

@@ -34,6 +34,7 @@ public sealed class MainMenuScreen : IScreen
             writer.WriteLine("3 - Experimentos");
             writer.WriteLine("4 - Configurações");
             writer.WriteLine("5 - Ajuda");
+            writer.WriteLine("6 - Créditos");
             writer.WriteLine("0 - Sair");
             writer.Write("Opção: ");
 
@@ -46,6 +47,7 @@ public sealed class MainMenuScreen : IScreen
                 "3" => ScreenState.ExperimentSetup,
                 "4" => ScreenState.Settings,
                 "5" => ScreenState.Help,
+                "6" => ScreenState.Credits,
                 "0" => ScreenState.Exit,
                 _ => null
             };
