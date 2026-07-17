@@ -1,7 +1,6 @@
-using TicTacToe.AI;
-using TicTacToe.Application;
-using TicTacToe.Domain;
 using TicTacToe.Presentation;
+using TicTacToe.Presentation.Navigation;
+using TicTacToe.Presentation.Screens;
 
 namespace TicTacToe;
 
@@ -11,7 +10,7 @@ namespace TicTacToe;
 public static class Program
 {
     /// <summary>
-    /// Inicia uma partida mínima entre pessoa e agente Minimax.
+    /// Inicia a máquina de estados da apresentação.
     /// </summary>
     /// <param name="args">Argumentos recebidos pela linha de comando.</param>
     public static void Main(string[] args)
@@ -21,30 +20,34 @@ public static class Program
 
         ConsoleBoardRenderer board_renderer = new(writer);
         ConsoleGameInput game_input = new(reader, writer);
-        ConsoleGameOutput game_output = new(writer, board_renderer);
+        ConsoleGameOutput game_output = new(
+            writer,
+            board_renderer);
 
-        IComputerMoveStrategyResolver strategy_resolver =
-            new ConfiguredComputerMoveStrategyResolver(
-                new Dictionary<Symbol, IMoveStrategy>
-                {
-                    [Symbol.O] = new MinimaxMoveStrategy()
-                });
+        IMatchSessionRunner match_session_runner =
+            new ConsoleMatchSessionRunner(
+                game_input,
+                game_output);
 
-        IMoveSelector move_selector = new DefaultMoveSelector(
-            game_input,
-            strategy_resolver);
+        IScreen[] screens =
+        [
+            new SplashScreen(reader, writer),
+            new MainMenuScreen(reader, writer),
+            new MatchSetupScreen(reader, writer),
+            new PlayingScreen(match_session_runner),
+            new MatchResultScreen(reader, writer),
+            new StatisticsScreen(reader, writer),
+            new ExperimentSetupScreen(reader, writer),
+            new SettingsScreen(reader, writer),
+            new HelpScreen(reader, writer),
+            new ExitScreen(writer)
+        ];
 
-        MatchController controller = new(
-            move_selector,
-            game_output);
+        ScreenManager screen_manager = new(screens);
+        ScreenContext context = new();
 
-        Match match = new(
-            new HumanPlayer("Pessoa", Symbol.X),
-            new ComputerPlayer("Minimax", Symbol.O));
-
-        writer.WriteLine("Tic-Tac-Toe Console AI");
-        writer.WriteLine("Pessoa: X | Minimax: O");
-
-        controller.run(match);
+        screen_manager.run(
+            ScreenState.Splash,
+            context);
     }
 }
