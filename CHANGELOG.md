@@ -37,6 +37,16 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- `ConsoleGameInput` como adaptador de `IGameInput` baseado em `TextReader`.
+- `ConsoleGameOutput` como adaptador de `IGameOutput` baseado em `TextWriter`.
+- `ConsoleBoardRenderer` para tabuleiro ASCII com coordenadas.
+- Composição mínima de partida pessoa contra Minimax em `Program.Main`.
+- Testes de parsing e renderização sem dependência do Console físico.
+- `docs/16-apresentacao-console.md` com arquitetura e fluxo dos adaptadores.
+
+
 ## [1.5.0] - 2026-07-17
 
 ### Added
