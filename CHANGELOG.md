@@ -22,9 +22,8 @@ timeline
         2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
         2026-07-16 : v1.2.0 — domínio, regras e agregado Match
         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
-        2026-07-16 : Unreleased — fluxo básico de aplicação
+        2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
     section Marcos planejados
-        Data a definir : v1.4.0 — estratégia heurística
         Data a definir : v1.5.0 — estratégia Minimax
         Data a definir : v1.6.0 — apresentação e estados
         Data a definir : v1.7.0 — recursos audiovisuais
@@ -38,8 +37,14 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-07-16
+
 ### Added
 
+- `HeuristicMoveStrategy` com prioridades de vitória, bloqueio, centro, cantos e laterais.
+- Simulação interna para hipóteses sem modificar o tabuleiro original.
+- Desempates reproduzíveis por `IRandomSource`.
+- Testes isolados de prioridades, validade, reprodutibilidade e preservação do estado.
 - `IReadOnlyBoard` e `BoardView` para exposição segura do tabuleiro de `Match`.
 - `IComputerMoveStrategyResolver` e resolvedor configurável por símbolo.
 - Testes de fronteira do agregado, resolução de Strategy e propagação de falhas.
@@ -56,6 +61,8 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - Dependência `Domain → AI` removida de `ComputerPlayer`.
 - Estratégias passaram a receber `IReadOnlyBoard`.
 - `MatchController` passou a capturar apenas falhas da aplicação de jogadas.
+- `docs/10-inteligencia-artificial.md` ampliado com algoritmo heurístico, pseudocódigo, complexidade e limitações.
+- Versão do projeto e metadados de citação atualizados para `1.4.0`.
 
 ## [1.3.0] - 2026-07-16
 

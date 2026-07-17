@@ -2,23 +2,26 @@
 
 ## 1. Finalidade
 
-Este documento descreve a infraestrutura inicial de inteligência artificial do **Tic-Tac-Toe Console AI**, introduzida na versão `1.3.0`.
+Este documento descreve a infraestrutura de inteligência artificial do **Tic-Tac-Toe Console AI** até a versão `1.4.0`.
 
-A primeira estratégia implementada seleciona jogadas aleatórias válidas. A arquitetura foi organizada para permitir a inclusão posterior das estratégias heurística e Minimax sem modificar o agregado `Match` nem as regras do jogo.
+O módulo contém uma estratégia aleatória, utilizada como linha de base, e uma estratégia heurística baseada em prioridades táticas e posicionais. Ambas implementam `IMoveStrategy`, recebem `IReadOnlyBoard` e não modificam o estado pertencente ao agregado `Match`.
 
-## 2. Padrão Strategy
+## 2. Fronteiras arquiteturais
 
-O padrão Strategy encapsula algoritmos intercambiáveis atrás de um contrato comum. Neste projeto, `IMoveStrategy` define a operação de seleção de uma posição.
+O padrão Strategy permite trocar o algoritmo de decisão sem alterar o domínio ou o fluxo da partida. Depois da revisão arquitetural posterior ao Prompt 10, `ComputerPlayer` não armazena uma Strategy. A associação entre participante computacional e algoritmo é resolvida na camada `Application`.
 
-O diagrama apresenta a relação entre o participante computacional, o contrato de estratégia e a implementação aleatória.
+O diagrama apresenta as relações atuais entre aplicação, estratégias e domínio.
 
 ```mermaid
 classDiagram
     class ComputerPlayer {
         +string Name
         +Symbol Symbol
-        +IMoveStrategy Strategy
-        +choose_move(board) BoardPosition
+    }
+
+    class IComputerMoveStrategyResolver {
+        <<interface>>
+        +resolve_strategy(player) IMoveStrategy
     }
 
     class IMoveStrategy {
@@ -26,107 +29,208 @@ classDiagram
         +choose_move(board, symbol) BoardPosition
     }
 
-    class RandomMoveStrategy {
-        -IRandomSource random_source
-        +choose_move(board, symbol) BoardPosition
-    }
+    class RandomMoveStrategy
+    class HeuristicMoveStrategy
 
-    class IRandomSource {
+    class IReadOnlyBoard {
         <<interface>>
-        +next(max_exclusive) int
+        +int OccupiedCount
+        +bool IsFull
+        +get_symbol(position) Symbol
+        +get_available_positions() IReadOnlyList
+        +is_position_available(position) bool
     }
 
-    class SystemRandomSource {
-        -Random random
-        +next(max_exclusive) int
-    }
-
-    ComputerPlayer --> IMoveStrategy
+    IComputerMoveStrategyResolver --> ComputerPlayer
+    IComputerMoveStrategyResolver --> IMoveStrategy
     IMoveStrategy <|.. RandomMoveStrategy
-    RandomMoveStrategy --> IRandomSource
-    IRandomSource <|.. SystemRandomSource
+    IMoveStrategy <|.. HeuristicMoveStrategy
+    RandomMoveStrategy --> IReadOnlyBoard
+    HeuristicMoveStrategy --> IReadOnlyBoard
 ```
 
-`ComputerPlayer` funciona como contexto do padrão: ele não conhece o algoritmo utilizado, apenas delega a escolha. `RandomMoveStrategy` conhece o tabuleiro somente para consultar casas disponíveis e não aplica jogadas.
+A direção das dependências permanece `Application → AI → Domain`. O módulo `Domain` não conhece estratégias, e o tabuleiro exposto por `Match` é somente para leitura.
 
 ## 3. Contrato de estratégia
 
-A interface recebe:
+A interface recebe o estado consultável do tabuleiro e o símbolo controlado:
 
-- o tabuleiro atual;
-- o símbolo controlado pelo agente.
+```csharp
+public interface IMoveStrategy
+{
+    BoardPosition choose_move(
+        IReadOnlyBoard board,
+        Symbol symbol);
+}
+```
 
-Ela retorna uma `BoardPosition`. O contrato não retorna `Move`, pois a numeração de turno e a aplicação pertencem ao agregado `Match`.
-
-Essa separação impede que uma estratégia:
-
-- altere diretamente o histórico;
-- escolha um número de turno;
-- encerre a partida;
-- alterne participantes;
-- persista resultados.
+Ela retorna apenas uma `BoardPosition`. A criação de `Move`, a numeração do turno, a aplicação no tabuleiro, a alternância e o encerramento continuam sob responsabilidade de `Match`.
 
 ## 4. Aleatoriedade injetável
 
-A estratégia não utiliza `Random` diretamente. Ela depende de `IRandomSource`, o que permite:
+As estratégias que precisam desempatar alternativas dependem de `IRandomSource`, em vez de utilizar `Random` diretamente. Essa decisão permite:
 
-- controlar sementes;
-- reproduzir experimentos;
-- injetar valores conhecidos em testes;
-- detectar geradores que violem o intervalo esperado;
-- substituir o mecanismo pseudoaleatório sem alterar a estratégia.
+- sementes controláveis;
+- reprodução de experimentos;
+- testes determinísticos;
+- injeção de índices conhecidos;
+- substituição do gerador sem alterar o algoritmo.
 
-O fluxo de uma decisão aleatória é apresentado a seguir.
+As estratégias aleatória e heurística oferecem construção sem parâmetros, com semente e com fonte injetada:
+
+```csharp
+new RandomMoveStrategy();
+new RandomMoveStrategy(2026);
+new RandomMoveStrategy(random_source);
+
+new HeuristicMoveStrategy();
+new HeuristicMoveStrategy(2026);
+new HeuristicMoveStrategy(random_source);
+```
+
+O construtor sem parâmetros é adequado ao uso interativo. Em testes e experimentos, deve-se registrar a semente ou injetar a fonte explicitamente.
+
+## 5. Estratégia aleatória
+
+`RandomMoveStrategy` consulta as casas disponíveis e seleciona uma delas pelo índice fornecido por `IRandomSource`.
+
+O fluxo da estratégia aleatória é apresentado a seguir.
 
 ```mermaid
 sequenceDiagram
-    participant Player as ComputerPlayer
+    participant Application
     participant Strategy as RandomMoveStrategy
-    participant Board
+    participant Board as IReadOnlyBoard
     participant Random as IRandomSource
 
-    Player->>Strategy: choose_move(board, symbol)
+    Application->>Strategy: choose_move(board, symbol)
     Strategy->>Board: get_available_positions()
     Board-->>Strategy: posições livres
     Strategy->>Random: next(quantidade)
     Random-->>Strategy: índice
-    Strategy-->>Player: posição selecionada
+    Strategy-->>Application: posição selecionada
 ```
 
-A estratégia seleciona um índice dentro da lista ordenada de casas livres. Com o mesmo estado de tabuleiro e a mesma sequência pseudoaleatória, o resultado é reproduzível.
+A estratégia não considera vitória, bloqueio ou qualidade posicional. Por isso, ela funciona como linha de base experimental.
 
-## 5. Sementes
+## 6. Estratégia heurística
 
-Há três formas de construção:
+`HeuristicMoveStrategy` avalia as categorias na seguinte ordem:
 
-```csharp
-new RandomMoveStrategy();
-new RandomMoveStrategy(seed);
-new RandomMoveStrategy(random_source);
+1. vitória imediata;
+2. bloqueio de vitória imediata do adversário;
+3. centro;
+4. cantos;
+5. laterais.
+
+Quando uma categoria possui mais de uma alternativa equivalente, a escolha usa `IRandomSource`. Não há desempate aleatório entre categorias diferentes: a prioridade superior sempre prevalece.
+
+### 6.1 Pseudocódigo
+
+O pseudocódigo resume a decisão sem detalhes de implementação.
+
+```text
+função escolher_jogada(tabuleiro, símbolo):
+    livres ← obter_casas_livres(tabuleiro)
+    simulação ← copiar_tabuleiro(tabuleiro)
+
+    vitórias ← casas que vencem para símbolo
+    se vitórias não estiver vazia:
+        retornar desempatar(vitórias)
+
+    adversário ← símbolo oposto
+    bloqueios ← casas que vencem para adversário
+    se bloqueios não estiver vazia:
+        retornar desempatar(bloqueios)
+
+    se centro estiver livre:
+        retornar centro
+
+    cantos ← cantos livres
+    se cantos não estiver vazio:
+        retornar desempatar(cantos)
+
+    laterais ← laterais livres
+    retornar desempatar(laterais)
 ```
 
-O construtor sem parâmetros é adequado ao uso interativo. O construtor com semente deve ser utilizado em testes e experimentos. A injeção direta de `IRandomSource` permite testes determinísticos de casos específicos.
+A busca por vitória e bloqueio simula cada casa livre em uma cópia interna. Depois de cada hipótese, a célula simulada volta a `Empty`. Nenhuma operação mutável é chamada no `IReadOnlyBoard` original.
 
-## 6. Invariantes
+### 6.2 Diagrama de decisão
 
-A implementação preserva as seguintes invariantes:
+O diagrama mostra a precedência estrita das categorias avaliadas.
+
+```mermaid
+flowchart TD
+    A[Receber IReadOnlyBoard e símbolo] --> B{Há casas livres?}
+    B -- Não --> X[Rejeitar seleção]
+    B -- Sim --> C[Copiar símbolos para simulação interna]
+    C --> D{Há vitória imediata?}
+    D -- Sim --> E[Desempatar vitórias]
+    D -- Não --> F{Adversário pode vencer?}
+    F -- Sim --> G[Desempatar bloqueios]
+    F -- Não --> H{Centro livre?}
+    H -- Sim --> I[Escolher centro]
+    H -- Não --> J{Há canto livre?}
+    J -- Sim --> K[Desempatar cantos]
+    J -- Não --> L[Desempatar laterais]
+    E --> M[Retornar posição]
+    G --> M
+    I --> M
+    K --> M
+    L --> M
+```
+
+A decisão é determinística quando existe uma única alternativa na categoria de maior prioridade. O gerador é consultado somente quando há duas ou mais alternativas equivalentes.
+
+## 7. Representação de simulação
+
+A estratégia heurística contém uma representação interna de nove células. O construtor dessa representação copia cada símbolo por meio de `IReadOnlyBoard.get_symbol`.
+
+A simulação permite:
+
+- inserir temporariamente `X` ou `O`;
+- verificar as oito sequências vencedoras;
+- desfazer a hipótese somente na cópia;
+- preservar integralmente o tabuleiro original.
+
+Essa representação é privada à estratégia. Ela não amplia a superfície pública de mutação e não permite contornar o agregado `Match`.
+
+## 8. Complexidade
+
+Para um tabuleiro de tamanho fixo `3 × 3`, o custo prático é constante. Em termos do número `n` de casas livres:
+
+- cópia do tabuleiro: `O(9)`;
+- avaliação de vitórias do agente: até `n` hipóteses;
+- avaliação de bloqueios: até `n` hipóteses;
+- cada hipótese verifica oito linhas de três posições;
+- filtragem de cantos e laterais: custo constante.
+
+De forma generalizada para este algoritmo, o tempo é `O(n)` porque o número e o tamanho das sequências vencedoras são fixos. O espaço adicional é `O(1)` para o tabuleiro `3 × 3`.
+
+## 9. Invariantes
+
+As estratégias preservam as seguintes invariantes:
 
 1. o tabuleiro não pode ser nulo;
 2. o símbolo não pode ser `Empty`;
 3. deve existir pelo menos uma casa livre;
 4. a posição retornada deve estar disponível;
-5. a estratégia não modifica o tabuleiro;
-6. o índice produzido pelo gerador deve pertencer ao intervalo solicitado;
-7. `ComputerPlayer` deve possuir uma estratégia não nula.
+5. o tabuleiro recebido não é modificado;
+6. o índice pseudoaleatório deve pertencer ao intervalo solicitado;
+7. sementes iguais reproduzem os mesmos desempates para estados equivalentes;
+8. vitória imediata precede bloqueio;
+9. bloqueio precede preferências posicionais;
+10. centro precede cantos, e cantos precedem laterais.
 
-## 7. Limitações
+## 10. Limitações
 
-A estratégia aleatória:
+A estratégia heurística não realiza busca em profundidade. Consequentemente, ela:
 
-- não procura vitórias imediatas;
-- não bloqueia o adversário;
-- não avalia estados futuros;
-- não garante desempenho competitivo;
-- serve como linha de base experimental.
+- não prevê armadilhas com duas ameaças simultâneas;
+- não procura criar bifurcações deliberadamente;
+- não garante jogo perfeito;
+- não atribui pontuações graduais a estados futuros;
+- pode perder contra sequências que exigem planejamento além de um turno.
 
-Essas limitações justificam as próximas implementações heurística e Minimax.
+Essas limitações justificam a implementação posterior de `MinimaxMoveStrategy`, que deverá usar um estado de busca independente e preservar o `IReadOnlyBoard` original.
