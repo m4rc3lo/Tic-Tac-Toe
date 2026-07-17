@@ -8,7 +8,7 @@ namespace TicTacToe.Domain;
 /// apresentação, inteligência artificial e persistência não fazem parte de sua
 /// responsabilidade.
 /// </remarks>
-public sealed class Board
+public sealed class Board : IReadOnlyBoard
 {
     private readonly Symbol[,] cells;
     private int occupied_count;

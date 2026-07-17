@@ -51,7 +51,7 @@ public sealed class RandomMoveStrategy : IMoveStrategy
     /// <exception cref="InvalidOperationException">
     /// Lançada quando o tabuleiro não possui casas livres.
     /// </exception>
-    public BoardPosition choose_move(Board board, Symbol symbol)
+    public BoardPosition choose_move(IReadOnlyBoard board, Symbol symbol)
     {
         ArgumentNullException.ThrowIfNull(board);
 

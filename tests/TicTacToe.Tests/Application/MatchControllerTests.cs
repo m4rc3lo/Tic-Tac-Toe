@@ -75,17 +75,17 @@ public class MatchControllerTests
     [Fact]
     public void run_should_not_require_human_interaction()
     {
-        ComputerPlayer first_player = new(
-            "CPU X",
-            Symbol.X,
-            new FirstAvailableStrategy());
-        ComputerPlayer second_player = new(
-            "CPU O",
-            Symbol.O,
-            new FirstAvailableStrategy());
+        ComputerPlayer first_player = new("CPU X", Symbol.X);
+        ComputerPlayer second_player = new("CPU O", Symbol.O);
         Match match = new(first_player, second_player);
-        DefaultMoveSelector selector =
-            new(new FailingInput());
+        DefaultMoveSelector selector = new(
+            new FailingInput(),
+            new ConfiguredComputerMoveStrategyResolver(
+                new Dictionary<Symbol, IMoveStrategy>
+                {
+                    [Symbol.X] = new FirstAvailableStrategy(),
+                    [Symbol.O] = new FirstAvailableStrategy()
+                }));
         RecordingOutput output = new();
         MatchController controller = new(selector, output);
 
@@ -95,6 +95,27 @@ public class MatchControllerTests
         Assert.NotEqual(GameResult.None, match.Result);
         Assert.InRange(match.Moves.Count, 5, 9);
         Assert.Single(output.Results);
+    }
+
+    /// <summary>
+    /// Confirma que falhas da saída não são tratadas como jogadas inválidas.
+    /// </summary>
+    [Fact]
+    public void run_should_propagate_output_failure()
+    {
+        Match match = create_match();
+        QueueMoveSelector selector = new(
+            [new BoardPosition(0, 0)]);
+        MatchController controller = new(
+            selector,
+            new FailingOutput());
+
+        InvalidOperationException exception =
+            Assert.Throws<InvalidOperationException>(
+                () => controller.run(match));
+
+        Assert.Equal("Falha de apresentação.", exception.Message);
+        Assert.Single(match.Moves);
     }
 
     /// <summary>
@@ -116,10 +137,7 @@ public class MatchControllerTests
     {
         return new Match(
             new HumanPlayer("Ana", Symbol.X),
-            new ComputerPlayer(
-                "CPU",
-                Symbol.O,
-                new RandomMoveStrategy(1)));
+            new ComputerPlayer("CPU", Symbol.O));
     }
 
     private static Match create_finished_match()
@@ -189,10 +207,39 @@ public class MatchControllerTests
     private sealed class FirstAvailableStrategy : IMoveStrategy
     {
         public BoardPosition choose_move(
-            Board board,
+            IReadOnlyBoard board,
             Symbol symbol)
         {
             return board.get_available_positions()[0];
+        }
+    }
+
+    private sealed class FailingOutput : IGameOutput
+    {
+        private int show_count;
+
+        public void show_match(Match match)
+        {
+            show_count++;
+
+            if (show_count > 1)
+            {
+                throw new InvalidOperationException(
+                    "Falha de apresentação.");
+            }
+        }
+
+        public void show_invalid_move(
+            Player player,
+            BoardPosition position,
+            string message)
+        {
+            throw new InvalidOperationException(
+                "Uma falha de saída não deve virar jogada inválida.");
+        }
+
+        public void show_result(Match match)
+        {
         }
     }
 

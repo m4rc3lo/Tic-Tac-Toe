@@ -10,6 +10,7 @@ namespace TicTacToe.Domain;
 /// </remarks>
 public sealed class Match
 {
+    private readonly Board board;
     private readonly List<Move> moves = [];
     private IReadOnlyList<BoardPosition> winning_positions =
         Array.Empty<BoardPosition>();
@@ -40,7 +41,8 @@ public sealed class Match
         FirstPlayer = first_player;
         SecondPlayer = second_player;
         CurrentPlayer = first_player;
-        Board = new Board();
+        board = new Board();
+        Board = new BoardView(board);
         State = GameState.InProgress;
         Result = GameResult.None;
     }
@@ -48,7 +50,7 @@ public sealed class Match
     /// <summary>
     /// Obtém o tabuleiro da partida.
     /// </summary>
-    public Board Board { get; }
+    public IReadOnlyBoard Board { get; }
 
     /// <summary>
     /// Obtém o participante que inicia a partida.
@@ -110,10 +112,10 @@ public sealed class Match
             CurrentPlayer.Symbol,
             moves.Count + 1);
 
-        Board.apply_move(move);
+        board.apply_move(move);
         moves.Add(move);
 
-        GameEvaluation evaluation = GameRules.evaluate(Board);
+        GameEvaluation evaluation = GameRules.evaluate(board);
         Result = evaluation.Result;
         winning_positions = evaluation.WinningPositions;
 

@@ -1,4 +1,3 @@
-using TicTacToe.AI;
 using TicTacToe.Domain;
 using Xunit;
 
@@ -34,10 +33,7 @@ public class MatchTests
     public void constructor_should_reject_equal_symbols()
     {
         HumanPlayer first_player = new("Ana", Symbol.X);
-        ComputerPlayer second_player = new(
-            "CPU",
-            Symbol.X,
-            new RandomMoveStrategy(1));
+        ComputerPlayer second_player = new("CPU", Symbol.X);
 
         Assert.Throws<ArgumentException>(
             () => new Match(first_player, second_player));
@@ -252,9 +248,6 @@ public class MatchTests
     {
         return (
             new HumanPlayer("Ana", Symbol.X),
-            new ComputerPlayer(
-                "CPU",
-                Symbol.O,
-                new RandomMoveStrategy(1)));
+            new ComputerPlayer("CPU", Symbol.O));
     }
 }

@@ -491,27 +491,20 @@ A arquitetura deverá ser revista quando ocorrer:
 - divergência entre diagrama e código;
 - dificuldade para executar o modo experimental sem efeitos periféricos.
 
-## 19. Situação arquitetural após o Prompt 10
+## 19. Correções arquiteturais após o Prompt 10
 
-A implementação disponível em 2026-07-16 materializa `Domain`, `AI` e parte de
-`Application`. As portas `IGameInput`, `IGameOutput` e `IMoveSelector` já foram
-introduzidas, enquanto apresentação, persistência e áudio ainda não possuem
-implementações concretas.
+Em 2026-07-16, a etapa corretiva removeu a dependência de `Domain` para `AI`.
+`ComputerPlayer` voltou a representar somente um participante computacional, e
+a associação de estratégias passou para `Application` por meio de
+`IComputerMoveStrategyResolver`.
 
-Existe uma divergência arquitetural a corrigir antes da expansão da inteligência
-artificial: `Domain.ComputerPlayer` referencia `AI.IMoveStrategy`, ao mesmo tempo
-em que o módulo `AI` depende de `Domain`. Embora os tipos estejam atualmente no
-mesmo projeto .NET, essa relação constitui um ciclo conceitual `Domain ↔ AI` e
-contraria a regra de que o domínio deve permanecer no centro.
+O agregado `Match` mantém seu `Board` mutável como detalhe privado e expõe uma
+instância de `IReadOnlyBoard` implementada por `BoardView`. Dessa forma,
+consumidores não podem aplicar ou desfazer jogadas sem passar pelo agregado.
 
-A correção recomendada é retirar a estratégia de `ComputerPlayer` e associar
-participantes computacionais às estratégias na camada `Application`, por meio de
-um seletor ou registro de estratégias. Alternativamente, a fronteira abstrata
-precisaria ser reposicionada em um módulo interno que não dependa de `AI`.
+`MatchController` também restringe o tratamento de `InvalidOperationException`
+à aplicação da jogada. Falhas de entrada, seleção ou saída não são convertidas
+em mensagens de posição inválida.
 
-Outro ponto de atenção é a exposição pública de `Match.Board`. Como `Board`
-também expõe `apply_move` e `undo_move`, consumidores externos podem modificar o
-tabuleiro sem atualizar histórico, turno, estado e resultado. Antes de
-persistência ou Minimax, recomenda-se introduzir uma visão somente para leitura
-do tabuleiro e restringir as operações mutáveis ao agregado e às simulações
-controladas.
+Os detalhes e diagramas desta correção estão registrados em
+`docs/09-correcao-fronteiras-arquiteturais.md`.
