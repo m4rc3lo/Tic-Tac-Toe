@@ -171,22 +171,25 @@ O projeto utiliza versionamento semântico:
 
 A versão `v1.0.0` preserva o legado. A série `1.x` registra a refatoração incremental. A versão `v2.0.0` indicará a consolidação da nova arquitetura.
 
-O diagrama apresenta os marcos planejados. Versões intermediárias podem ser ajustadas, mas os extremos são fixos.
+O diagrama registra datas apenas para marcos concluídos. As versões futuras permanecem com data a definir, evitando transformar estimativas em compromissos artificiais.
 
 ```mermaid
 timeline
-    title Evolução planejada do Tic-Tac-Toe Console AI
-    v1.0.0 : Estado legado preservado
-    v1.1.0 : Estrutura .NET 9 e governança
-    v1.2.0 : Domínio e regras
-    v1.3.0 : Aplicação e estratégia aleatória
-    v1.4.0 : Estratégia heurística
-    v1.5.0 : Estratégia Minimax
-    v1.6.0 : Apresentação e estados
-    v1.7.0 : Recursos audiovisuais
-    v1.8.0 : Persistência e exportação
-    v1.9.0 : Experimentação e consolidação
-    v2.0.0 : Refatoração completa
+    title Marcos concluídos e planejados
+    section Concluído
+        2026-07-15 : v1.0.0 — preservação do legado
+        2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
+        2026-07-16 : v1.2.0 — domínio e regras
+        2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
+        2026-07-16 : Unreleased — fluxo básico de aplicação
+    section Planejado
+        Data a definir : v1.4.0 — estratégia heurística
+        Data a definir : v1.5.0 — estratégia Minimax
+        Data a definir : v1.6.0 — apresentação e estados
+        Data a definir : v1.7.0 — recursos audiovisuais
+        Data a definir : v1.8.0 — persistência e exportação
+        Data a definir : v1.9.0 — experimentação e consolidação
+        Data a definir : v2.0.0 — refatoração completa
 ```
 
 O `CHANGELOG.md`, o `CITATION.cff`, a versão da aplicação e as tags Git deverão permanecer coerentes entre si.
