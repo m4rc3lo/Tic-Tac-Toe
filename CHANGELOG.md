@@ -24,8 +24,8 @@ timeline
         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
         2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
         2026-07-17 : v1.5.0 — estratégia Minimax
+        2026-07-17 : v1.6.0 — apresentação e estados
     section Marcos planejados
-        Data a definir : v1.6.0 — apresentação e estados
         Data a definir : v1.7.0 — recursos audiovisuais
         Data a definir : v1.8.0 — persistência e exportação
         Data a definir : v1.9.0 — experimentação e consolidação
@@ -37,8 +37,16 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-07-17
+
 ### Added
 
+- `ScreenManager` com máquina de estados centralizada e limite de transições.
+- Contratos `IScreen`, `ScreenTransition`, `ScreenContext` e `IMatchSessionRunner`.
+- Estados Splash, menu, configuração, partida, resultado, estatísticas, experimentos, configurações, ajuda e saída.
+- Configuração de nome e Strategy antes da partida.
+- Testes de transição, retorno ao menu, saída, configuração e proteção contra ciclos.
+- `docs/17-screen-manager.md` com diagramas de estados e sequência.
 - `ConsoleGameInput` como adaptador de `IGameInput` baseado em `TextReader`.
 - `ConsoleGameOutput` como adaptador de `IGameOutput` baseado em `TextWriter`.
 - `ConsoleBoardRenderer` para tabuleiro ASCII com coordenadas.
@@ -46,6 +54,10 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - Testes de parsing e renderização sem dependência do Console físico.
 - `docs/16-apresentacao-console.md` com arquitetura e fluxo dos adaptadores.
 
+### Changed
+
+- `Program.Main` passou a compor e iniciar a máquina de estados.
+- Versão do projeto e metadados de citação atualizados para `1.6.0`.
 
 ## [1.5.0] - 2026-07-17
 
