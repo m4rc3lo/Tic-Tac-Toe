@@ -40,12 +40,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- `IReadOnlyBoard` e `BoardView` para exposição segura do tabuleiro de `Match`.
+- `IComputerMoveStrategyResolver` e resolvedor configurável por símbolo.
+- Testes de fronteira do agregado, resolução de Strategy e propagação de falhas.
+- `docs/09-correcao-fronteiras-arquiteturais.md` com decisões e diagramas.
 - Revisão documental após o Prompt 10, com datas na timeline e atualização do estado do projeto.
 - Camada `Application` com controlador mínimo de partidas.
 - Portas `IGameInput`, `IGameOutput` e `IMoveSelector`.
 - `DefaultMoveSelector` para participantes humanos e computacionais.
 - Testes do fluxo completo sem Console ou interação humana.
 - `docs/07-fluxo-aplicacao.md` com componentes e sequência.
+
+### Changed
+
+- Dependência `Domain → AI` removida de `ComputerPlayer`.
+- Estratégias passaram a receber `IReadOnlyBoard`.
+- `MatchController` passou a capturar apenas falhas da aplicação de jogadas.
 
 ## [1.3.0] - 2026-07-16
 

@@ -18,5 +18,5 @@ public interface IMoveStrategy
     /// <param name="board">Tabuleiro consultado.</param>
     /// <param name="symbol">Símbolo controlado pelo agente.</param>
     /// <returns>Posição escolhida entre as casas disponíveis.</returns>
-    BoardPosition choose_move(Board board, Symbol symbol);
+    BoardPosition choose_move(IReadOnlyBoard board, Symbol symbol);
 }

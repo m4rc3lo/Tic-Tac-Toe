@@ -64,7 +64,6 @@ public sealed class MatchController
             try
             {
                 match.apply_move(position);
-                game_output.show_match(match);
             }
             catch (InvalidOperationException exception)
             {
@@ -72,7 +71,11 @@ public sealed class MatchController
                     current_player,
                     position,
                     exception.Message);
+
+                continue;
             }
+
+            game_output.show_match(match);
         }
 
         game_output.show_result(match);

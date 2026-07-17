@@ -27,7 +27,7 @@ public static class GameRules
     /// <exception cref="ArgumentNullException">
     /// Lançada quando o tabuleiro informado é nulo.
     /// </exception>
-    public static GameEvaluation evaluate(Board board)
+    public static GameEvaluation evaluate(IReadOnlyBoard board)
     {
         ArgumentNullException.ThrowIfNull(board);
 
