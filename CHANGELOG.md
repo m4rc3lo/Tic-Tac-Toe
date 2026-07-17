@@ -23,8 +23,8 @@ timeline
         2026-07-16 : v1.2.0 — domínio, regras e agregado Match
         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
         2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
+        2026-07-17 : v1.5.0 — estratégia Minimax
     section Marcos planejados
-        Data a definir : v1.5.0 — estratégia Minimax
         Data a definir : v1.6.0 — apresentação e estados
         Data a definir : v1.7.0 — recursos audiovisuais
         Data a definir : v1.8.0 — persistência e exportação
@@ -36,6 +36,23 @@ As versões intermediárias poderão ser ajustadas conforme a granularidade
 real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
+
+## [1.5.0] - 2026-07-17
+
+### Added
+
+- `SearchBoard` como representação interna e independente para estados de busca.
+- `MinimaxMoveStrategy` com alternância entre maximização e minimização.
+- `MinimaxAnalysis` com posição, pontuação, profundidade e estados visitados.
+- Avaliação terminal que favorece vitórias rápidas e posterga derrotas.
+- Desempate determinístico pela ordem de linha e coluna.
+- Testes de vitória, bloqueio, jogo perfeito, isolamento e métricas.
+- Documentação da árvore de busca, complexidade, limitações e otimizações.
+
+### Changed
+
+- `docs/10-inteligencia-artificial.md` ampliado com o algoritmo Minimax.
+- Versão do projeto e metadados de citação atualizados para `1.5.0`.
 
 ## [1.4.0] - 2026-07-16
 

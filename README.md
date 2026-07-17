@@ -10,6 +10,7 @@ em C# para .NET 9.
 - `v1.2.0` — 2026-07-16: domínio, regras e agregado de partida;
 - `v1.3.0` — 2026-07-16: padrão Strategy e estratégia aleatória;
 - `v1.4.0` — 2026-07-16: fluxo básico de aplicação, correções arquiteturais e estratégia heurística;
+- `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
 - `Unreleased`: próxima etapa de desenvolvimento;
 - `v2.0.0` — data a definir: consolidação final da refatoração.
 
