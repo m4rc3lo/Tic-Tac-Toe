@@ -68,6 +68,7 @@ A máquina contém os estados solicitados:
 - `ExperimentSetup`;
 - `Settings`;
 - `Help`;
+- `Credits`;
 - `Exit`.
 
 O diagrama registra as transições implementadas.
@@ -82,6 +83,7 @@ stateDiagram-v2
     MainMenu --> ExperimentSetup : experimentos
     MainMenu --> Settings : configurações
     MainMenu --> Help : ajuda
+    MainMenu --> Credits : créditos
     MainMenu --> Exit : sair
 
     MatchSetup --> Playing : configuração válida
@@ -94,6 +96,7 @@ stateDiagram-v2
     ExperimentSetup --> MainMenu
     Settings --> MainMenu
     Help --> MainMenu
+    Credits --> MainMenu
 
     Exit --> [*]
 ```

@@ -37,6 +37,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- `AsciiArtCatalog` com logotipo e artes de vitória, derrota e empate.
+- `ConsoleTheme` e `PresentationPreferences` para capacidades visuais configuráveis.
+- Renderização Unicode e fallback ASCII do tabuleiro.
+- `CreditsScreen` com metadados derivados de `CITATION.cff`.
+- Testes exatos dos modos Unicode e ASCII.
+- `docs/18-temas-e-creditos.md` com limitações e fallback.
+
+### Changed
+
+- Menu principal ampliado com a opção Créditos.
+- Tela de configurações passou a alternar Unicode, ANSI, limpeza e efeitos.
+- Splash e resultados passaram a respeitar o tema visual.
+
+
 ## [1.6.0] - 2026-07-17
 
 ### Added

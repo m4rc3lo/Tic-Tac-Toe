@@ -3,7 +3,7 @@ using TicTacToe.Presentation.Navigation;
 namespace TicTacToe.Presentation.Screens;
 
 /// <summary>
-/// Apresenta a área reservada para configurações.
+/// Permite ativar ou desativar preferências visuais da apresentação.
 /// </summary>
 public sealed class SettingsScreen : IScreen
 {
@@ -25,11 +25,54 @@ public sealed class SettingsScreen : IScreen
 
     public ScreenTransition show(ScreenContext context)
     {
-        writer.WriteLine();
-        writer.WriteLine("Configurações persistentes ainda não disponíveis.");
-        writer.WriteLine("Pressione Enter para voltar ao menu.");
-        reader.ReadLine();
+        PresentationPreferences preferences =
+            context.PresentationPreferences;
 
-        return new ScreenTransition(ScreenState.MainMenu);
+        while (true)
+        {
+            writer.WriteLine();
+            writer.WriteLine("Configurações visuais");
+            writer.WriteLine(
+                $"1 - Unicode: {format(preferences.UseUnicode)}");
+            writer.WriteLine(
+                $"2 - Cores ANSI: {format(preferences.UseAnsiColors)}");
+            writer.WriteLine(
+                $"3 - Limpeza de tela: {format(preferences.ClearScreen)}");
+            writer.WriteLine(
+                $"4 - Efeitos visuais: {format(preferences.VisualEffects)}");
+            writer.WriteLine("0 - Voltar");
+            writer.Write("Opção: ");
+
+            switch (reader.ReadLine()?.Trim())
+            {
+                case "1":
+                    preferences.UseUnicode = !preferences.UseUnicode;
+                    break;
+
+                case "2":
+                    preferences.UseAnsiColors = !preferences.UseAnsiColors;
+                    break;
+
+                case "3":
+                    preferences.ClearScreen = !preferences.ClearScreen;
+                    break;
+
+                case "4":
+                    preferences.VisualEffects = !preferences.VisualEffects;
+                    break;
+
+                case "0":
+                    return new ScreenTransition(ScreenState.MainMenu);
+
+                default:
+                    writer.WriteLine("Opção inválida.");
+                    break;
+            }
+        }
+    }
+
+    private static string format(bool value)
+    {
+        return value ? "ativado" : "desativado";
     }
 }

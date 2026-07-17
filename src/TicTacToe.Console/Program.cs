@@ -9,29 +9,43 @@ namespace TicTacToe;
 /// </summary>
 public static class Program
 {
-    /// <summary>
-    /// Inicia a máquina de estados da apresentação.
-    /// </summary>
-    /// <param name="args">Argumentos recebidos pela linha de comando.</param>
     public static void Main(string[] args)
     {
         TextReader reader = global::System.Console.In;
         TextWriter writer = global::System.Console.Out;
 
-        ConsoleBoardRenderer board_renderer = new(writer);
+        PresentationPreferences preferences = new();
+        ConsoleTheme theme = new(preferences);
+        AsciiArtCatalog art_catalog = new();
+
+        ConsoleBoardRenderer board_renderer = new(
+            writer,
+            theme);
         ConsoleGameInput game_input = new(reader, writer);
         ConsoleGameOutput game_output = new(
             writer,
-            board_renderer);
+            board_renderer,
+            theme,
+            art_catalog);
 
         IMatchSessionRunner match_session_runner =
             new ConsoleMatchSessionRunner(
                 game_input,
                 game_output);
 
+        CitationMetadata citation_metadata =
+            new CitationMetadataLoader().load(
+                Path.Combine(
+                    AppContext.BaseDirectory,
+                    "CITATION.cff"));
+
         IScreen[] screens =
         [
-            new SplashScreen(reader, writer),
+            new SplashScreen(
+                reader,
+                writer,
+                theme,
+                art_catalog),
             new MainMenuScreen(reader, writer),
             new MatchSetupScreen(reader, writer),
             new PlayingScreen(match_session_runner),
@@ -40,11 +54,15 @@ public static class Program
             new ExperimentSetupScreen(reader, writer),
             new SettingsScreen(reader, writer),
             new HelpScreen(reader, writer),
+            new CreditsScreen(
+                reader,
+                writer,
+                citation_metadata),
             new ExitScreen(writer)
         ];
 
         ScreenManager screen_manager = new(screens);
-        ScreenContext context = new();
+        ScreenContext context = new(preferences);
 
         screen_manager.run(
             ScreenState.Splash,

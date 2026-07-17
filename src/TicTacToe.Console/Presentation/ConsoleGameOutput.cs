@@ -10,24 +10,37 @@ public sealed class ConsoleGameOutput : IGameOutput
 {
     private readonly TextWriter writer;
     private readonly ConsoleBoardRenderer board_renderer;
+    private readonly ConsoleTheme theme;
+    private readonly AsciiArtCatalog art_catalog;
 
-    /// <summary>
-    /// Inicializa a saída textual.
-    /// </summary>
-    /// <param name="writer">Destino das mensagens.</param>
-    /// <param name="board_renderer">Renderizador de tabuleiro.</param>
     public ConsoleGameOutput(
         TextWriter writer,
         ConsoleBoardRenderer board_renderer)
+        : this(
+            writer,
+            board_renderer,
+            new ConsoleTheme(new PresentationPreferences()),
+            new AsciiArtCatalog())
+    {
+    }
+
+    public ConsoleGameOutput(
+        TextWriter writer,
+        ConsoleBoardRenderer board_renderer,
+        ConsoleTheme theme,
+        AsciiArtCatalog art_catalog)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(board_renderer);
+        ArgumentNullException.ThrowIfNull(theme);
+        ArgumentNullException.ThrowIfNull(art_catalog);
 
         this.writer = writer;
         this.board_renderer = board_renderer;
+        this.theme = theme;
+        this.art_catalog = art_catalog;
     }
 
-    /// <inheritdoc />
     public void show_match(Match match)
     {
         ArgumentNullException.ThrowIfNull(match);
@@ -39,12 +52,12 @@ public sealed class ConsoleGameOutput : IGameOutput
         {
             writer.WriteLine();
             writer.WriteLine(
-                $"Jogador atual: {match.CurrentPlayer.Name} " +
-                $"({match.CurrentPlayer.Symbol})");
+                theme.colorize_accent(
+                    $"Jogador atual: {match.CurrentPlayer.Name} " +
+                    $"({match.CurrentPlayer.Symbol})"));
         }
     }
 
-    /// <inheritdoc />
     public void show_invalid_move(
         Player player,
         BoardPosition position,
@@ -53,12 +66,12 @@ public sealed class ConsoleGameOutput : IGameOutput
         ArgumentNullException.ThrowIfNull(player);
 
         writer.WriteLine(
-            $"Jogada inválida de {player.Name} " +
-            $"na posição ({position.Row + 1}, {position.Column + 1}): " +
-            message);
+            theme.colorize_warning(
+                $"Jogada inválida de {player.Name} " +
+                $"na posição ({position.Row + 1}, {position.Column + 1}): " +
+                message));
     }
 
-    /// <inheritdoc />
     public void show_result(Match match)
     {
         ArgumentNullException.ThrowIfNull(match);
@@ -76,7 +89,9 @@ public sealed class ConsoleGameOutput : IGameOutput
                 break;
 
             case GameResult.Draw:
-                writer.WriteLine("Resultado: empate.");
+                show_art(art_catalog.get_draw());
+                writer.WriteLine(
+                    theme.colorize_warning("Resultado: empate."));
                 break;
 
             default:
@@ -90,8 +105,32 @@ public sealed class ConsoleGameOutput : IGameOutput
         Symbol symbol)
     {
         Player winner = match.get_player(symbol);
+        bool human_won = winner is HumanPlayer;
+
+        show_art(
+            human_won
+                ? art_catalog.get_victory()
+                : art_catalog.get_defeat());
+
+        string message =
+            $"Resultado: {winner.Name} venceu com {symbol}.";
 
         writer.WriteLine(
-            $"Resultado: {winner.Name} venceu com {symbol}.");
+            human_won
+                ? theme.colorize_success(message)
+                : theme.colorize_error(message));
+    }
+
+    private void show_art(IReadOnlyList<string> lines)
+    {
+        if (!theme.Preferences.VisualEffects)
+        {
+            return;
+        }
+
+        foreach (string line in lines)
+        {
+            writer.WriteLine(line);
+        }
     }
 }

@@ -14,5 +14,6 @@ public enum ScreenState
     ExperimentSetup,
     Settings,
     Help,
+    Credits,
     Exit
 }
