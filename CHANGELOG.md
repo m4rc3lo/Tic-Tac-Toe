@@ -39,6 +39,23 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- Registros imutáveis para partidas, participantes, jogadas e sequência vencedora.
+- Repositórios JSON de histórico e estatísticas.
+- `MatchRecordMapper` para conversão fora do domínio.
+- `MatchStatisticsCalculator` com agregação geral e por Strategy.
+- `MatchPersistenceService` com rollback do histórico em falhas de estatística.
+- Medição de duração, semente e versão na execução de partidas.
+- Testes em diretórios temporários.
+- `docs/21-partidas-e-estatisticas-json.md`.
+
+### Changed
+
+- `ConsoleMatchSessionRunner` passou a persistir partidas concluídas.
+- `MatchConfiguration` passou a aceitar semente opcional.
+
+
+### Added
+
 - `ApplicationSettings` e `ApplicationDirectories` com valores padrão.
 - `ISettingsRepository`, `JsonSettingsRepository` e `SettingsValidator`.
 - Persistência JSON com propriedades desconhecidas toleradas.
