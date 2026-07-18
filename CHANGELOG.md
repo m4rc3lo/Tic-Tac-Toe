@@ -26,7 +26,7 @@ timeline
         2026-07-17 : v1.5.0 — estratégia Minimax
         2026-07-17 : v1.6.0 — apresentação e estados
     section Marcos planejados
-        Data a definir : v1.7.0 — recursos audiovisuais
+        2026-07-17 : v1.7.0 — recursos audiovisuais
         Data a definir : v1.8.0 — persistência e exportação
         Data a definir : v1.9.0 — experimentação e consolidação
         Data a definir : v2.0.0 — refatoração completa
@@ -36,6 +36,26 @@ As versões intermediárias poderão ser ajustadas conforme a granularidade
 real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
+
+## [1.7.0] - 2026-07-17
+
+### Added
+
+- `IAudioService` e eventos `AudioCue`.
+- `ConsoleBeepAudioService` para Windows.
+- `TerminalBellAudioService` para terminais Unix-like.
+- `SilentAudioService` para execução silenciosa.
+- `FallbackAudioService` para recuperação de falhas.
+- `AudioServiceSelector` com seleção configurável e testável.
+- Opção de áudio na tela de configurações.
+- Testes sem dispositivo físico.
+- `docs/15-audio.md`.
+
+### Changed
+
+- Saída da partida passou a emitir sinais de jogada, erro e resultado.
+- Versão do projeto e metadados atualizados para `1.7.0`.
+
 
 ### Added
 

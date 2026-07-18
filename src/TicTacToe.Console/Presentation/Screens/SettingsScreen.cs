@@ -40,6 +40,8 @@ public sealed class SettingsScreen : IScreen
                 $"3 - Limpeza de tela: {format(preferences.ClearScreen)}");
             writer.WriteLine(
                 $"4 - Efeitos visuais: {format(preferences.VisualEffects)}");
+            writer.WriteLine(
+                $"5 - Áudio: {format(preferences.AudioEnabled)}");
             writer.WriteLine("0 - Voltar");
             writer.Write("Opção: ");
 
@@ -59,6 +61,10 @@ public sealed class SettingsScreen : IScreen
 
                 case "4":
                     preferences.VisualEffects = !preferences.VisualEffects;
+                    break;
+
+                case "5":
+                    preferences.AudioEnabled = !preferences.AudioEnabled;
                     break;
 
                 case "0":

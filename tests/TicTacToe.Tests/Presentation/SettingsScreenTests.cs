@@ -19,7 +19,7 @@ public class SettingsScreenTests
         StringReader reader = new(
             string.Join(
                 Environment.NewLine,
-                ["1", "2", "3", "4", "0", string.Empty]));
+                ["1", "2", "3", "4", "5", "0", string.Empty]));
         SettingsScreen screen = new(
             reader,
             new StringWriter());
@@ -31,5 +31,6 @@ public class SettingsScreenTests
         Assert.True(preferences.UseAnsiColors);
         Assert.True(preferences.ClearScreen);
         Assert.False(preferences.VisualEffects);
+        Assert.False(preferences.AudioEnabled);
     }
 }

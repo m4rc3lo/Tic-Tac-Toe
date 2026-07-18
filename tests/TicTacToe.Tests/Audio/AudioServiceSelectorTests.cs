@@ -1,0 +1,74 @@
+using TicTacToe.Audio;
+using Xunit;
+
+namespace TicTacToe.Tests.Audio;
+
+public class AudioServiceSelectorTests
+{
+    [Fact]
+    public void select_should_return_silent_service_when_disabled()
+    {
+        RecordingAudioService windows = new();
+        RecordingAudioService terminal = new();
+        SilentAudioService silent = new();
+
+        AudioServiceSelector selector = new(
+            () => true,
+            () => windows,
+            () => terminal,
+            () => silent);
+
+        IAudioService selected =
+            selector.select(audio_enabled: false);
+
+        Assert.Same(silent, selected);
+    }
+
+    [Fact]
+    public void select_should_use_windows_service_on_windows()
+    {
+        RecordingAudioService windows = new();
+
+        AudioServiceSelector selector = new(
+            () => true,
+            () => windows,
+            () => new RecordingAudioService(),
+            () => new SilentAudioService());
+
+        IAudioService selected =
+            selector.select(audio_enabled: true);
+
+        selected.play(AudioCue.Menu);
+
+        Assert.Equal([AudioCue.Menu], windows.Cues);
+    }
+
+    [Fact]
+    public void select_should_use_terminal_service_outside_windows()
+    {
+        RecordingAudioService terminal = new();
+
+        AudioServiceSelector selector = new(
+            () => false,
+            () => new RecordingAudioService(),
+            () => terminal,
+            () => new SilentAudioService());
+
+        IAudioService selected =
+            selector.select(audio_enabled: true);
+
+        selected.play(AudioCue.Move);
+
+        Assert.Equal([AudioCue.Move], terminal.Cues);
+    }
+
+    private sealed class RecordingAudioService : IAudioService
+    {
+        public List<AudioCue> Cues { get; } = [];
+
+        public void play(AudioCue cue)
+        {
+            Cues.Add(cue);
+        }
+    }
+}
