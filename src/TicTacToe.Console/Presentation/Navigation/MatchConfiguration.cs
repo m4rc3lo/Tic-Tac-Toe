@@ -7,4 +7,5 @@ namespace TicTacToe.Presentation.Navigation;
 /// <param name="OpponentStrategy">Estratégia do participante computacional.</param>
 public sealed record MatchConfiguration(
     string PlayerName,
-    StrategyKind OpponentStrategy);
+    StrategyKind OpponentStrategy,
+    int? RandomSeed = null);

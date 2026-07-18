@@ -54,12 +54,31 @@ public static class Program
             visual_feedback,
             audio_service);
 
+        string data_directory =
+            Path.Combine(
+                AppContext.BaseDirectory,
+                settings.Directories.Data);
+
+        IMatchPersistenceService match_persistence_service =
+            new MatchPersistenceService(
+                new JsonMatchHistoryRepository(
+                    Path.Combine(
+                        data_directory,
+                        "matches.json")),
+                new JsonMatchStatisticsRepository(
+                    Path.Combine(
+                        data_directory,
+                        "statistics.json")),
+                new MatchRecordMapper(),
+                new MatchStatisticsCalculator());
+
         IMatchSessionRunner match_session_runner =
             new ConsoleMatchSessionRunner(
                 game_input,
                 game_output,
                 animation_service,
-                preferences);
+                preferences,
+                match_persistence_service);
 
         CitationMetadata citation_metadata =
             new CitationMetadataLoader().load(
