@@ -1,3 +1,4 @@
+using TicTacToe.Audio;
 using TicTacToe.Presentation;
 using TicTacToe.Presentation.Navigation;
 using TicTacToe.Presentation.Screens;
@@ -29,13 +30,17 @@ public static class Program
         ConsoleGameInput game_input = new(reader, writer);
         IVisualFeedbackService visual_feedback =
             new VisualFeedbackService(board_renderer);
+        IAudioService audio_service =
+            new AudioServiceSelector(writer).select(
+                preferences.AudioEnabled);
 
         ConsoleGameOutput game_output = new(
             writer,
             board_renderer,
             theme,
             art_catalog,
-            visual_feedback);
+            visual_feedback,
+            audio_service);
 
         IMatchSessionRunner match_session_runner =
             new ConsoleMatchSessionRunner(

@@ -1,4 +1,5 @@
 using TicTacToe.Application;
+using TicTacToe.Audio;
 using TicTacToe.Domain;
 
 namespace TicTacToe.Presentation;
@@ -12,6 +13,7 @@ public sealed class ConsoleGameOutput : IGameOutput
     private readonly ConsoleTheme theme;
     private readonly AsciiArtCatalog art_catalog;
     private readonly IVisualFeedbackService visual_feedback;
+    private readonly IAudioService audio_service;
 
     public ConsoleGameOutput(
         TextWriter writer,
@@ -21,7 +23,8 @@ public sealed class ConsoleGameOutput : IGameOutput
             board_renderer,
             new ConsoleTheme(new PresentationPreferences()),
             new AsciiArtCatalog(),
-            new VisualFeedbackService(board_renderer))
+            new VisualFeedbackService(board_renderer),
+            new SilentAudioService())
     {
     }
 
@@ -30,18 +33,21 @@ public sealed class ConsoleGameOutput : IGameOutput
         ConsoleBoardRenderer board_renderer,
         ConsoleTheme theme,
         AsciiArtCatalog art_catalog,
-        IVisualFeedbackService visual_feedback)
+        IVisualFeedbackService visual_feedback,
+        IAudioService audio_service)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(board_renderer);
         ArgumentNullException.ThrowIfNull(theme);
         ArgumentNullException.ThrowIfNull(art_catalog);
         ArgumentNullException.ThrowIfNull(visual_feedback);
+        ArgumentNullException.ThrowIfNull(audio_service);
 
         this.writer = writer;
         this.theme = theme;
         this.art_catalog = art_catalog;
         this.visual_feedback = visual_feedback;
+        this.audio_service = audio_service;
     }
 
     public void show_match(Match match)
@@ -59,6 +65,11 @@ public sealed class ConsoleGameOutput : IGameOutput
             match.Board,
             last_move);
 
+        if (last_move.HasValue)
+        {
+            audio_service.play(AudioCue.Move);
+        }
+
         if (match.State == GameState.InProgress)
         {
             writer.WriteLine();
@@ -75,6 +86,8 @@ public sealed class ConsoleGameOutput : IGameOutput
         string message)
     {
         ArgumentNullException.ThrowIfNull(player);
+
+        audio_service.play(AudioCue.InvalidMove);
 
         writer.WriteLine(
             theme.colorize_warning(
@@ -108,6 +121,7 @@ public sealed class ConsoleGameOutput : IGameOutput
                 break;
 
             case GameResult.Draw:
+                audio_service.play(AudioCue.Draw);
                 show_art(art_catalog.get_draw());
                 writer.WriteLine(
                     theme.colorize_warning("Resultado: empate."));
@@ -125,6 +139,11 @@ public sealed class ConsoleGameOutput : IGameOutput
     {
         Player winner = match.get_player(symbol);
         bool human_won = winner is HumanPlayer;
+
+        audio_service.play(
+            human_won
+                ? AudioCue.Victory
+                : AudioCue.Defeat);
 
         show_art(
             human_won

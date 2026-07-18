@@ -16,12 +16,14 @@ public sealed class PresentationPreferences
         bool use_ansi_colors = false,
         bool use_unicode = true,
         bool clear_screen = false,
-        bool visual_effects = true)
+        bool visual_effects = true,
+        bool audio_enabled = true)
     {
         UseAnsiColors = use_ansi_colors;
         UseUnicode = use_unicode;
         ClearScreen = clear_screen;
         VisualEffects = visual_effects;
+        AudioEnabled = audio_enabled;
     }
 
     public bool UseAnsiColors { get; set; }
@@ -31,4 +33,9 @@ public sealed class PresentationPreferences
     public bool ClearScreen { get; set; }
 
     public bool VisualEffects { get; set; }
+
+    /// <summary>
+    /// Obtém ou define se sinais sonoros estão habilitados.
+    /// </summary>
+    public bool AudioEnabled { get; set; }
 }
