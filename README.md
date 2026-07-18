@@ -13,6 +13,7 @@ em C# para .NET 9.
 - `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
 - `v1.6.0` — 2026-07-17: apresentação Console e máquina de estados;
 - `v1.7.0` — 2026-07-17: recursos visuais, animações e áudio com fallback;
+- `v1.8.0` — 2026-07-17: persistência JSON e exportação CSV;
 - `Unreleased`: próxima etapa de desenvolvimento;
 - `v2.0.0` — data a definir: consolidação final da refatoração.
 

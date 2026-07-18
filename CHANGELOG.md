@@ -27,7 +27,7 @@ timeline
         2026-07-17 : v1.6.0 — apresentação e estados
     section Marcos planejados
         2026-07-17 : v1.7.0 — recursos audiovisuais
-        Data a definir : v1.8.0 — persistência e exportação
+        2026-07-17 : v1.8.0 — persistência e exportação
         Data a definir : v1.9.0 — experimentação e consolidação
         Data a definir : v2.0.0 — refatoração completa
 ```
@@ -36,6 +36,23 @@ As versões intermediárias poderão ser ajustadas conforme a granularidade
 real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
+
+## [1.8.0] - 2026-07-17
+
+### Added
+
+- Infraestrutura CSV UTF-8 sem dependências externas.
+- Exportadores de partidas, jogadas, estatísticas e métricas experimentais.
+- Escape de separadores, aspas e quebras de linha.
+- Datas ISO 8601 e números com cultura invariável.
+- `ExperimentMetricRecord` como esquema de intercâmbio experimental.
+- Testes de esquema, caracteres especiais e codificação.
+- `docs/22-exportacao-csv.md`.
+
+### Changed
+
+- Versão do projeto e metadados atualizados para `1.8.0`.
+
 
 ### Added
 
