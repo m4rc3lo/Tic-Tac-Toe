@@ -4,4 +4,9 @@
         <RootNamespace>TicTacToe</RootNamespace>
         <AssemblyName>TicTacToe.Console</AssemblyName>
     </PropertyGroup>
+    <ItemGroup>
+        <None Include="..\..\CITATION.cff"
+              Link="CITATION.cff"
+              CopyToOutputDirectory="PreserveNewest" />
+    </ItemGroup>
 </Project>

@@ -12,6 +12,12 @@ public sealed class ConsoleBeepAudioService : IAudioService
     /// <inheritdoc />
     public void play(AudioCue cue)
     {
+        if (!OperatingSystem.IsWindows())
+        {
+            throw new PlatformNotSupportedException(
+                "Console.Beep é suportado somente no Windows.");
+        }
+
         (int frequency, int duration) = cue switch
         {
             AudioCue.Move => (660, 70),

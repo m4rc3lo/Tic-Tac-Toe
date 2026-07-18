@@ -135,7 +135,9 @@ A semente é opcional e aceita qualquer valor de `int`.
 áudio. `PresentationPreferences.from_settings` converte os campos relevantes.
 
 O atraso configurado passa a ser utilizado pelo texto progressivo e pelo
-indicador de análise da IA.
+indicador de análise da IA. Em `v1.8.0`, alterações feitas em `SettingsScreen`
+permanecem apenas em memória; a gravação automática dessas alterações ainda não
+foi integrada à navegação.
 
 ## 8. Testes
 

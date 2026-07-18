@@ -3,7 +3,7 @@ message: "Se este software for utilizado em atividades acadêmicas, cite-o confo
 title: "Tic-Tac-Toe Console AI"
 type: software
 version: "1.8.0"
-date-released: "2026-07-17"
+date-released: "2026-07-18"
 license: Apache-2.0
 repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
 authors:

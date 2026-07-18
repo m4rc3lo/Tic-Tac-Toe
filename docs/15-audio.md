@@ -97,8 +97,10 @@ tentativas no dispositivo defeituoso.
 `PresentationPreferences.AudioEnabled` controla a seleção inicial. A tela de
 configurações oferece a opção `Áudio: ativado/desativado`.
 
-A configuração atual vale para a composição da execução. Persistência e
-recomposição dinâmica serão tratadas na etapa de configurações JSON.
+O valor inicial é carregado de `data/settings.json`. A tela de configurações
+altera a preferência em memória, mas a implementação `v1.8.0` ainda não
+recompõe o serviço de áudio nem salva automaticamente a alteração durante a
+mesma execução.
 
 ## 6. Integração com a partida
 

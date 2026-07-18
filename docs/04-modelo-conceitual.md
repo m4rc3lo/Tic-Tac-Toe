@@ -132,10 +132,9 @@ classDiagram
     MatchController --> Match
 ```
 
-`Match` é o limite de consistência pretendido para a partida. Contudo, como
-`Board` é exposto publicamente e possui operações mutáveis públicas, esse limite
-ainda pode ser contornado. Essa restrição deve ser corrigida antes das etapas de
-persistência e simulação intensiva.
+`Match` é o limite de consistência da partida. O tabuleiro é exposto externamente
+por `IReadOnlyBoard`, enquanto a instância mutável permanece encapsulada pelo
+agregado. Strategies e adaptadores consultam o estado sem reabrir mutação pública.
 
 ## 4. Invariantes consolidadas
 
@@ -154,19 +153,15 @@ persistência e simulação intensiva.
 
 ## 5. Estado de implementação
 
-| Conceito | Situação em 2026-07-16 |
+| Conceito | Situação em `v1.8.0` |
 |---|---|
-| `Board`, objetos de valor e enumerações | Implementado |
-| `GameRules` e `GameEvaluation` | Implementado |
-| `Player`, `HumanPlayer`, `ComputerPlayer` | Implementado |
-| `Match` | Implementado |
-| Strategy aleatória e gerador injetável | Implementado |
-| Fluxo básico de aplicação | Implementado em `Unreleased` |
-| Estratégia heurística | Planejada |
-| Minimax | Planejada |
-| Console e navegação | Planejados |
-| Persistência JSON/CSV | Planejada |
-| Experimentação automatizada | Planejada |
+| domínio, regras e agregado `Match` | Implementado |
+| Strategies aleatória, heurística e Minimax | Implementadas |
+| portas e fluxo da camada `Application` | Implementados |
+| Console, temas e máquina de estados | Implementados |
+| configurações e histórico JSON | Implementados |
+| estatísticas JSON e exportadores CSV | Implementados |
+| experimentação automatizada | Planejada para `v1.9.0` |
 
 ## 6. Testabilidade
 

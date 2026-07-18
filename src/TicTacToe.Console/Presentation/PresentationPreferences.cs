@@ -14,6 +14,8 @@ public sealed class PresentationPreferences
     /// <param name="use_unicode">Habilita caracteres Unicode.</param>
     /// <param name="clear_screen">Habilita limpeza do terminal entre telas.</param>
     /// <param name="visual_effects">Habilita artes e efeitos visuais.</param>
+    /// <param name="audio_enabled">Habilita sinais sonoros.</param>
+    /// <param name="animation_delay_milliseconds">Atraso-base das animações.</param>
     public PresentationPreferences(
         bool use_ansi_colors = false,
         bool use_unicode = true,

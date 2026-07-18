@@ -102,10 +102,11 @@ Ao receber uma avaliação de vitória ou empate, `Match` altera `State` para `F
 
 ## 6. Evolução após a versão 1.2.0
 
-Na versão `1.3.0`, `ComputerPlayer` passou a possuir uma `IMoveStrategy`, e a
-estratégia aleatória foi implementada. Após o Prompt 10, `DefaultMoveSelector`
-resolve a origem da posição: participantes humanos usam `IGameInput` e
-participantes computacionais delegam à Strategy.
+Na versão `1.3.0`, foi introduzido o contrato `IMoveStrategy` e a Strategy
+aleatória. Após a correção das fronteiras arquiteturais, `ComputerPlayer` não
+possui referência direta ao módulo de IA. `DefaultMoveSelector` resolve a origem
+da posição: participantes humanos usam `IGameInput`, enquanto participantes
+computacionais usam uma Strategy obtida por `IComputerMoveStrategyResolver`.
 
 `Match` permanece independente da origem da jogada e continua recebendo apenas
 uma `BoardPosition`. Essa decisão mantém as regras de turno e histórico no

@@ -25,9 +25,9 @@ timeline
         2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
         2026-07-17 : v1.5.0 — estratégia Minimax
         2026-07-17 : v1.6.0 — apresentação e estados
-    section Marcos planejados
         2026-07-17 : v1.7.0 — recursos audiovisuais
-        2026-07-17 : v1.8.0 — persistência e exportação
+        2026-07-18 : v1.8.0 — persistência e exportação
+    section Marcos planejados
         Data a definir : v1.9.0 — experimentação e consolidação
         Data a definir : v2.0.0 — refatoração completa
 ```
@@ -37,55 +37,34 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
-## [1.8.0] - 2026-07-17
-
-### Added
-
-- Infraestrutura CSV UTF-8 sem dependências externas.
-- Exportadores de partidas, jogadas, estatísticas e métricas experimentais.
-- Escape de separadores, aspas e quebras de linha.
-- Datas ISO 8601 e números com cultura invariável.
-- `ExperimentMetricRecord` como esquema de intercâmbio experimental.
-- Testes de esquema, caracteres especiais e codificação.
-- `docs/22-exportacao-csv.md`.
-
-### Changed
-
-- Versão do projeto e metadados atualizados para `1.8.0`.
-
-
-### Added
-
-- Registros imutáveis para partidas, participantes, jogadas e sequência vencedora.
-- Repositórios JSON de histórico e estatísticas.
-- `MatchRecordMapper` para conversão fora do domínio.
-- `MatchStatisticsCalculator` com agregação geral e por Strategy.
-- `MatchPersistenceService` com rollback do histórico em falhas de estatística.
-- Medição de duração, semente e versão na execução de partidas.
-- Testes em diretórios temporários.
-- `docs/21-partidas-e-estatisticas-json.md`.
-
-### Changed
-
-- `ConsoleMatchSessionRunner` passou a persistir partidas concluídas.
-- `MatchConfiguration` passou a aceitar semente opcional.
-
+## [1.8.0] - 2026-07-18
 
 ### Added
 
 - `ApplicationSettings` e `ApplicationDirectories` com valores padrão.
 - `ISettingsRepository`, `JsonSettingsRepository` e `SettingsValidator`.
-- Persistência JSON com propriedades desconhecidas toleradas.
-- Gravação temporária seguida de substituição atômica.
-- Recuperação segura para arquivo ausente, JSON inválido ou valores inválidos.
-- Testes em diretórios temporários.
+- Persistência JSON com propriedades desconhecidas toleradas e recuperação segura.
+- Registros imutáveis para partidas, participantes, jogadas e sequência vencedora.
+- Repositórios JSON de histórico e estatísticas.
+- `MatchRecordMapper` para conversão fora do domínio.
+- `MatchStatisticsCalculator` com agregação geral e por Strategy.
+- `MatchPersistenceService` com tentativa de rollback do histórico.
+- Infraestrutura CSV UTF-8 sem dependências externas.
+- Exportadores de partidas, jogadas, estatísticas e métricas experimentais.
+- Escape de separadores, aspas e quebras de linha.
+- Datas ISO 8601 e números com cultura invariável.
+- Testes em diretórios temporários e testes de esquema CSV.
 - `docs/20-configuracoes-json.md`.
+- `docs/21-partidas-e-estatisticas-json.md`.
+- `docs/22-exportacao-csv.md`.
 
 ### Changed
 
 - `Program.Main` passou a carregar `data/settings.json` antes da composição.
+- `ConsoleMatchSessionRunner` passou a medir e persistir partidas concluídas.
+- `MatchConfiguration` passou a aceitar semente opcional.
 - Atraso configurado passou a controlar animações da apresentação.
-
+- Versão do projeto e metadados atualizados para `1.8.0`.
 
 ## [1.7.0] - 2026-07-17
 

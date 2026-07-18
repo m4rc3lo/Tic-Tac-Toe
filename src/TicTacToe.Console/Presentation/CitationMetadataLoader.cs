@@ -1,3 +1,5 @@
+using System.Reflection;
+
 namespace TicTacToe.Presentation;
 
 /// <summary>
@@ -59,11 +61,23 @@ public sealed class CitationMetadataLoader
             .Trim('"');
     }
 
+    private static string get_application_version()
+    {
+        Version? version =
+            Assembly.GetExecutingAssembly()
+                .GetName()
+                .Version;
+
+        return version is null
+            ? "unknown"
+            : $"{version.Major}.{version.Minor}.{version.Build}";
+    }
+
     private static CitationMetadata create_fallback()
     {
         return new CitationMetadata(
             "Tic-Tac-Toe Console AI",
-            "1.6.0",
+            get_application_version(),
             "Marcelo Dornbusch Lopes",
             "Apache-2.0",
             "https://github.com/m4rc3lo/Tic-Tac-Toe");

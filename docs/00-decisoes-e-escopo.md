@@ -181,13 +181,12 @@ timeline
         2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
         2026-07-16 : v1.2.0 — domínio e regras
         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
-        2026-07-16 : Unreleased — fluxo básico de aplicação
+        2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
+        2026-07-17 : v1.5.0 — estratégia Minimax
+        2026-07-17 : v1.6.0 — apresentação e estados
+        2026-07-17 : v1.7.0 — recursos audiovisuais
+        2026-07-18 : v1.8.0 — persistência e exportação
     section Planejado
-        Data a definir : v1.4.0 — estratégia heurística
-        Data a definir : v1.5.0 — estratégia Minimax
-        Data a definir : v1.6.0 — apresentação e estados
-        Data a definir : v1.7.0 — recursos audiovisuais
-        Data a definir : v1.8.0 — persistência e exportação
         Data a definir : v1.9.0 — experimentação e consolidação
         Data a definir : v2.0.0 — refatoração completa
 ```
