@@ -6,7 +6,7 @@
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
         <NoWarn>$(NoWarn);1591</NoWarn>
         <LangVersion>latest</LangVersion>
-        <Version>1.7.0</Version>
+        <Version>1.8.0</Version>
         <Authors>Marcelo Dornbusch Lopes</Authors>
         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
         <RepositoryType>git</RepositoryType>
