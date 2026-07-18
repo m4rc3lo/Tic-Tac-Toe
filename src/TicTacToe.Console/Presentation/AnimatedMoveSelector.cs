@@ -10,16 +10,30 @@ public sealed class AnimatedMoveSelector : IMoveSelector
 {
     private readonly IMoveSelector inner_selector;
     private readonly IAnimationService animation_service;
+    private readonly PresentationPreferences preferences;
 
     public AnimatedMoveSelector(
         IMoveSelector inner_selector,
         IAnimationService animation_service)
+        : this(
+            inner_selector,
+            animation_service,
+            new PresentationPreferences())
+    {
+    }
+
+    public AnimatedMoveSelector(
+        IMoveSelector inner_selector,
+        IAnimationService animation_service,
+        PresentationPreferences preferences)
     {
         ArgumentNullException.ThrowIfNull(inner_selector);
         ArgumentNullException.ThrowIfNull(animation_service);
+        ArgumentNullException.ThrowIfNull(preferences);
 
         this.inner_selector = inner_selector;
         this.animation_service = animation_service;
+        this.preferences = preferences;
     }
 
     public BoardPosition select_move(
@@ -34,7 +48,8 @@ public sealed class AnimatedMoveSelector : IMoveSelector
             animation_service.show_analysis_indicator(
                 $"{player.Name} está analisando",
                 frame_count: 4,
-                frame_delay: TimeSpan.FromMilliseconds(80));
+                frame_delay: TimeSpan.FromMilliseconds(
+                    preferences.AnimationDelayMilliseconds));
         }
 
         return inner_selector.select_move(match, player);

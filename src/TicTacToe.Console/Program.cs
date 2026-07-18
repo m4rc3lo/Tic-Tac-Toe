@@ -1,4 +1,5 @@
 using TicTacToe.Audio;
+using TicTacToe.Persistence;
 using TicTacToe.Presentation;
 using TicTacToe.Presentation.Navigation;
 using TicTacToe.Presentation.Screens;
@@ -15,7 +16,18 @@ public static class Program
         TextReader reader = global::System.Console.In;
         TextWriter writer = global::System.Console.Out;
 
-        PresentationPreferences preferences = new();
+        string settings_path = Path.Combine(
+            AppContext.BaseDirectory,
+            "data",
+            "settings.json");
+        ISettingsRepository settings_repository =
+            new JsonSettingsRepository(
+                settings_path,
+                new SettingsValidator());
+        ApplicationSettings settings =
+            settings_repository.load();
+        PresentationPreferences preferences =
+            PresentationPreferences.from_settings(settings);
         ConsoleTheme theme = new(preferences);
         AsciiArtCatalog art_catalog = new();
         IAnimationService animation_service =
@@ -46,7 +58,8 @@ public static class Program
             new ConsoleMatchSessionRunner(
                 game_input,
                 game_output,
-                animation_service);
+                animation_service,
+                preferences);
 
         CitationMetadata citation_metadata =
             new CitationMetadataLoader().load(

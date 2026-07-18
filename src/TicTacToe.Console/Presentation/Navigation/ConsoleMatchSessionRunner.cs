@@ -12,6 +12,7 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
     private readonly IGameInput game_input;
     private readonly IGameOutput game_output;
     private readonly IAnimationService animation_service;
+    private readonly PresentationPreferences preferences;
 
     /// <summary>
     /// Inicializa o executor de sessões.
@@ -28,22 +29,27 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
                 TextWriter.Null,
                 new ImmediateDelayService(),
                 new PresentationPreferences(
-                    visual_effects: false)))
+                    visual_effects: false)),
+            new PresentationPreferences(
+                visual_effects: false))
     {
     }
 
     public ConsoleMatchSessionRunner(
         IGameInput game_input,
         IGameOutput game_output,
-        IAnimationService animation_service)
+        IAnimationService animation_service,
+        PresentationPreferences preferences)
     {
         ArgumentNullException.ThrowIfNull(game_input);
         ArgumentNullException.ThrowIfNull(game_output);
         ArgumentNullException.ThrowIfNull(animation_service);
+        ArgumentNullException.ThrowIfNull(preferences);
 
         this.game_input = game_input;
         this.game_output = game_output;
         this.animation_service = animation_service;
+        this.preferences = preferences;
     }
 
     /// <inheritdoc />
@@ -66,7 +72,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
                 new DefaultMoveSelector(
                     game_input,
                     strategy_resolver),
-                animation_service);
+                animation_service,
+                preferences);
 
         MatchController controller = new(
             move_selector,
