@@ -17,21 +17,31 @@ public static class Program
         PresentationPreferences preferences = new();
         ConsoleTheme theme = new(preferences);
         AsciiArtCatalog art_catalog = new();
+        IAnimationService animation_service =
+            new AnimationService(
+                writer,
+                new ThreadDelayService(),
+                preferences);
 
         ConsoleBoardRenderer board_renderer = new(
             writer,
             theme);
         ConsoleGameInput game_input = new(reader, writer);
+        IVisualFeedbackService visual_feedback =
+            new VisualFeedbackService(board_renderer);
+
         ConsoleGameOutput game_output = new(
             writer,
             board_renderer,
             theme,
-            art_catalog);
+            art_catalog,
+            visual_feedback);
 
         IMatchSessionRunner match_session_runner =
             new ConsoleMatchSessionRunner(
                 game_input,
-                game_output);
+                game_output,
+                animation_service);
 
         CitationMetadata citation_metadata =
             new CitationMetadataLoader().load(
@@ -45,7 +55,8 @@ public static class Program
                 reader,
                 writer,
                 theme,
-                art_catalog),
+                art_catalog,
+                animation_service),
             new MainMenuScreen(reader, writer),
             new MatchSetupScreen(reader, writer),
             new PlayingScreen(match_session_runner),

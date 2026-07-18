@@ -11,6 +11,7 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
 {
     private readonly IGameInput game_input;
     private readonly IGameOutput game_output;
+    private readonly IAnimationService animation_service;
 
     /// <summary>
     /// Inicializa o executor de sessões.
@@ -20,12 +21,29 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
     public ConsoleMatchSessionRunner(
         IGameInput game_input,
         IGameOutput game_output)
+        : this(
+            game_input,
+            game_output,
+            new AnimationService(
+                TextWriter.Null,
+                new ImmediateDelayService(),
+                new PresentationPreferences(
+                    visual_effects: false)))
+    {
+    }
+
+    public ConsoleMatchSessionRunner(
+        IGameInput game_input,
+        IGameOutput game_output,
+        IAnimationService animation_service)
     {
         ArgumentNullException.ThrowIfNull(game_input);
         ArgumentNullException.ThrowIfNull(game_output);
+        ArgumentNullException.ThrowIfNull(animation_service);
 
         this.game_input = game_input;
         this.game_output = game_output;
+        this.animation_service = animation_service;
     }
 
     /// <inheritdoc />
@@ -43,9 +61,12 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
                     [Symbol.O] = strategy
                 });
 
-        IMoveSelector move_selector = new DefaultMoveSelector(
-            game_input,
-            strategy_resolver);
+        IMoveSelector move_selector =
+            new AnimatedMoveSelector(
+                new DefaultMoveSelector(
+                    game_input,
+                    strategy_resolver),
+                animation_service);
 
         MatchController controller = new(
             move_selector,

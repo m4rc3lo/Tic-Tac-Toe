@@ -9,9 +9,9 @@ namespace TicTacToe.Presentation;
 public sealed class ConsoleGameOutput : IGameOutput
 {
     private readonly TextWriter writer;
-    private readonly ConsoleBoardRenderer board_renderer;
     private readonly ConsoleTheme theme;
     private readonly AsciiArtCatalog art_catalog;
+    private readonly IVisualFeedbackService visual_feedback;
 
     public ConsoleGameOutput(
         TextWriter writer,
@@ -20,7 +20,8 @@ public sealed class ConsoleGameOutput : IGameOutput
             writer,
             board_renderer,
             new ConsoleTheme(new PresentationPreferences()),
-            new AsciiArtCatalog())
+            new AsciiArtCatalog(),
+            new VisualFeedbackService(board_renderer))
     {
     }
 
@@ -28,17 +29,19 @@ public sealed class ConsoleGameOutput : IGameOutput
         TextWriter writer,
         ConsoleBoardRenderer board_renderer,
         ConsoleTheme theme,
-        AsciiArtCatalog art_catalog)
+        AsciiArtCatalog art_catalog,
+        IVisualFeedbackService visual_feedback)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(board_renderer);
         ArgumentNullException.ThrowIfNull(theme);
         ArgumentNullException.ThrowIfNull(art_catalog);
+        ArgumentNullException.ThrowIfNull(visual_feedback);
 
         this.writer = writer;
-        this.board_renderer = board_renderer;
         this.theme = theme;
         this.art_catalog = art_catalog;
+        this.visual_feedback = visual_feedback;
     }
 
     public void show_match(Match match)
@@ -46,7 +49,15 @@ public sealed class ConsoleGameOutput : IGameOutput
         ArgumentNullException.ThrowIfNull(match);
 
         writer.WriteLine();
-        board_renderer.render(match.Board);
+
+        BoardPosition? last_move =
+            match.Moves.Count == 0
+                ? null
+                : match.Moves[^1].Position;
+
+        visual_feedback.show_last_move(
+            match.Board,
+            last_move);
 
         if (match.State == GameState.InProgress)
         {
@@ -77,6 +88,14 @@ public sealed class ConsoleGameOutput : IGameOutput
         ArgumentNullException.ThrowIfNull(match);
 
         writer.WriteLine();
+
+        if (match.WinningPositions.Count > 0)
+        {
+            visual_feedback.show_winning_sequence(
+                match.Board,
+                match.WinningPositions);
+            writer.WriteLine();
+        }
 
         switch (match.Result)
         {

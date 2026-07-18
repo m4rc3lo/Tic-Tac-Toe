@@ -33,7 +33,19 @@ public sealed class ConsoleBoardRenderer
 
     public void render(IReadOnlyBoard board)
     {
+        render(
+            board,
+            last_move: null,
+            Array.Empty<BoardPosition>());
+    }
+
+    public void render(
+        IReadOnlyBoard board,
+        BoardPosition? last_move,
+        IReadOnlyList<BoardPosition> winning_positions)
+    {
         ArgumentNullException.ThrowIfNull(board);
+        ArgumentNullException.ThrowIfNull(winning_positions);
 
         writer.WriteLine("    1   2   3");
 
@@ -46,7 +58,15 @@ public sealed class ConsoleBoardRenderer
                  column++)
             {
                 BoardPosition position = new(row, column);
-                writer.Write(format_symbol(board.get_symbol(position)));
+                string symbol = format_symbol(
+                    board.get_symbol(position));
+
+                writer.Write(
+                    apply_highlight(
+                        symbol,
+                        position,
+                        last_move,
+                        winning_positions));
 
                 if (column < BoardPosition.BoardSize - 1)
                 {
@@ -65,13 +85,42 @@ public sealed class ConsoleBoardRenderer
         }
     }
 
-    private static char format_symbol(Symbol symbol)
+    private string apply_highlight(
+        string symbol,
+        BoardPosition position,
+        BoardPosition? last_move,
+        IReadOnlyList<BoardPosition> winning_positions)
+    {
+        if (!theme.Preferences.VisualEffects)
+        {
+            return symbol;
+        }
+
+        if (winning_positions.Contains(position))
+        {
+            return theme.Preferences.UseAnsiColors
+                ? theme.colorize_success(symbol)
+                : symbol == " " ? " " : $"*{symbol}*";
+        }
+
+        if (last_move.HasValue &&
+            last_move.Value == position)
+        {
+            return theme.Preferences.UseAnsiColors
+                ? theme.colorize_accent(symbol)
+                : symbol == " " ? " " : $"[{symbol}]";
+        }
+
+        return symbol;
+    }
+
+    private static string format_symbol(Symbol symbol)
     {
         return symbol switch
         {
-            Symbol.X => 'X',
-            Symbol.O => 'O',
-            _ => ' '
+            Symbol.X => "X",
+            Symbol.O => "O",
+            _ => " "
         };
     }
 }

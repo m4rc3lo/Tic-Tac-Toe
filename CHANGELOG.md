@@ -39,6 +39,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- `IDelayService` com implementações real e imediata.
+- `IAnimationService` e `AnimationService` para texto progressivo, indicador e barra de progresso.
+- `IVisualFeedbackService` e `VisualFeedbackService` para última jogada e sequência vencedora.
+- `AnimatedMoveSelector` para feedback antes de decisões computacionais.
+- Testes de animação e feedback sem espera real.
+- `docs/19-feedback-visual-e-animacoes.md`.
+
+### Changed
+
+- Splash passou a utilizar texto progressivo.
+- Saída de partida passou a destacar última jogada e sequência vencedora.
+- Executor de partidas passou a decorar a seleção de jogadas computacionais.
+
+
+### Added
+
 - `AsciiArtCatalog` com logotipo e artes de vitória, derrota e empate.
 - `ConsoleTheme` e `PresentationPreferences` para capacidades visuais configuráveis.
 - Renderização Unicode e fallback ASCII do tabuleiro.

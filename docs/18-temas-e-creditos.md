@@ -115,3 +115,12 @@ limitações são:
 O fallback recomendado é desativar Unicode, cores, limpeza e efeitos visuais.
 Nesse modo, a aplicação permanece funcional com texto e caracteres ASCII
 básicos.
+
+## 7. Integração com feedback visual
+
+A partir do Prompt 16, `ConsoleTheme` também é utilizado por
+`AnimationService` e `VisualFeedbackService`. As mesmas preferências controlam
+texto progressivo, indicador de análise, artes e realces do tabuleiro.
+
+Os detalhes temporais e os testes sem espera real estão documentados em
+`docs/19-feedback-visual-e-animacoes.md`.
