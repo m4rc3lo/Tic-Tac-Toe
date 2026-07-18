@@ -37,6 +37,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- `ApplicationSettings` e `ApplicationDirectories` com valores padrão.
+- `ISettingsRepository`, `JsonSettingsRepository` e `SettingsValidator`.
+- Persistência JSON com propriedades desconhecidas toleradas.
+- Gravação temporária seguida de substituição atômica.
+- Recuperação segura para arquivo ausente, JSON inválido ou valores inválidos.
+- Testes em diretórios temporários.
+- `docs/20-configuracoes-json.md`.
+
+### Changed
+
+- `Program.Main` passou a carregar `data/settings.json` antes da composição.
+- Atraso configurado passou a controlar animações da apresentação.
+
+
 ## [1.7.0] - 2026-07-17
 
 ### Added

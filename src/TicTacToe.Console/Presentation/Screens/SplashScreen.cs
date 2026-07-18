@@ -46,7 +46,8 @@ public sealed class SplashScreen : IScreen
             {
                 animation_service.write_progressive(
                     theme.colorize_accent(line),
-                    TimeSpan.FromMilliseconds(8));
+                    TimeSpan.FromMilliseconds(
+                        theme.Preferences.AnimationDelayMilliseconds));
             }
         }
         else
