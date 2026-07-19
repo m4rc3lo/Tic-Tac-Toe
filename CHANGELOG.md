@@ -39,6 +39,17 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- `ExperimentController` para confrontos IA contra IA em lote.
+- Política determinística de sementes e alternância independente.
+- Contrato opcional `ISearchMetricsProvider`.
+- Persistência experimental acumulada em JSON e CSV.
+- Captura de falhas individuais sem descarte do lote.
+- Testes sem apresentação, tempo real ou arquivos permanentes.
+- `docs/24-modo-experimental.md`.
+
+
+### Added
+
 - modo demonstrativo IA contra IA com Strategies independentes para X e O;
 - pausa e cancelamento por contrato testável;
 - aplicação de Strategy e semente padrão;
