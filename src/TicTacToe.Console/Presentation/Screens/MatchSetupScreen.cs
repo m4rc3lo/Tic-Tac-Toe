@@ -3,7 +3,7 @@ using TicTacToe.Presentation.Navigation;
 namespace TicTacToe.Presentation.Screens;
 
 /// <summary>
-/// Coleta a configuração mínima de uma partida.
+/// Coleta a configuração de uma partida entre pessoa e IA.
 /// </summary>
 public sealed class MatchSetupScreen : IScreen
 {
@@ -16,7 +16,6 @@ public sealed class MatchSetupScreen : IScreen
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(writer);
-
         this.reader = reader;
         this.writer = writer;
     }
@@ -32,12 +31,16 @@ public sealed class MatchSetupScreen : IScreen
         string player_name = string.IsNullOrWhiteSpace(name_input)
             ? "Pessoa"
             : name_input.Trim();
+        StrategyKind default_strategy =
+            StrategyKindParser.parse_or_default(
+                context.ApplicationSettings.DefaultStrategy);
 
         while (true)
         {
-            writer.WriteLine("Estratégia adversária:");
-            writer.WriteLine("1 - Aleatória");
-            writer.WriteLine("2 - Heurística");
+            writer.WriteLine(
+                $"Strategy adversária [padrão: {default_strategy}]:");
+            writer.WriteLine("1 - Random");
+            writer.WriteLine("2 - Heuristic");
             writer.WriteLine("3 - Minimax");
             writer.WriteLine("0 - Voltar");
             writer.Write("Opção: ");
@@ -49,24 +52,22 @@ public sealed class MatchSetupScreen : IScreen
                 return new ScreenTransition(ScreenState.MainMenu);
             }
 
-            StrategyKind? strategy_kind = option?.Trim() switch
-            {
-                "1" => StrategyKind.Random,
-                "2" => StrategyKind.Heuristic,
-                "3" => StrategyKind.Minimax,
-                _ => null
-            };
+            StrategyKind? strategy_kind =
+                string.IsNullOrWhiteSpace(option)
+                    ? default_strategy
+                    : StrategyKindParser.parse_option(option);
 
             if (!strategy_kind.HasValue)
             {
-                writer.WriteLine("Estratégia inválida.");
+                writer.WriteLine("Strategy inválida.");
                 continue;
             }
 
             context.set_match_configuration(
                 new MatchConfiguration(
                     player_name,
-                    strategy_kind.Value));
+                    strategy_kind.Value,
+                    context.ApplicationSettings.RandomSeed));
 
             return new ScreenTransition(ScreenState.Playing);
         }

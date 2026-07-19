@@ -17,6 +17,7 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
     private readonly IAnimationService animation_service;
     private readonly PresentationPreferences preferences;
     private readonly IMatchPersistenceService? persistence_service;
+    private readonly IMoveStrategyFactory strategy_factory;
 
     /// <summary>
     /// Inicializa o executor de sessões sem persistência externa.
@@ -34,7 +35,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
                     visual_effects: false)),
             new PresentationPreferences(
                 visual_effects: false),
-            persistence_service: null)
+            persistence_service: null,
+            strategy_factory: new MoveStrategyFactory())
     {
     }
 
@@ -51,7 +53,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
             game_output,
             animation_service,
             preferences,
-            persistence_service: null)
+            persistence_service: null,
+            strategy_factory: new MoveStrategyFactory())
     {
     }
 
@@ -63,7 +66,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
         IGameOutput game_output,
         IAnimationService animation_service,
         PresentationPreferences preferences,
-        IMatchPersistenceService? persistence_service)
+        IMatchPersistenceService? persistence_service,
+        IMoveStrategyFactory? strategy_factory = null)
     {
         ArgumentNullException.ThrowIfNull(game_input);
         ArgumentNullException.ThrowIfNull(game_output);
@@ -75,6 +79,7 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
         this.animation_service = animation_service;
         this.preferences = preferences;
         this.persistence_service = persistence_service;
+        this.strategy_factory = strategy_factory ?? new MoveStrategyFactory();
     }
 
     /// <inheritdoc />
@@ -83,7 +88,7 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
         ArgumentNullException.ThrowIfNull(configuration);
 
         IMoveStrategy strategy =
-            create_strategy(
+            strategy_factory.create(
                 configuration.OpponentStrategy,
                 configuration.RandomSeed);
 
@@ -146,27 +151,5 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
         return version is null
             ? "unknown"
             : $"{version.Major}.{version.Minor}.{version.Build}";
-    }
-
-    private static IMoveStrategy create_strategy(
-        StrategyKind strategy_kind,
-        int? random_seed)
-    {
-        return strategy_kind switch
-        {
-            StrategyKind.Random =>
-                random_seed.HasValue
-                    ? new RandomMoveStrategy(random_seed.Value)
-                    : new RandomMoveStrategy(),
-            StrategyKind.Heuristic =>
-                random_seed.HasValue
-                    ? new HeuristicMoveStrategy(random_seed.Value)
-                    : new HeuristicMoveStrategy(),
-            StrategyKind.Minimax => new MinimaxMoveStrategy(),
-            _ => throw new ArgumentOutOfRangeException(
-                nameof(strategy_kind),
-                strategy_kind,
-                "A estratégia selecionada não é suportada.")
-        };
     }
 }

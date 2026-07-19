@@ -43,8 +43,12 @@ classDiagram
     class ScreenContext {
         +MatchConfiguration MatchConfiguration
         +Match LastMatch
+        +AutomaticMatchConfiguration AutomaticMatchConfiguration
+        +AutomaticMatchResult LastAutomaticMatchResult
+        +ApplicationSettings ApplicationSettings
         +set_match_configuration(configuration)
-        +set_last_match(match)
+        +set_automatic_match_configuration(configuration)
+        +persist_presentation_preferences()
     }
 
     ScreenManager --> IScreen
@@ -64,6 +68,8 @@ A máquina contém os estados solicitados:
 - `MatchSetup`;
 - `Playing`;
 - `MatchResult`;
+- `AutomaticSetup`;
+- `AutomaticPlaying`;
 - `Statistics`;
 - `ExperimentSetup`;
 - `Settings`;
@@ -78,7 +84,8 @@ stateDiagram-v2
     [*] --> Splash
     Splash --> MainMenu
 
-    MainMenu --> MatchSetup : jogar
+    MainMenu --> MatchSetup : jogar contra IA
+    MainMenu --> AutomaticSetup : demonstração IA contra IA
     MainMenu --> Statistics : estatísticas
     MainMenu --> ExperimentSetup : experimentos
     MainMenu --> Settings : configurações
@@ -92,6 +99,11 @@ stateDiagram-v2
     Playing --> MatchResult : partida executada
     MatchResult --> MainMenu
 
+    AutomaticSetup --> AutomaticPlaying : configuração válida
+    AutomaticSetup --> MainMenu : cancelar
+    AutomaticPlaying --> AutomaticSetup : configuração ausente
+    AutomaticPlaying --> MainMenu : concluída ou cancelada
+
     Statistics --> MainMenu
     ExperimentSetup --> MainMenu
     Settings --> MainMenu
@@ -101,9 +113,9 @@ stateDiagram-v2
     Exit --> [*]
 ```
 
-`Statistics`, `ExperimentSetup` e `Settings` são estados reais, porém ainda
-apresentam conteúdo provisório. A estrutura já evita que esses recursos futuros
-sejam adicionados diretamente ao menu principal.
+`Statistics` e `ExperimentSetup` permanecem provisórios. `Settings` já persiste
+preferências, enquanto `AutomaticSetup` e `AutomaticPlaying` implementam o modo
+demonstrativo sem adicionar regras à navegação.
 
 ## 4. Configuração e execução de partida
 

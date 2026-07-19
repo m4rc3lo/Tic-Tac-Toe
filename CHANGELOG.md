@@ -37,6 +37,24 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- modo demonstrativo IA contra IA com Strategies independentes para X e O;
+- pausa e cancelamento por contrato testável;
+- aplicação de Strategy e semente padrão;
+- persistência opcional de partidas demonstrativas;
+- `PreferenceAwareAudioService` para áudio reativo;
+- `MoveStrategyFactory` compartilhada pelos runners;
+- `docs/23-modo-automatico.md`.
+
+### Changed
+
+- configurações alteradas na interface passaram a ser persistidas;
+- atraso de animação passou a ser editável pela tela de configurações;
+- `Program.Main` foi reduzido e a composição movida para `ConsoleApplication`;
+- menu principal passou a oferecer o modo demonstrativo.
+
+
 ## [1.8.0] - 2026-07-18
 
 ### Added

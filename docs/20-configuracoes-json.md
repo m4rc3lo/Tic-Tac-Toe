@@ -131,13 +131,19 @@ A semente é opcional e aceita qualquer valor de `int`.
 
 ## 7. Integração
 
-`Program.Main` carrega `data/settings.json` antes de compor tema, animação e
-áudio. `PresentationPreferences.from_settings` converte os campos relevantes.
+`ConsoleApplication` carrega `data/settings.json` antes de compor tema,
+animação e áudio. `PresentationPreferences.from_settings` converte os campos
+relevantes.
 
-O atraso configurado passa a ser utilizado pelo texto progressivo e pelo
-indicador de análise da IA. Em `v1.8.0`, alterações feitas em `SettingsScreen`
-permanecem apenas em memória; a gravação automática dessas alterações ainda não
-foi integrada à navegação.
+`SettingsScreen` altera o mesmo objeto de preferências observado pelos serviços
+de apresentação. Ao retornar ao menu, `ScreenContext` copia os valores para
+`ApplicationSettings` e chama `ISettingsRepository.save`.
+
+O atraso configurado é utilizado pelo texto progressivo, pelo indicador de
+análise e pelo modo automático. `DefaultStrategy` e `RandomSeed` são aplicados
+como padrões nas telas de configuração de partida. O áudio é consultado por
+`PreferenceAwareAudioService` a cada evento, portanto a alteração é válida na
+mesma sessão.
 
 ## 8. Testes
 
@@ -151,4 +157,6 @@ removem ao final. Eles verificam:
 - propriedades desconhecidas;
 - substituição do arquivo existente;
 - remoção de temporários;
-- validação independente.
+- validação independente;
+- persistência das preferências alteradas pela interface;
+- aplicação de Strategy e semente padrão.

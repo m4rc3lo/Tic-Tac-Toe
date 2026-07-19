@@ -16,7 +16,6 @@ public sealed class MainMenuScreen : IScreen
     {
         ArgumentNullException.ThrowIfNull(reader);
         ArgumentNullException.ThrowIfNull(writer);
-
         this.reader = reader;
         this.writer = writer;
     }
@@ -29,25 +28,25 @@ public sealed class MainMenuScreen : IScreen
         {
             writer.WriteLine();
             writer.WriteLine("Menu principal");
-            writer.WriteLine("1 - Jogar");
-            writer.WriteLine("2 - Estatísticas");
-            writer.WriteLine("3 - Experimentos");
-            writer.WriteLine("4 - Configurações");
-            writer.WriteLine("5 - Ajuda");
-            writer.WriteLine("6 - Créditos");
+            writer.WriteLine("1 - Jogar contra IA");
+            writer.WriteLine("2 - Demonstração IA contra IA");
+            writer.WriteLine("3 - Estatísticas");
+            writer.WriteLine("4 - Experimentos");
+            writer.WriteLine("5 - Configurações");
+            writer.WriteLine("6 - Ajuda");
+            writer.WriteLine("7 - Créditos");
             writer.WriteLine("0 - Sair");
             writer.Write("Opção: ");
 
-            string? option = reader.ReadLine();
-
-            ScreenState? target = option?.Trim() switch
+            ScreenState? target = reader.ReadLine()?.Trim() switch
             {
                 "1" => ScreenState.MatchSetup,
-                "2" => ScreenState.Statistics,
-                "3" => ScreenState.ExperimentSetup,
-                "4" => ScreenState.Settings,
-                "5" => ScreenState.Help,
-                "6" => ScreenState.Credits,
+                "2" => ScreenState.AutomaticSetup,
+                "3" => ScreenState.Statistics,
+                "4" => ScreenState.ExperimentSetup,
+                "5" => ScreenState.Settings,
+                "6" => ScreenState.Help,
+                "7" => ScreenState.Credits,
                 "0" => ScreenState.Exit,
                 _ => null
             };

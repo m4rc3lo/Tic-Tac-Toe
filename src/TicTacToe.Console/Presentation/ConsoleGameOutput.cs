@@ -138,15 +138,19 @@ public sealed class ConsoleGameOutput : IGameOutput
         Symbol symbol)
     {
         Player winner = match.get_player(symbol);
-        bool human_won = winner is HumanPlayer;
+        bool automatic_match =
+            match.FirstPlayer is ComputerPlayer &&
+            match.SecondPlayer is ComputerPlayer;
+        bool positive_result =
+            automatic_match || winner is HumanPlayer;
 
         audio_service.play(
-            human_won
+            positive_result
                 ? AudioCue.Victory
                 : AudioCue.Defeat);
 
         show_art(
-            human_won
+            positive_result
                 ? art_catalog.get_victory()
                 : art_catalog.get_defeat());
 
@@ -154,7 +158,7 @@ public sealed class ConsoleGameOutput : IGameOutput
             $"Resultado: {winner.Name} venceu com {symbol}.";
 
         writer.WriteLine(
-            human_won
+            positive_result
                 ? theme.colorize_success(message)
                 : theme.colorize_error(message));
     }
