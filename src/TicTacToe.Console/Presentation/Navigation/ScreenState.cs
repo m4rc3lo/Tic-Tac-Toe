@@ -10,6 +10,8 @@ public enum ScreenState
     MatchSetup,
     Playing,
     MatchResult,
+    AutomaticSetup,
+    AutomaticPlaying,
     Statistics,
     ExperimentSetup,
     Settings,

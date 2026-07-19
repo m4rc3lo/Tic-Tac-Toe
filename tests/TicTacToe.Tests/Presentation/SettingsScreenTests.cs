@@ -1,3 +1,4 @@
+using TicTacToe.Persistence;
 using TicTacToe.Presentation;
 using TicTacToe.Presentation.Navigation;
 using TicTacToe.Presentation.Screens;
@@ -8,21 +9,21 @@ namespace TicTacToe.Tests.Presentation;
 public class SettingsScreenTests
 {
     [Fact]
-    public void show_should_toggle_all_visual_preferences()
+    public void show_should_toggle_and_persist_preferences()
     {
-        PresentationPreferences preferences = new(
-            use_ansi_colors: false,
-            use_unicode: true,
-            clear_screen: false,
-            visual_effects: true);
-        ScreenContext context = new(preferences);
+        ApplicationSettings settings = new();
+        PresentationPreferences preferences =
+            PresentationPreferences.from_settings(settings);
+        RecordingSettingsRepository repository = new();
+        ScreenContext context = new(
+            preferences,
+            settings,
+            repository);
         StringReader reader = new(
             string.Join(
                 Environment.NewLine,
-                ["1", "2", "3", "4", "5", "0", string.Empty]));
-        SettingsScreen screen = new(
-            reader,
-            new StringWriter());
+                ["1", "2", "3", "4", "5", "6", "125", "0", string.Empty]));
+        SettingsScreen screen = new(reader, new StringWriter());
 
         ScreenTransition transition = screen.show(context);
 
@@ -32,5 +33,23 @@ public class SettingsScreenTests
         Assert.True(preferences.ClearScreen);
         Assert.False(preferences.VisualEffects);
         Assert.False(preferences.AudioEnabled);
+        Assert.Equal(125, preferences.AnimationDelayMilliseconds);
+        Assert.Equal(1, repository.SaveCount);
+        Assert.False(repository.Saved!.UseUnicode);
+        Assert.Equal(125, repository.Saved.AnimationDelayMilliseconds);
+    }
+
+    private sealed class RecordingSettingsRepository
+        : ISettingsRepository
+    {
+        public int SaveCount { get; private set; }
+        public ApplicationSettings? Saved { get; private set; }
+        public ApplicationSettings load() =>
+            ApplicationSettings.create_default();
+        public void save(ApplicationSettings settings)
+        {
+            SaveCount++;
+            Saved = settings;
+        }
     }
 }

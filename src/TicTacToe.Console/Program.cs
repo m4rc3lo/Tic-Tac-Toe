@@ -1,119 +1,14 @@
-using TicTacToe.Audio;
-using TicTacToe.Persistence;
-using TicTacToe.Presentation;
-using TicTacToe.Presentation.Navigation;
-using TicTacToe.Presentation.Screens;
-
 namespace TicTacToe;
 
 /// <summary>
-/// Define o ponto de composição da aplicação Console.
+/// Define o ponto de entrada da aplicação Console.
 /// </summary>
 public static class Program
 {
     public static void Main(string[] args)
     {
-        TextReader reader = global::System.Console.In;
-        TextWriter writer = global::System.Console.Out;
-
-        string settings_path = Path.Combine(
-            AppContext.BaseDirectory,
-            "data",
-            "settings.json");
-        ISettingsRepository settings_repository =
-            new JsonSettingsRepository(
-                settings_path,
-                new SettingsValidator());
-        ApplicationSettings settings =
-            settings_repository.load();
-        PresentationPreferences preferences =
-            PresentationPreferences.from_settings(settings);
-        ConsoleTheme theme = new(preferences);
-        AsciiArtCatalog art_catalog = new();
-        IAnimationService animation_service =
-            new AnimationService(
-                writer,
-                new ThreadDelayService(),
-                preferences);
-
-        ConsoleBoardRenderer board_renderer = new(
-            writer,
-            theme);
-        ConsoleGameInput game_input = new(reader, writer);
-        IVisualFeedbackService visual_feedback =
-            new VisualFeedbackService(board_renderer);
-        IAudioService audio_service =
-            new AudioServiceSelector(writer).select(
-                preferences.AudioEnabled);
-
-        ConsoleGameOutput game_output = new(
-            writer,
-            board_renderer,
-            theme,
-            art_catalog,
-            visual_feedback,
-            audio_service);
-
-        string data_directory =
-            Path.Combine(
-                AppContext.BaseDirectory,
-                settings.Directories.Data);
-
-        IMatchPersistenceService match_persistence_service =
-            new MatchPersistenceService(
-                new JsonMatchHistoryRepository(
-                    Path.Combine(
-                        data_directory,
-                        "matches.json")),
-                new JsonMatchStatisticsRepository(
-                    Path.Combine(
-                        data_directory,
-                        "statistics.json")),
-                new MatchRecordMapper(),
-                new MatchStatisticsCalculator());
-
-        IMatchSessionRunner match_session_runner =
-            new ConsoleMatchSessionRunner(
-                game_input,
-                game_output,
-                animation_service,
-                preferences,
-                match_persistence_service);
-
-        CitationMetadata citation_metadata =
-            new CitationMetadataLoader().load(
-                Path.Combine(
-                    AppContext.BaseDirectory,
-                    "CITATION.cff"));
-
-        IScreen[] screens =
-        [
-            new SplashScreen(
-                reader,
-                writer,
-                theme,
-                art_catalog,
-                animation_service),
-            new MainMenuScreen(reader, writer),
-            new MatchSetupScreen(reader, writer),
-            new PlayingScreen(match_session_runner),
-            new MatchResultScreen(reader, writer),
-            new StatisticsScreen(reader, writer),
-            new ExperimentSetupScreen(reader, writer),
-            new SettingsScreen(reader, writer),
-            new HelpScreen(reader, writer),
-            new CreditsScreen(
-                reader,
-                writer,
-                citation_metadata),
-            new ExitScreen(writer)
-        ];
-
-        ScreenManager screen_manager = new(screens);
-        ScreenContext context = new(preferences);
-
-        screen_manager.run(
-            ScreenState.Splash,
-            context);
+        new ConsoleApplication(
+            global::System.Console.In,
+            global::System.Console.Out).run();
     }
 }

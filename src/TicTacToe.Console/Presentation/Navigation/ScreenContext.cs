@@ -1,5 +1,5 @@
 using TicTacToe.Domain;
-using TicTacToe.Presentation;
+using TicTacToe.Persistence;
 
 namespace TicTacToe.Presentation.Navigation;
 
@@ -9,35 +9,57 @@ namespace TicTacToe.Presentation.Navigation;
 public sealed class ScreenContext
 {
     public ScreenContext()
-        : this(new PresentationPreferences())
+        : this(
+            new PresentationPreferences(),
+            ApplicationSettings.create_default(),
+            settings_repository: null)
     {
     }
 
-    public ScreenContext(PresentationPreferences presentation_preferences)
+    public ScreenContext(
+        PresentationPreferences presentation_preferences)
+        : this(
+            presentation_preferences,
+            ApplicationSettings.create_default(),
+            settings_repository: null)
+    {
+    }
+
+    public ScreenContext(
+        PresentationPreferences presentation_preferences,
+        ApplicationSettings application_settings,
+        ISettingsRepository? settings_repository)
     {
         ArgumentNullException.ThrowIfNull(presentation_preferences);
+        ArgumentNullException.ThrowIfNull(application_settings);
+
         PresentationPreferences = presentation_preferences;
+        ApplicationSettings = application_settings;
+        SettingsRepository = settings_repository;
     }
 
-    /// <summary>
-    /// Obtém as preferências visuais compartilhadas pelas telas.
-    /// </summary>
     public PresentationPreferences PresentationPreferences { get; }
 
-    /// <summary>
-    /// Obtém a configuração selecionada para a próxima partida.
-    /// </summary>
+    public ApplicationSettings ApplicationSettings { get; }
+
+    public ISettingsRepository? SettingsRepository { get; }
+
     public MatchConfiguration? MatchConfiguration { get; private set; }
 
-    /// <summary>
-    /// Obtém a última partida executada.
-    /// </summary>
     public Match? LastMatch { get; private set; }
 
-    /// <summary>
-    /// Atualiza a configuração da próxima partida.
-    /// </summary>
-    /// <param name="configuration">Configuração validada pela apresentação.</param>
+    public AutomaticMatchConfiguration? AutomaticMatchConfiguration
+    {
+        get;
+        private set;
+    }
+
+    public AutomaticMatchResult? LastAutomaticMatchResult
+    {
+        get;
+        private set;
+    }
+
     public void set_match_configuration(
         MatchConfiguration configuration)
     {
@@ -45,13 +67,41 @@ public sealed class ScreenContext
         MatchConfiguration = configuration;
     }
 
-    /// <summary>
-    /// Registra a última partida executada.
-    /// </summary>
-    /// <param name="match">Partida concluída ou em andamento.</param>
     public void set_last_match(Match match)
     {
         ArgumentNullException.ThrowIfNull(match);
         LastMatch = match;
+    }
+
+    public void set_automatic_match_configuration(
+        AutomaticMatchConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        AutomaticMatchConfiguration = configuration;
+    }
+
+    public void set_last_automatic_match_result(
+        AutomaticMatchResult result)
+    {
+        ArgumentNullException.ThrowIfNull(result);
+        LastAutomaticMatchResult = result;
+    }
+
+    public void persist_presentation_preferences()
+    {
+        ApplicationSettings.UseUnicode =
+            PresentationPreferences.UseUnicode;
+        ApplicationSettings.UseAnsiColors =
+            PresentationPreferences.UseAnsiColors;
+        ApplicationSettings.ClearScreen =
+            PresentationPreferences.ClearScreen;
+        ApplicationSettings.AnimationsEnabled =
+            PresentationPreferences.VisualEffects;
+        ApplicationSettings.AudioEnabled =
+            PresentationPreferences.AudioEnabled;
+        ApplicationSettings.AnimationDelayMilliseconds =
+            PresentationPreferences.AnimationDelayMilliseconds;
+
+        SettingsRepository?.save(ApplicationSettings);
     }
 }

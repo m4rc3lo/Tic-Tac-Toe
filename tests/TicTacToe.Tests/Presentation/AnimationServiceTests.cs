@@ -52,6 +52,29 @@ public class AnimationServiceTests
     }
 
     [Fact]
+    public void write_progressive_should_observe_effect_preference_changes()
+    {
+        StringWriter writer = new();
+        RecordingDelayService delay = new();
+        PresentationPreferences preferences = new(
+            visual_effects: false);
+        AnimationService service = new(
+            writer,
+            delay,
+            preferences);
+
+        service.write_progressive(
+            "A",
+            TimeSpan.FromMilliseconds(1));
+        preferences.VisualEffects = true;
+        service.write_progressive(
+            "B",
+            TimeSpan.FromMilliseconds(1));
+
+        Assert.Single(delay.Calls);
+    }
+
+    [Fact]
     public void show_progress_bar_should_write_exact_progress()
     {
         StringWriter writer = new();
