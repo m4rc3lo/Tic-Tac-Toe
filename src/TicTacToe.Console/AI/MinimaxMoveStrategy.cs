@@ -10,8 +10,10 @@ namespace TicTacToe.AI;
 /// níveis de maximização e minimização até estados terminais. Empates de
 /// pontuação são resolvidos pela primeira posição em ordem linha-coluna.
 /// </remarks>
-public sealed class MinimaxMoveStrategy : IMoveStrategy
+public sealed class MinimaxMoveStrategy : IMoveStrategy, ISearchMetricsProvider
 {
+    /// <inheritdoc />
+    public long LastEvaluatedStates { get; private set; }
     private const int WinScore = 10;
     private const int LossScore = -10;
     private const int DrawScore = 0;
@@ -21,7 +23,9 @@ public sealed class MinimaxMoveStrategy : IMoveStrategy
         IReadOnlyBoard board,
         Symbol symbol)
     {
-        return analyze(board, symbol).Position;
+        MinimaxAnalysis analysis = analyze(board, symbol);
+        LastEvaluatedStates = analysis.VisitedStates;
+        return analysis.Position;
     }
 
     /// <summary>
