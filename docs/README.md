@@ -17,6 +17,7 @@ projeto.
 | [09-correcao-fronteiras-arquiteturais.md](09-correcao-fronteiras-arquiteturais.md) | Correção de dependências e fronteiras. |
 | [10-inteligencia-artificial.md](10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
 | [11-experimentacao.md](11-experimentacao.md) | Plano formal de experimentação. |
+| [12-testes.md](12-testes.md) | Estratégia, classificação e cobertura dos testes. |
 | [14-limitacoes.md](14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
 | [15-audio.md](15-audio.md) | Serviços de áudio e fallback. |
 | [16-apresentacao-console.md](16-apresentacao-console.md) | Entrada, saída e renderização Console. |

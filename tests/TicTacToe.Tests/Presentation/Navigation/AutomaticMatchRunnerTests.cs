@@ -68,6 +68,36 @@ public class AutomaticMatchRunnerTests
         Assert.Empty(result.Match.Moves);
     }
 
+
+    [Fact]
+    public void run_should_report_persistence_failure_and_return_result()
+    {
+        RecordingFailureReporter reporter = new();
+        PresentationPreferences preferences = new(
+            visual_effects: false,
+            animation_delay_milliseconds: 0);
+        AutomaticMatchRunner runner = new(
+            new StringWriter(),
+            new RecordingGameOutput(),
+            new ImmediateDelayService(),
+            preferences,
+            new MoveStrategyFactory(),
+            new ContinueControl(),
+            new FailingPersistenceService(),
+            reporter);
+
+        AutomaticMatchResult result = runner.run(
+            new AutomaticMatchConfiguration(
+                StrategyKind.Minimax,
+                StrategyKind.Minimax,
+                7,
+                PersistMatch: true));
+
+        Assert.False(result.WasCancelled);
+        Assert.Equal(GameState.Finished, result.Match.State);
+        Assert.Equal(1, reporter.CallCount);
+    }
+
     private static AutomaticMatchRunner create_runner(
         IAutomaticModeControl control,
         IMatchPersistenceService? persistence)
@@ -106,6 +136,33 @@ public class AutomaticMatchRunnerTests
             BoardPosition position,
             string message) { }
         public void show_result(Match match) { }
+    }
+
+
+    private sealed class FailingPersistenceService
+        : IMatchPersistenceService
+    {
+        public MatchRecord persist(
+            MatchPersistenceContext context)
+        {
+            throw new InfrastructureOperationException(
+                "gravar",
+                "Falha controlada.",
+                new IOException("Disco indisponível."));
+        }
+    }
+
+    private sealed class RecordingFailureReporter
+        : IExternalFailureReporter
+    {
+        public int CallCount { get; private set; }
+
+        public void report(
+            string context,
+            Exception exception)
+        {
+            CallCount++;
+        }
     }
 
     private sealed class RecordingPersistenceService

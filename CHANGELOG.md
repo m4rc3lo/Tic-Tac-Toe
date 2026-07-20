@@ -39,6 +39,21 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- Configuração Cobertura para `coverlet.collector`.
+- Scripts PowerShell e Bash para execução e resumo de cobertura.
+- Classificação estrutural dos testes em unitários, integração local e
+  validação de publicação.
+- Testes para perfis de publicação e ramos críticos remanescentes.
+- `docs/12-testes.md`.
+
+### Changed
+
+- Revisão de cobertura passou a priorizar invariantes e fronteiras externas,
+  sem estabelecer porcentagem isolada como meta.
+
+
+### Added
+
 - Namespace `Composition` com módulos explícitos para configuração, persistência,
   apresentação e telas.
 - Testes arquiteturais para fronteiras públicas do domínio.
