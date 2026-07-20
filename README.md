@@ -153,6 +153,7 @@ Consulte
 | [`docs/26-publicacao.md`](docs/26-publicacao.md) | Perfis e validação de publicação. |
 | [`docs/27-glossario.md`](docs/27-glossario.md) | Vocabulário geral, técnico e de domínio. |
 | [`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
+| [`docs/29-revisao-arquitetural-final.md`](docs/29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
 
 Também há um índice dedicado em [`docs/README.md`](docs/README.md).
 

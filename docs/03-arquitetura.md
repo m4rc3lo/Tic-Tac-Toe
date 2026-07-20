@@ -508,3 +508,25 @@ em mensagens de posição inválida.
 
 Os detalhes e diagramas desta correção estão registrados em
 `docs/09-correcao-fronteiras-arquiteturais.md`.
+
+
+## Estado consolidado após a revisão final
+
+A composição concreta foi extraída de `ConsoleApplication` para o namespace
+`TicTacToe.Composition`.
+
+```mermaid
+flowchart TD
+    Program --> ConsoleApplication
+    ConsoleApplication --> ConsoleApplicationComposer
+    ConsoleApplicationComposer --> SettingsComposition
+    ConsoleApplicationComposer --> CompatibilityComposition
+    ConsoleApplicationComposer --> PersistenceComposition
+    ConsoleApplicationComposer --> PresentationComposition
+    ConsoleApplicationComposer --> ScreenComposition
+    ConsoleApplicationComposer --> ConsoleApplicationRuntime
+```
+
+`ConsoleApplicationComposer` permanece o composition root único. Os módulos
+auxiliares apenas agrupam construções relacionadas e não atuam como
+localizadores globais de serviço.

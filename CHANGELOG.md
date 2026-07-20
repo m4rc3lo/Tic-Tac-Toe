@@ -39,6 +39,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- Namespace `Composition` com módulos explícitos para configuração, persistência,
+  apresentação e telas.
+- Testes arquiteturais para fronteiras públicas do domínio.
+- Testes de cópia defensiva dos registros persistentes.
+- `docs/29-revisao-arquitetural-final.md`.
+
+### Changed
+
+- `ConsoleApplication` passou a delegar a composição ao
+  `ConsoleApplicationComposer`.
+- Records com coleções passaram a realizar cópias defensivas.
+- Diagramas arquiteturais foram atualizados para o código real.
+
+
+### Added
+
 - Quatro perfis MSBuild para publicação Windows e Linux.
 - Arquivos mínimos de distribuição e configuração de exemplo.
 - Validador e scripts para inspeção e medição dos pacotes.
