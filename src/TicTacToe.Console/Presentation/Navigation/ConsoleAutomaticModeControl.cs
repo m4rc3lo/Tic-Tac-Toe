@@ -1,7 +1,8 @@
+
 namespace TicTacToe.Presentation.Navigation;
 
 /// <summary>
-/// Implementa pausa e cancelamento por teclado no terminal.
+/// Implementa pausa e cancelamento por teclado no terminal interativo.
 /// </summary>
 public sealed class ConsoleAutomaticModeControl
     : IAutomaticModeControl
@@ -10,6 +11,7 @@ public sealed class ConsoleAutomaticModeControl
     private readonly Func<bool> key_available;
     private readonly Func<ConsoleKeyInfo> read_key;
     private readonly IDelayService delay_service;
+    private readonly bool supports_interactive_input;
 
     public ConsoleAutomaticModeControl(
         TextWriter writer,
@@ -18,7 +20,9 @@ public sealed class ConsoleAutomaticModeControl
             writer,
             delay_service,
             () => global::System.Console.KeyAvailable,
-            () => global::System.Console.ReadKey(intercept: true))
+            () => global::System.Console.ReadKey(intercept: true),
+            supports_interactive_input:
+                !global::System.Console.IsInputRedirected)
     {
     }
 
@@ -26,7 +30,8 @@ public sealed class ConsoleAutomaticModeControl
         TextWriter writer,
         IDelayService delay_service,
         Func<bool> key_available,
-        Func<ConsoleKeyInfo> read_key)
+        Func<ConsoleKeyInfo> read_key,
+        bool supports_interactive_input = true)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(delay_service);
@@ -37,11 +42,33 @@ public sealed class ConsoleAutomaticModeControl
         this.delay_service = delay_service;
         this.key_available = key_available;
         this.read_key = read_key;
+        this.supports_interactive_input =
+            supports_interactive_input;
     }
 
     public AutomaticControlDecision wait_for_turn()
     {
-        if (!key_available())
+        if (!supports_interactive_input)
+        {
+            return AutomaticControlDecision.Continue;
+        }
+
+        bool has_key;
+
+        try
+        {
+            has_key = key_available();
+        }
+        catch (InvalidOperationException)
+        {
+            return AutomaticControlDecision.Continue;
+        }
+        catch (IOException)
+        {
+            return AutomaticControlDecision.Continue;
+        }
+
+        if (!has_key)
         {
             return AutomaticControlDecision.Continue;
         }

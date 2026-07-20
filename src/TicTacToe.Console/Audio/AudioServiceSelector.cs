@@ -1,7 +1,10 @@
+
+using TicTacToe.Compatibility;
+
 namespace TicTacToe.Audio;
 
 /// <summary>
-/// Seleciona uma implementação de áudio conforme configuração e plataforma.
+/// Seleciona áudio conforme configuração, plataforma e capacidade.
 /// </summary>
 public sealed class AudioServiceSelector
 {
@@ -10,10 +13,6 @@ public sealed class AudioServiceSelector
     private readonly Func<IAudioService> terminal_factory;
     private readonly Func<IAudioService> silent_factory;
 
-    /// <summary>
-    /// Inicializa o seletor para uso na aplicação.
-    /// </summary>
-    /// <param name="terminal_writer">Fluxo usado pelo terminal bell.</param>
     public AudioServiceSelector(TextWriter terminal_writer)
         : this(
             OperatingSystem.IsWindows,
@@ -24,9 +23,6 @@ public sealed class AudioServiceSelector
         ArgumentNullException.ThrowIfNull(terminal_writer);
     }
 
-    /// <summary>
-    /// Inicializa o seletor com fábricas injetáveis para testes.
-    /// </summary>
     public AudioServiceSelector(
         Func<bool> is_windows,
         Func<IAudioService> windows_factory,
@@ -44,11 +40,6 @@ public sealed class AudioServiceSelector
         this.silent_factory = silent_factory;
     }
 
-    /// <summary>
-    /// Seleciona um serviço protegido por fallback silencioso.
-    /// </summary>
-    /// <param name="audio_enabled">Indica se o áudio está habilitado.</param>
-    /// <returns>Serviço apropriado à configuração.</returns>
     public IAudioService select(bool audio_enabled)
     {
         IAudioService silent_service = silent_factory();
@@ -65,5 +56,40 @@ public sealed class AudioServiceSelector
         return new FallbackAudioService(
             primary_service,
             silent_service);
+    }
+
+    public IAudioService select(
+        bool audio_enabled,
+        RuntimePlatform platform,
+        ConsoleCapabilities capabilities)
+    {
+        ArgumentNullException.ThrowIfNull(capabilities);
+
+        IAudioService silent_service = silent_factory();
+
+        if (!audio_enabled)
+        {
+            return silent_service;
+        }
+
+        IAudioService? primary_service = platform switch
+        {
+            RuntimePlatform.Windows
+                when capabilities.SupportsConsoleBeep =>
+                    windows_factory(),
+            RuntimePlatform.Linux or RuntimePlatform.MacOS
+                when capabilities.SupportsTerminalBell =>
+                    terminal_factory(),
+            RuntimePlatform.Other
+                when capabilities.SupportsTerminalBell =>
+                    terminal_factory(),
+            _ => null
+        };
+
+        return primary_service is null
+            ? silent_service
+            : new FallbackAudioService(
+                primary_service,
+                silent_service);
     }
 }

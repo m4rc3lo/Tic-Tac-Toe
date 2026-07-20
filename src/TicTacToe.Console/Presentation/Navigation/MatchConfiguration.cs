@@ -5,6 +5,7 @@ namespace TicTacToe.Presentation.Navigation;
 /// </summary>
 /// <param name="PlayerName">Nome da pessoa participante.</param>
 /// <param name="OpponentStrategy">Estratégia do participante computacional.</param>
+/// <param name="RandomSeed">Semente pseudoaleatória opcional.</param>
 public sealed record MatchConfiguration(
     string PlayerName,
     StrategyKind OpponentStrategy,

@@ -39,6 +39,22 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- Detecção separada de plataforma e capacidades do terminal.
+- Modo de compatibilidade para preferências efetivas da sessão.
+- Verificação de `CITATION.cff` no diretório publicado.
+- Testes com detectores de ambiente injetáveis.
+- `docs/14-limitacoes.md` com matriz Windows e Unix-like.
+
+### Changed
+
+- Áudio passou a considerar capacidade real, não apenas plataforma.
+- Pausa e cancelamento deixaram de consultar teclas em entrada redirecionada.
+- Recursos visuais são reduzidos automaticamente em saída redirecionada.
+- Documentação XML de `MatchConfiguration.RandomSeed` foi corrigida.
+
+
+### Added
+
 - Quarentena de arquivos JSON inválidos antes da recuperação.
 - Exceções de infraestrutura com identificador diagnóstico seguro.
 - Recuperação das estatísticas a partir do histórico.
