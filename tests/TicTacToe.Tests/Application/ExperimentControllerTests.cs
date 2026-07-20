@@ -60,6 +60,28 @@ public class ExperimentControllerTests
         Assert.Equal(2, repository.SaveCount);
     }
 
+
+    [Fact]
+    public void run_should_stop_after_failure_when_continuation_is_disabled()
+    {
+        MemoryRepository repository = new();
+        ExperimentController controller = create_controller(
+            new FailingOnceFactory(),
+            repository);
+        ExperimentConfiguration configuration =
+            create_configuration(match_count: 3) with
+            {
+                ContinueOnFailure = false
+            };
+
+        ExperimentResult result = controller.run(configuration);
+
+        Assert.Single(result.Metrics);
+        Assert.True(result.Metrics[0].Failed);
+        Assert.Equal(1, result.Summary.FailedRuns);
+        Assert.Equal(1, repository.SaveCount);
+    }
+
     [Fact]
     public void run_should_collect_optional_search_metrics()
     {

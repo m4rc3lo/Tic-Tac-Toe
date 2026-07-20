@@ -49,6 +49,25 @@ public sealed class JsonCorruptionQuarantineTests : IDisposable
                 "matches.json.corrupt-*"));
     }
 
+
+    [Fact]
+    public void statistics_should_quarantine_invalid_json()
+    {
+        Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "statistics.json");
+        File.WriteAllText(path, "{ invalid");
+
+        MatchStatisticsRecord statistics =
+            new JsonMatchStatisticsRepository(path).load();
+
+        Assert.Equal(0, statistics.TotalMatches);
+        Assert.False(File.Exists(path));
+        Assert.Single(
+            Directory.GetFiles(
+                directory,
+                "statistics.json.corrupt-*"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(directory))
