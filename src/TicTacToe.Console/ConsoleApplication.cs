@@ -1,5 +1,6 @@
 using TicTacToe.Application;
 using TicTacToe.Audio;
+using TicTacToe.Compatibility;
 using TicTacToe.Persistence;
 using TicTacToe.Presentation;
 using TicTacToe.Presentation.Navigation;
@@ -36,8 +37,16 @@ public sealed class ConsoleApplication
                 settings_path,
                 new SettingsValidator());
         ApplicationSettings settings = settings_repository.load();
-        PresentationPreferences preferences =
+        RuntimePlatform platform =
+            new SystemPlatformDetector().detect();
+        ConsoleCapabilities capabilities =
+            new SystemConsoleCapabilityDetector().detect(platform);
+        PresentationPreferences requested_preferences =
             PresentationPreferences.from_settings(settings);
+        PresentationPreferences preferences =
+            new CompatibilityMode().apply(
+                requested_preferences,
+                capabilities);
         ConsoleTheme theme = new(preferences);
         AsciiArtCatalog art_catalog = new();
         IDelayService delay_service = new ThreadDelayService();
@@ -52,7 +61,9 @@ public sealed class ConsoleApplication
             new VisualFeedbackService(board_renderer);
         IAudioService enabled_audio =
             new AudioServiceSelector(writer).select(
-                audio_enabled: true);
+                audio_enabled: true,
+                platform,
+                capabilities);
         IAudioService audio_service =
             new PreferenceAwareAudioService(
                 preferences,
@@ -95,7 +106,10 @@ public sealed class ConsoleApplication
         IAutomaticModeControl mode_control =
             new ConsoleAutomaticModeControl(
                 writer,
-                delay_service);
+                delay_service,
+                () => global::System.Console.KeyAvailable,
+                () => global::System.Console.ReadKey(intercept: true),
+                capabilities.SupportsInteractiveInput);
         IAutomaticMatchRunner automatic_runner =
             new AutomaticMatchRunner(
                 writer,

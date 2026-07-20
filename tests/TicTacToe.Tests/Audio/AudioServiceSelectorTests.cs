@@ -1,4 +1,5 @@
 using TicTacToe.Audio;
+using TicTacToe.Compatibility;
 using Xunit;
 
 namespace TicTacToe.Tests.Audio;
@@ -56,6 +57,65 @@ public class AudioServiceSelectorTests
 
         IAudioService selected =
             selector.select(audio_enabled: true);
+
+        selected.play(AudioCue.Move);
+
+        Assert.Equal([AudioCue.Move], terminal.Cues);
+    }
+
+
+    [Fact]
+    public void select_should_use_silent_service_when_platform_lacks_audio_capability()
+    {
+        RecordingAudioService windows = new();
+        RecordingAudioService terminal = new();
+        SilentAudioService silent = new();
+        AudioServiceSelector selector = new(
+            () => true,
+            () => windows,
+            () => terminal,
+            () => silent);
+        ConsoleCapabilities capabilities = new(
+            false,
+            true,
+            true,
+            true,
+            false,
+            false,
+            false,
+            false);
+
+        IAudioService selected = selector.select(
+            audio_enabled: true,
+            RuntimePlatform.Windows,
+            capabilities);
+
+        Assert.Same(silent, selected);
+    }
+
+    [Fact]
+    public void select_should_use_terminal_bell_by_capability_on_other_platform()
+    {
+        RecordingAudioService terminal = new();
+        AudioServiceSelector selector = new(
+            () => false,
+            () => new RecordingAudioService(),
+            () => terminal,
+            () => new SilentAudioService());
+        ConsoleCapabilities capabilities = new(
+            false,
+            false,
+            true,
+            true,
+            true,
+            true,
+            false,
+            true);
+
+        IAudioService selected = selector.select(
+            audio_enabled: true,
+            RuntimePlatform.Other,
+            capabilities);
 
         selected.play(AudioCue.Move);
 

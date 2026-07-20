@@ -43,6 +43,7 @@ coverage.*
 *.coverage
 *.coveragexml
 *.trx
+output.txt
 
 # Logs e arquivos temporários
 *.log

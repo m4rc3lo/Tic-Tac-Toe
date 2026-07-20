@@ -51,6 +51,48 @@ public class ConsoleAutomaticModeControlTests
             decision);
     }
 
+
+    [Fact]
+    public void wait_for_turn_should_not_read_keys_when_input_is_not_interactive()
+    {
+        bool key_available_called = false;
+        ConsoleAutomaticModeControl control = new(
+            new StringWriter(),
+            new ImmediateDelayService(),
+            () =>
+            {
+                key_available_called = true;
+                return true;
+            },
+            () => throw new InvalidOperationException(),
+            supports_interactive_input: false);
+
+        AutomaticControlDecision decision =
+            control.wait_for_turn();
+
+        Assert.Equal(
+            AutomaticControlDecision.Continue,
+            decision);
+        Assert.False(key_available_called);
+    }
+
+    [Fact]
+    public void wait_for_turn_should_fallback_when_key_query_is_unavailable()
+    {
+        ConsoleAutomaticModeControl control = new(
+            new StringWriter(),
+            new ImmediateDelayService(),
+            () => throw new InvalidOperationException(),
+            () => throw new InvalidOperationException());
+
+        AutomaticControlDecision decision =
+            control.wait_for_turn();
+
+        Assert.Equal(
+            AutomaticControlDecision.Continue,
+            decision);
+    }
+
     private static ConsoleKeyInfo create_key(
         ConsoleKey key,
         char character)
