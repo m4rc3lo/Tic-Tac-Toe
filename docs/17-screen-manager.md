@@ -155,12 +155,13 @@ sessão, por meio de `IComputerMoveStrategyResolver`.
 
 ## 5. Segurança contra ciclos
 
-`ScreenManager` recebe um limite máximo de transições. O valor padrão é alto o
-suficiente para uso interativo, mas impede que telas simuladas ou defeituosas
-mantenham um ciclo infinito silencioso.
+`ScreenManager` não impõe um limite global às sessões interativas reais. A
+detecção de ciclos é um contrato opcional, representado por
+`INavigationCycleDetector`.
 
-Ao exceder o limite, o gerenciador lança `InvalidOperationException` com uma
-mensagem que indica possível ciclo de navegação.
+Testes e diagnósticos podem utilizar `TransitionLimitCycleDetector`. Quando o
+limite configurado é excedido, o detector sinaliza uma possível repetição
+defeituosa sem transformar uma sessão longa e legítima em erro.
 
 ## 6. Testabilidade
 
@@ -170,7 +171,7 @@ e retornam transições predeterminadas. Isso permite verificar:
 - transições válidas;
 - retorno ao menu;
 - encerramento em `Exit`;
-- limite contra ciclos;
+- detector opcional de ciclos e limite de transições em testes;
 - armazenamento da configuração;
 - cancelamento da configuração;
 - delegação da partida;

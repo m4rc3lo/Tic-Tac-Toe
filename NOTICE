@@ -4,20 +4,31 @@ Copyright 2020-2026 Marcelo Dornbusch Lopes
 Este produto inclui uma refatoração e ampliação de uma implementação anterior
 do jogo da velha, criada pelo mesmo autor e preservada na tag v1.0.0.
 
-O estado legado foi originalmente distribuído sob a licença MIT. A partir da
-linha de refatoração posterior à versão v1.0.0, o projeto passa a ser
-licenciado sob a Apache License 2.0.
+O estado legado foi originalmente distribuído sob a licença MIT. A linha de
+refatoração posterior à tag v1.0.0 é distribuída sob a Apache License 2.0.
+Os arquivos em legacy/ possuem finalidade histórica, didática e comparativa e
+não integram a compilação da solução .NET 9.
 
-Os arquivos mantidos no diretório legacy/ possuem finalidade histórica,
-didática e comparativa. Eles não integram a compilação da nova solução.
+A aplicação de produção não declara pacotes NuGet de terceiros. Ela utiliza as
+bibliotecas do runtime .NET 9.
 
-Até a versão 1.1.0, não foram incorporados recursos artísticos, fontes,
-trechos de código ou bibliotecas de terceiros que exijam atribuições
-adicionais neste arquivo.
+O projeto de testes utiliza:
 
-O projeto utiliza componentes do ecossistema .NET e, exclusivamente no
-projeto de testes, o framework xUnit. As licenças desses componentes permanecem
-sob responsabilidade de seus respectivos titulares.
+- Microsoft.NET.Test.Sdk 18.8.1;
+- xunit.v3 3.2.2;
+- xunit.runner.visualstudio 3.1.5;
+- coverlet.collector 10.0.1.
+
+O script de análise do experimento de referência utiliza somente a biblioteca
+padrão do Python. Os diagramas Mermaid são documentação textual e não são
+empacotados como dependência da aplicação.
+
+As licenças dos componentes do ecossistema .NET, xUnit, Coverlet e demais
+ferramentas permanecem sob responsabilidade de seus respectivos titulares.
+
+Até esta revisão, não foram incorporados recursos artísticos, fontes, sons,
+imagens ou trechos de código de terceiros que exijam atribuições adicionais
+neste arquivo.
 
 Este arquivo NOTICE possui caráter informativo e não modifica os termos da
 Apache License 2.0.

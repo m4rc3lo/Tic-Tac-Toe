@@ -37,143 +37,42 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Added
+
+- modo demonstrativo IA contra IA e modo experimental em lote;
+- plano e executor do experimento de referência com ambiente e hashes SHA-256;
+- persistência experimental JSON e CSV com isolamento de repositórios;
+- quarentena de JSON inválido e recuperação de estatísticas pelo histórico;
+- detecção separada de plataforma e capacidades do terminal;
+- quatro perfis de publicação Windows e Linux;
+- validadores e scripts de publicação, cobertura e análise experimental;
+- módulos explícitos no namespace `Composition`;
+- testes arquiteturais, de imutabilidade, cobertura e publicação;
+- documentação `docs/11` a `docs/31`, incluindo glossário, uso de IA,
+  resultados, revisão legal e matriz documental.
+
+### Changed
+
+- `Program.Main` e `ConsoleApplication` foram reduzidos, mantendo
+  `ConsoleApplicationComposer` como composition root;
+- recursos ANSI, Unicode, áudio, limpeza e interação por tecla passaram a
+  considerar capacidades reais do ambiente;
+- `ScreenManager` deixou de impor limite global de transições;
+- records com coleções passaram a realizar cópias defensivas;
+- pacotes publicados passaram a incluir `CITATION.cff`,
+  `README-PUBLISH.md` e `settings.example.json`;
+- README, índices e diagramas foram alinhados aos nomes e fluxos atuais.
+
 ### Fixed
 
-- Experimento de referência passou a regravar obrigatoriamente o resultado
-  completo de cada cenário antes da validação e dos hashes.
-- Gravações finais possuem tentativas limitadas para falhas transitórias de
-  infraestrutura.
-- Manifesto não é produzido quando JSON, CSV e resultado em memória divergem.
-
-
-### Fixed
-
-- Validação do experimento de referência agora detecta divergências entre
-  resultado em memória, JSON e CSV antes de gerar o manifesto.
-- Script de análise passou a informar cenário e contagens inconsistentes.
-
-
-### Added
-
-- Orquestrador não interativo do experimento de referência.
-- Plano versionado com seis cenários e 600 execuções planejadas.
-- Manifesto de ambiente e hashes SHA-256 dos resultados.
-- Script de validação, agregação e geração de gráfico SVG.
-- `docs/13-resultados.md`.
-
-
-### Added
-
-- Configuração Cobertura para `coverlet.collector`.
-- Scripts PowerShell e Bash para execução e resumo de cobertura.
-- Classificação estrutural dos testes em unitários, integração local e
-  validação de publicação.
-- Testes para perfis de publicação e ramos críticos remanescentes.
-- `docs/12-testes.md`.
-
-### Changed
-
-- Revisão de cobertura passou a priorizar invariantes e fronteiras externas,
-  sem estabelecer porcentagem isolada como meta.
-
-
-### Added
-
-- Namespace `Composition` com módulos explícitos para configuração, persistência,
-  apresentação e telas.
-- Testes arquiteturais para fronteiras públicas do domínio.
-- Testes de cópia defensiva dos registros persistentes.
-- `docs/29-revisao-arquitetural-final.md`.
-
-### Changed
-
-- `ConsoleApplication` passou a delegar a composição ao
-  `ConsoleApplicationComposer`.
-- Records com coleções passaram a realizar cópias defensivas.
-- Diagramas arquiteturais foram atualizados para o código real.
-
-
-### Added
-
-- Quatro perfis MSBuild para publicação Windows e Linux.
-- Arquivos mínimos de distribuição e configuração de exemplo.
-- Validador e scripts para inspeção e medição dos pacotes.
-- `docs/26-publicacao.md`, `docs/27-glossario.md` e
-  `docs/28-uso-ia-generativa.md`.
-- Índice em `docs/README.md`.
-- README ampliado com arte ASCII e catálogo documental.
-
-### Changed
-
-- `CITATION.cff` passou a ser copiado explicitamente na publicação.
-- `.gitignore` passou a permitir somente os perfis versionados.
-- Publicações foram configuradas sem single-file, trimming ou ReadyToRun.
-
-
-### Added
-
-- Detecção separada de plataforma e capacidades do terminal.
-- Modo de compatibilidade para preferências efetivas da sessão.
-- Verificação de `CITATION.cff` no diretório publicado.
-- Testes com detectores de ambiente injetáveis.
-- `docs/14-limitacoes.md` com matriz Windows e Unix-like.
-
-### Changed
-
-- Áudio passou a considerar capacidade real, não apenas plataforma.
-- Pausa e cancelamento deixaram de consultar teclas em entrada redirecionada.
-- Recursos visuais são reduzidos automaticamente em saída redirecionada.
-- Documentação XML de `MatchConfiguration.RandomSeed` foi corrigida.
-
-
-### Added
-
-- Quarentena de arquivos JSON inválidos antes da recuperação.
-- Exceções de infraestrutura com identificador diagnóstico seguro.
-- Recuperação das estatísticas a partir do histórico.
-- Reporters testáveis para falhas externas e experimentais.
-- Detecção opcional de ciclos de navegação.
-- Testes de falhas controladas nas fronteiras externas.
-- `docs/25-robustez-fronteiras-externas.md`.
-
-### Changed
-
-- Falhas de persistência deixaram de encerrar telas de partida.
-- Repositórios experimentais passaram a falhar de forma isolada.
-- Fallback de áudio passou a capturar apenas falhas operacionais.
-- `ScreenManager` deixou de impor limite padrão às sessões reais.
-- Créditos passaram a usar fallback também em falhas de leitura.
-
-
-### Added
-
-- `ExperimentController` para confrontos IA contra IA em lote.
-- Política determinística de sementes e alternância independente.
-- Contrato opcional `ISearchMetricsProvider`.
-- Persistência experimental acumulada em JSON e CSV.
-- Captura de falhas individuais sem descarte do lote.
-- Testes sem apresentação, tempo real ou arquivos permanentes.
-- `docs/24-modo-experimental.md`.
-- `docs/11-experimentacao.md` com protocolo formal, esquemas e plano de análise.
-
-
-### Added
-
-- modo demonstrativo IA contra IA com Strategies independentes para X e O;
-- pausa e cancelamento por contrato testável;
-- aplicação de Strategy e semente padrão;
-- persistência opcional de partidas demonstrativas;
-- `PreferenceAwareAudioService` para áudio reativo;
-- `MoveStrategyFactory` compartilhada pelos runners;
-- `docs/23-modo-automatico.md`.
-
-### Changed
-
-- configurações alteradas na interface passaram a ser persistidas;
-- atraso de animação passou a ser editável pela tela de configurações;
-- `Program.Main` foi reduzido e a composição movida para `ConsoleApplication`;
-- menu principal passou a oferecer o modo demonstrativo.
-
+- falhas externas passaram a produzir recuperação e diagnóstico controlados;
+- persistência experimental final passou a verificar consistência entre
+  memória, JSON e CSV antes do manifesto;
+- bloqueios transitórios de arquivos passaram a ter tentativas limitadas no
+  experimento de referência;
+- documentação XML de `MatchConfiguration.RandomSeed`;
+- descrições antigas sobre ciclos de navegação e cópia de `CITATION.cff`;
+- atribuições e dependências efetivamente utilizadas no `NOTICE`.
 
 ## [1.8.0] - 2026-07-18
 
