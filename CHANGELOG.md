@@ -46,6 +46,7 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 - Captura de falhas individuais sem descarte do lote.
 - Testes sem apresentação, tempo real ou arquivos permanentes.
 - `docs/24-modo-experimental.md`.
+- `docs/11-experimentacao.md` com protocolo formal, esquemas e plano de análise.
 
 
 ### Added
