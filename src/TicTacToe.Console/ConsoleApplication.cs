@@ -64,8 +64,23 @@ public sealed class ConsoleApplication
             art_catalog,
             visual_feedback,
             audio_service);
-        IMatchPersistenceService persistence_service =
+        MatchPersistenceComponents persistence_components =
             create_match_persistence(settings);
+        IMatchPersistenceService persistence_service =
+            persistence_components.PersistenceService;
+        IExternalFailureReporter failure_reporter =
+            new TextExternalFailureReporter(writer);
+
+        try
+        {
+            persistence_components.RecoveryService.recover();
+        }
+        catch (InfrastructureOperationException exception)
+        {
+            failure_reporter.report(
+                "As estatísticas não puderam ser recuperadas.",
+                exception);
+        }
         IMoveStrategyFactory strategy_factory =
             new MoveStrategyFactory();
         IMatchSessionRunner match_runner =
@@ -75,7 +90,8 @@ public sealed class ConsoleApplication
                 animation_service,
                 preferences,
                 persistence_service,
-                strategy_factory);
+                strategy_factory,
+                failure_reporter);
         IAutomaticModeControl mode_control =
             new ConsoleAutomaticModeControl(
                 writer,
@@ -88,7 +104,8 @@ public sealed class ConsoleApplication
                 preferences,
                 strategy_factory,
                 mode_control,
-                persistence_service);
+                persistence_service,
+                failure_reporter);
         CitationMetadata citation_metadata =
             new CitationMetadataLoader().load(
                 Path.Combine(
@@ -127,19 +144,33 @@ public sealed class ConsoleApplication
             context);
     }
 
-    private static IMatchPersistenceService create_match_persistence(
+    private static MatchPersistenceComponents create_match_persistence(
         ApplicationSettings settings)
     {
         string data_directory = Path.Combine(
             AppContext.BaseDirectory,
             settings.Directories.Data);
-
-        return new MatchPersistenceService(
+        IMatchHistoryRepository history_repository =
             new JsonMatchHistoryRepository(
-                Path.Combine(data_directory, "matches.json")),
+                Path.Combine(data_directory, "matches.json"));
+        IMatchStatisticsRepository statistics_repository =
             new JsonMatchStatisticsRepository(
-                Path.Combine(data_directory, "statistics.json")),
-            new MatchRecordMapper(),
-            new MatchStatisticsCalculator());
+                Path.Combine(data_directory, "statistics.json"));
+        MatchStatisticsCalculator calculator = new();
+
+        return new MatchPersistenceComponents(
+            new MatchPersistenceService(
+                history_repository,
+                statistics_repository,
+                new MatchRecordMapper(),
+                calculator),
+            new MatchPersistenceRecoveryService(
+                history_repository,
+                statistics_repository,
+                calculator));
     }
+
+    private sealed record MatchPersistenceComponents(
+        IMatchPersistenceService PersistenceService,
+        IMatchPersistenceRecoveryService RecoveryService);
 }

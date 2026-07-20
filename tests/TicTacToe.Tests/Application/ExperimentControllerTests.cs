@@ -74,6 +74,27 @@ public class ExperimentControllerTests
         Assert.True(result.Metrics[0].EvaluatedStates > 0);
     }
 
+    [Fact]
+    public void run_should_continue_when_one_result_repository_fails()
+    {
+        MemoryRepository healthy_repository = new();
+        RecordingInfrastructureReporter reporter = new();
+
+        ExperimentController controller = new(
+            new ExperimentStrategyFactory(),
+            new SequentialSeedSequence(),
+            new FakeTimerFactory(),
+            [new FailingRepository(), healthy_repository],
+            infrastructure_reporter: reporter);
+
+        ExperimentResult result = controller.run(
+            create_configuration(match_count: 2));
+
+        Assert.Equal(2, result.Metrics.Count);
+        Assert.Equal(2, healthy_repository.SaveCount);
+        Assert.Equal(2, reporter.CallCount);
+    }
+
     private static ExperimentController create_controller(
         IExperimentStrategyFactory factory,
         IExperimentResultRepository repository)
@@ -96,6 +117,30 @@ public class ExperimentControllerTests
             BaseSeed: 10,
             ApplicationVersion: "1.8.0",
             OutputDirectory: "ignored");
+    }
+
+    private sealed class FailingRepository
+        : IExperimentResultRepository
+    {
+        public void save(
+            string output_directory,
+            ExperimentResult result)
+        {
+            throw new IOException("Falha controlada.");
+        }
+    }
+
+    private sealed class RecordingInfrastructureReporter
+        : IExperimentInfrastructureReporter
+    {
+        public int CallCount { get; private set; }
+
+        public void report(
+            string repository_name,
+            Exception exception)
+        {
+            CallCount++;
+        }
     }
 
     private sealed class MemoryRepository : IExperimentResultRepository

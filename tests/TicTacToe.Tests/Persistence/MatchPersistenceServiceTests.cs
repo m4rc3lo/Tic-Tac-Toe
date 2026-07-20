@@ -34,8 +34,11 @@ public class MatchPersistenceServiceTests
             history,
             statistics);
 
-        Assert.Throws<IOException>(
-            () => service.persist(create_context()));
+        InfrastructureOperationException exception =
+            Assert.Throws<InfrastructureOperationException>(
+                () => service.persist(create_context()));
+
+        Assert.IsType<IOException>(exception.InnerException);
 
         Assert.Single(history.Records);
         Assert.Equal(previous.Id, history.Records[0].Id);

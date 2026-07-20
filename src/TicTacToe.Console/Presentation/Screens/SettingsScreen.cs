@@ -1,3 +1,4 @@
+using TicTacToe.Persistence;
 using TicTacToe.Presentation.Navigation;
 
 namespace TicTacToe.Presentation.Screens;
@@ -97,6 +98,12 @@ public sealed class SettingsScreen : IScreen
         {
             context.persist_presentation_preferences();
             writer.WriteLine("Configurações salvas.");
+        }
+        catch (InfrastructureOperationException exception)
+        {
+            writer.WriteLine(
+                $"Não foi possível salvar as configurações. " +
+                $"Diagnóstico: {exception.DiagnosticId:N}.");
         }
         catch (IOException exception)
         {

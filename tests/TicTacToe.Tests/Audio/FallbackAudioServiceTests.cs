@@ -36,6 +36,17 @@ public class FallbackAudioServiceTests
         Assert.Null(exception);
     }
 
+    [Fact]
+    public void play_should_not_hide_unexpected_programming_failure()
+    {
+        FallbackAudioService service = new(
+            new UnexpectedFailureAudioService(),
+            new RecordingAudioService());
+
+        Assert.Throws<InvalidOperationException>(
+            () => service.play(AudioCue.Move));
+    }
+
     private sealed class ThrowingAudioService : IAudioService
     {
         public int CallCount { get; private set; }
@@ -43,8 +54,18 @@ public class FallbackAudioServiceTests
         public void play(AudioCue cue)
         {
             CallCount++;
-            throw new InvalidOperationException(
+            throw new IOException(
                 "Dispositivo indisponível.");
+        }
+    }
+
+    private sealed class UnexpectedFailureAudioService
+        : IAudioService
+    {
+        public void play(AudioCue cue)
+        {
+            throw new InvalidOperationException(
+                "Falha de programação.");
         }
     }
 

@@ -39,6 +39,25 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- Quarentena de arquivos JSON inválidos antes da recuperação.
+- Exceções de infraestrutura com identificador diagnóstico seguro.
+- Recuperação das estatísticas a partir do histórico.
+- Reporters testáveis para falhas externas e experimentais.
+- Detecção opcional de ciclos de navegação.
+- Testes de falhas controladas nas fronteiras externas.
+- `docs/25-robustez-fronteiras-externas.md`.
+
+### Changed
+
+- Falhas de persistência deixaram de encerrar telas de partida.
+- Repositórios experimentais passaram a falhar de forma isolada.
+- Fallback de áudio passou a capturar apenas falhas operacionais.
+- `ScreenManager` deixou de impor limite padrão às sessões reais.
+- Créditos passaram a usar fallback também em falhas de leitura.
+
+
+### Added
+
 - `ExperimentController` para confrontos IA contra IA em lote.
 - Política determinística de sementes e alternância independente.
 - Contrato opcional `ISearchMetricsProvider`.
