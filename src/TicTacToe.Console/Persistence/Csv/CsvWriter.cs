@@ -66,6 +66,20 @@ public sealed class CsvWriter
                 path,
                 overwrite: true);
         }
+        catch (IOException exception)
+        {
+            throw new InfrastructureOperationException(
+                "exportar CSV",
+                "Não foi possível gravar o arquivo de exportação.",
+                exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new InfrastructureOperationException(
+                "exportar CSV",
+                "Não foi possível gravar o arquivo de exportação.",
+                exception);
+        }
         finally
         {
             if (File.Exists(temporary_path))

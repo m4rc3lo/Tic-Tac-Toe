@@ -1,3 +1,4 @@
+
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -33,26 +34,26 @@ internal sealed class JsonFileStore
                 return default_value;
             }
 
-            string json = File.ReadAllText(
-                path,
-                Encoding.UTF8);
+            string json = File.ReadAllText(path, Encoding.UTF8);
+            T? value = JsonSerializer.Deserialize<T>(
+                json,
+                serializer_options);
 
-            return JsonSerializer.Deserialize<T>(
-                       json,
-                       serializer_options)
-                   ?? default_value;
+            return value is null
+                ? quarantine_and_return_default(path, default_value)
+                : value;
         }
         catch (JsonException)
         {
-            return default_value;
+            return quarantine_and_return_default(path, default_value);
         }
-        catch (IOException)
+        catch (IOException exception)
         {
-            return default_value;
+            throw create_exception("ler JSON", exception);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException exception)
         {
-            return default_value;
+            throw create_exception("ler JSON", exception);
         }
     }
 
@@ -64,17 +65,16 @@ internal sealed class JsonFileStore
         ArgumentNullException.ThrowIfNull(value);
 
         string? directory = Path.GetDirectoryName(path);
-
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
         string temporary_path =
             $"{path}.tmp-{Guid.NewGuid():N}";
 
         try
         {
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
             string json = JsonSerializer.Serialize(
                 value,
                 serializer_options);
@@ -82,20 +82,69 @@ internal sealed class JsonFileStore
             File.WriteAllText(
                 temporary_path,
                 json,
-                new UTF8Encoding(
-                    encoderShouldEmitUTF8Identifier: false));
+                new UTF8Encoding(false));
 
             File.Move(
                 temporary_path,
                 path,
                 overwrite: true);
         }
+        catch (IOException exception)
+        {
+            throw create_exception("gravar JSON", exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw create_exception("gravar JSON", exception);
+        }
         finally
         {
-            if (File.Exists(temporary_path))
+            try
             {
-                File.Delete(temporary_path);
+                if (File.Exists(temporary_path))
+                {
+                    File.Delete(temporary_path);
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
             }
         }
+    }
+
+    private static T quarantine_and_return_default<T>(
+        string path,
+        T default_value)
+    {
+        try
+        {
+            JsonCorruptionQuarantine.preserve(path);
+            return default_value;
+        }
+        catch (IOException exception)
+        {
+            throw create_exception(
+                "preservar JSON inválido",
+                exception);
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw create_exception(
+                "preservar JSON inválido",
+                exception);
+        }
+    }
+
+    private static InfrastructureOperationException create_exception(
+        string operation,
+        Exception exception)
+    {
+        return new InfrastructureOperationException(
+            operation,
+            "Não foi possível acessar um arquivo de dados.",
+            exception);
     }
 }

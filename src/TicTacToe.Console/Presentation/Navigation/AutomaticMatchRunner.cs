@@ -19,6 +19,7 @@ public sealed class AutomaticMatchRunner : IAutomaticMatchRunner
     private readonly IMoveStrategyFactory strategy_factory;
     private readonly IAutomaticModeControl mode_control;
     private readonly IMatchPersistenceService? persistence_service;
+    private readonly IExternalFailureReporter failure_reporter;
 
     public AutomaticMatchRunner(
         TextWriter writer,
@@ -27,7 +28,8 @@ public sealed class AutomaticMatchRunner : IAutomaticMatchRunner
         PresentationPreferences preferences,
         IMoveStrategyFactory strategy_factory,
         IAutomaticModeControl mode_control,
-        IMatchPersistenceService? persistence_service = null)
+        IMatchPersistenceService? persistence_service = null,
+        IExternalFailureReporter? failure_reporter = null)
     {
         ArgumentNullException.ThrowIfNull(writer);
         ArgumentNullException.ThrowIfNull(game_output);
@@ -43,6 +45,8 @@ public sealed class AutomaticMatchRunner : IAutomaticMatchRunner
         this.strategy_factory = strategy_factory;
         this.mode_control = mode_control;
         this.persistence_service = persistence_service;
+        this.failure_reporter = failure_reporter ??
+            new NullExternalFailureReporter();
     }
 
     public AutomaticMatchResult run(
@@ -103,12 +107,21 @@ public sealed class AutomaticMatchRunner : IAutomaticMatchRunner
 
             if (configuration.PersistMatch)
             {
-                persistence_service?.persist(
-                    create_persistence_context(
-                        completed_match,
-                        configuration,
-                        started_at,
-                        stopwatch.Elapsed));
+                try
+                {
+                    persistence_service?.persist(
+                        create_persistence_context(
+                            completed_match,
+                            configuration,
+                            started_at,
+                            stopwatch.Elapsed));
+                }
+                catch (InfrastructureOperationException exception)
+                {
+                    failure_reporter.report(
+                        "A demonstração não pôde ser registrada.",
+                        exception);
+                }
             }
 
             return new AutomaticMatchResult(

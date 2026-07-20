@@ -18,6 +18,7 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
     private readonly PresentationPreferences preferences;
     private readonly IMatchPersistenceService? persistence_service;
     private readonly IMoveStrategyFactory strategy_factory;
+    private readonly IExternalFailureReporter failure_reporter;
 
     /// <summary>
     /// Inicializa o executor de sessões sem persistência externa.
@@ -36,7 +37,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
             new PresentationPreferences(
                 visual_effects: false),
             persistence_service: null,
-            strategy_factory: new MoveStrategyFactory())
+            strategy_factory: new MoveStrategyFactory(),
+            failure_reporter: new NullExternalFailureReporter())
     {
     }
 
@@ -54,7 +56,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
             animation_service,
             preferences,
             persistence_service: null,
-            strategy_factory: new MoveStrategyFactory())
+            strategy_factory: new MoveStrategyFactory(),
+            failure_reporter: new NullExternalFailureReporter())
     {
     }
 
@@ -67,7 +70,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
         IAnimationService animation_service,
         PresentationPreferences preferences,
         IMatchPersistenceService? persistence_service,
-        IMoveStrategyFactory? strategy_factory = null)
+        IMoveStrategyFactory? strategy_factory = null,
+        IExternalFailureReporter? failure_reporter = null)
     {
         ArgumentNullException.ThrowIfNull(game_input);
         ArgumentNullException.ThrowIfNull(game_output);
@@ -80,6 +84,8 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
         this.preferences = preferences;
         this.persistence_service = persistence_service;
         this.strategy_factory = strategy_factory ?? new MoveStrategyFactory();
+        this.failure_reporter = failure_reporter ??
+            new NullExternalFailureReporter();
     }
 
     /// <inheritdoc />
@@ -128,15 +134,24 @@ public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
 
         stopwatch.Stop();
 
-        persistence_service?.persist(
-            new MatchPersistenceContext(
-                completed_match,
-                started_at,
-                started_at + stopwatch.Elapsed,
-                "Human",
-                configuration.OpponentStrategy.ToString(),
-                configuration.RandomSeed,
-                get_application_version()));
+        try
+        {
+            persistence_service?.persist(
+                new MatchPersistenceContext(
+                    completed_match,
+                    started_at,
+                    started_at + stopwatch.Elapsed,
+                    "Human",
+                    configuration.OpponentStrategy.ToString(),
+                    configuration.RandomSeed,
+                    get_application_version()));
+        }
+        catch (InfrastructureOperationException exception)
+        {
+            failure_reporter.report(
+                "A partida não pôde ser registrada.",
+                exception);
+        }
 
         return completed_match;
     }

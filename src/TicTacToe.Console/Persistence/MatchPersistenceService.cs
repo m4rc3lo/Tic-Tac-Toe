@@ -1,3 +1,4 @@
+
 namespace TicTacToe.Persistence;
 
 /// <summary>
@@ -37,20 +38,43 @@ public sealed class MatchPersistenceService
         MatchRecord[] updated_history =
             [.. previous_history, record];
 
-        history_repository.replace_all(updated_history);
-
         try
         {
-            MatchStatisticsRecord statistics =
-                calculator.calculate(updated_history);
-
-            statistics_repository.save(statistics);
+            history_repository.replace_all(updated_history);
+            statistics_repository.save(
+                calculator.calculate(updated_history));
             return record;
         }
-        catch
+        catch (Exception exception)
+            when (is_infrastructure_failure(exception))
         {
-            history_repository.replace_all(previous_history);
-            throw;
+            try
+            {
+                history_repository.replace_all(previous_history);
+            }
+            catch (Exception rollback_exception)
+                when (is_infrastructure_failure(rollback_exception))
+            {
+                throw new InfrastructureOperationException(
+                    "persistir partida e restaurar histórico",
+                    "Não foi possível salvar a partida nem restaurar integralmente os dados anteriores.",
+                    new AggregateException(
+                        exception,
+                        rollback_exception));
+            }
+
+            throw new InfrastructureOperationException(
+                "persistir partida",
+                "A partida terminou, mas não foi possível salvá-la.",
+                exception);
         }
+    }
+
+    private static bool is_infrastructure_failure(
+        Exception exception)
+    {
+        return exception is InfrastructureOperationException
+            or IOException
+            or UnauthorizedAccessException;
     }
 }

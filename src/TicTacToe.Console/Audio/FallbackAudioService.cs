@@ -1,18 +1,14 @@
+
 namespace TicTacToe.Audio;
 
 /// <summary>
-/// Protege a aplicação contra falhas da implementação primária de áudio.
+/// Protege a aplicação contra falhas operacionais do áudio.
 /// </summary>
 public sealed class FallbackAudioService : IAudioService
 {
     private readonly IAudioService fallback_service;
     private IAudioService active_service;
 
-    /// <summary>
-    /// Inicializa o serviço resiliente.
-    /// </summary>
-    /// <param name="primary_service">Implementação preferencial.</param>
-    /// <param name="fallback_service">Implementação usada após falha.</param>
     public FallbackAudioService(
         IAudioService primary_service,
         IAudioService fallback_service)
@@ -24,14 +20,14 @@ public sealed class FallbackAudioService : IAudioService
         this.fallback_service = fallback_service;
     }
 
-    /// <inheritdoc />
     public void play(AudioCue cue)
     {
         try
         {
             active_service.play(cue);
         }
-        catch (Exception)
+        catch (Exception exception)
+            when (is_expected_audio_failure(exception))
         {
             active_service = fallback_service;
 
@@ -39,10 +35,19 @@ public sealed class FallbackAudioService : IAudioService
             {
                 fallback_service.play(cue);
             }
-            catch (Exception)
+            catch (Exception fallback_exception)
+                when (is_expected_audio_failure(fallback_exception))
             {
-                // Áudio é recurso opcional e nunca encerra a aplicação.
             }
         }
+    }
+
+    private static bool is_expected_audio_failure(
+        Exception exception)
+    {
+        return exception is IOException
+            or UnauthorizedAccessException
+            or PlatformNotSupportedException
+            or ObjectDisposedException;
     }
 }

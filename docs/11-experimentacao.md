@@ -271,10 +271,11 @@ O progresso acumulado é salvo imediatamente após o registro da falha.
 Com `ContinueOnFailure = true`, o lote continua. Com
 `ContinueOnFailure = false`, o lote termina após salvar a execução que falhou.
 
-Falhas de um repositório durante `save_progress` não são convertidas em uma
-métrica de execução pelo código atual; elas interrompem a persistência do lote.
-Esse comportamento deve ser considerado uma limitação de infraestrutura e
-revisto na etapa de robustez das fronteiras externas.
+Falhas de um repositório durante `save_progress` não são convertidas em
+métricas de execução. Elas são enviadas a
+`IExperimentInfrastructureReporter`, e os demais repositórios ainda são
+executados. Assim, uma falha de JSON não impede a tentativa de exportação CSV,
+ou vice-versa.
 
 ## 14. Procedimento experimental
 

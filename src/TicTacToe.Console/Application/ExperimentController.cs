@@ -14,13 +14,15 @@ public sealed class ExperimentController
     private readonly IExperimentTimerFactory timer_factory;
     private readonly IReadOnlyList<IExperimentResultRepository> repositories;
     private readonly IMatchPersistenceService? match_persistence_service;
+    private readonly IExperimentInfrastructureReporter infrastructure_reporter;
 
     public ExperimentController(
         IExperimentStrategyFactory strategy_factory,
         ISeedSequence seed_sequence,
         IExperimentTimerFactory timer_factory,
         IEnumerable<IExperimentResultRepository> repositories,
-        IMatchPersistenceService? match_persistence_service = null)
+        IMatchPersistenceService? match_persistence_service = null,
+        IExperimentInfrastructureReporter? infrastructure_reporter = null)
     {
         ArgumentNullException.ThrowIfNull(strategy_factory);
         ArgumentNullException.ThrowIfNull(seed_sequence);
@@ -32,6 +34,8 @@ public sealed class ExperimentController
         this.timer_factory = timer_factory;
         this.repositories = repositories.ToArray();
         this.match_persistence_service = match_persistence_service;
+        this.infrastructure_reporter = infrastructure_reporter ??
+            new NullExperimentInfrastructureReporter();
     }
 
     public ExperimentResult run(ExperimentConfiguration configuration)
@@ -189,8 +193,28 @@ public sealed class ExperimentController
 
         foreach (IExperimentResultRepository repository in repositories)
         {
-            repository.save(configuration.OutputDirectory, result);
+            try
+            {
+                repository.save(
+                    configuration.OutputDirectory,
+                    result);
+            }
+            catch (Exception exception)
+                when (is_infrastructure_failure(exception))
+            {
+                infrastructure_reporter.report(
+                    repository.GetType().Name,
+                    exception);
+            }
         }
+    }
+
+    private static bool is_infrastructure_failure(
+        Exception exception)
+    {
+        return exception is InfrastructureOperationException
+            or IOException
+            or UnauthorizedAccessException;
     }
 
     private static ExperimentResult create_result(

@@ -16,7 +16,20 @@ public sealed class CitationMetadataLoader
             return create_fallback();
         }
 
-        string[] lines = File.ReadAllLines(path);
+        string[] lines;
+
+        try
+        {
+            lines = File.ReadAllLines(path);
+        }
+        catch (IOException)
+        {
+            return create_fallback();
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return create_fallback();
+        }
 
         string title = get_scalar(lines, "title") ?? "Tic-Tac-Toe Console AI";
         string version = get_scalar(lines, "version") ?? "desconhecida";
