@@ -7,6 +7,13 @@
     <ItemGroup>
         <None Include="..\..\CITATION.cff"
               Link="CITATION.cff"
-              CopyToOutputDirectory="PreserveNewest" />
+              CopyToOutputDirectory="PreserveNewest"
+              CopyToPublishDirectory="PreserveNewest" />
+        <None Include="..\..\distribution\README-PUBLISH.md"
+              Link="README-PUBLISH.md"
+              CopyToPublishDirectory="PreserveNewest" />
+        <None Include="..\..\distribution\settings.example.json"
+              Link="settings.example.json"
+              CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
 </Project>

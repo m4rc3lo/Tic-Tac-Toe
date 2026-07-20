@@ -1,0 +1,14 @@
+{
+  "useUnicode": true,
+  "useAnsiColors": false,
+  "clearScreen": false,
+  "animationsEnabled": true,
+  "audioEnabled": true,
+  "animationDelayMilliseconds": 40,
+  "defaultStrategy": "Minimax",
+  "randomSeed": null,
+  "directories": {
+    "data": "data",
+    "exports": "exports"
+  }
+}

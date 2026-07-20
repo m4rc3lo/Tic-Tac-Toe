@@ -8,6 +8,7 @@ publish/
 *.publish.xml
 *.pubxml
 *.pubxml.user
+!src/TicTacToe.Console/Properties/PublishProfiles/*.pubxml
 
 # Visual Studio
 .vs/
