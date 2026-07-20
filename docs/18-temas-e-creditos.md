@@ -98,8 +98,9 @@ stateDiagram-v2
 ```
 
 `CitationMetadataLoader` lê título, versão, autor, licença e repositório de
-`CITATION.cff`. Como a publicação pode não copiar esse arquivo, a apresentação
-possui fallback com os mesmos campos essenciais.
+`CITATION.cff`. Os perfis oficiais copiam esse arquivo para build e publicação.
+A apresentação mantém fallback para leitura inválida, pacote manual incompleto
+ou falha operacional de acesso.
 
 ## 6. Limitações e fallback
 
@@ -110,7 +111,7 @@ limitações são:
 - terminais antigos podem imprimir códigos ANSI literalmente;
 - saída redirecionada não deve receber limpeza de tela;
 - largura de caracteres pode variar conforme fonte e locale;
-- `CITATION.cff` pode não estar ao lado do executável publicado.
+- pacotes montados manualmente podem omitir ou corromper `CITATION.cff`.
 
 O fallback recomendado é desativar Unicode, cores, limpeza e efeitos visuais.
 Nesse modo, a aplicação permanece funcional com texto e caracteres ASCII

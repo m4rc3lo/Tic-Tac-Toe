@@ -43,7 +43,7 @@ demonstrativo, experimentação reproduzível e publicação multiplataforma.
 | `v1.6.0` | 2026-07-17 | apresentação e navegação |
 | `v1.7.0` | 2026-07-17 | recursos audiovisuais |
 | `v1.8.0` | 2026-07-18 | persistência e CSV |
-| `Unreleased` | — | experimentação, robustez e publicação |
+| `Unreleased` | — | experimentação, robustez, publicação e revisão final |
 | `v2.0.0` | a definir | consolidação final |
 
 ## Estrutura
@@ -112,6 +112,34 @@ permanecem humanas.
 Consulte
 [`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md).
 
+
+## Arquivos locais no Windows
+
+Para experimentos ou publicações com muitas substituições de arquivos, evite
+gravar diretamente em pastas sincronizadas pelo Dropbox. Um diretório local
+pode ser criado em `%LOCALAPPDATA%`:
+
+```powershell
+$output = Join-Path `
+    $env:LOCALAPPDATA `
+    "TicTacToe\experiments\reference"
+
+New-Item -ItemType Directory -Path $output -Force
+Get-ChildItem $output -Recurse
+explorer.exe $output
+```
+
+Antes de remover dados, confirme o caminho:
+
+```powershell
+Resolve-Path $output
+Test-Path $output
+Get-ChildItem $output -Force
+```
+
+Consulte [`docs/13-resultados.md`](docs/13-resultados.md) e
+[`docs/26-publicacao.md`](docs/26-publicacao.md) para os fluxos completos.
+
 ## Convenções
 
 - identificadores em inglês;
@@ -156,6 +184,8 @@ Consulte
 | [`docs/27-glossario.md`](docs/27-glossario.md) | Vocabulário geral, técnico e de domínio. |
 | [`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
 | [`docs/29-revisao-arquitetural-final.md`](docs/29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
+| [`docs/30-revisao-legal-documental.md`](docs/30-revisao-legal-documental.md) | Revisão legal, metadados e consistência documental. |
+| [`docs/31-matriz-documentacao.md`](docs/31-matriz-documentacao.md) | Relação entre documentos, versões e componentes. |
 
 Também há um índice dedicado em [`docs/README.md`](docs/README.md).
 

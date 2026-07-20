@@ -137,3 +137,66 @@ A gravação final admite até três tentativas para falhas operacionais
 transitórias. Somente depois são comparadas as contagens do resultado em
 memória, do JSON e do CSV. O manifesto e os hashes não são produzidos quando
 essas contagens divergem.
+
+## 11. Diretório recomendado no Windows
+
+Diretórios sincronizados pelo Dropbox podem bloquear temporariamente arquivos
+durante substituições atômicas frequentes. Para o experimento de referência,
+recomenda-se escrever primeiro em `%LOCALAPPDATA%` e copiar apenas os artefatos
+finais validados para o repositório ou para a release.
+
+```powershell
+$output = Join-Path `
+    $env:LOCALAPPDATA `
+    "TicTacToe\experiments\reference"
+
+Remove-Item `
+    $output `
+    -Recurse `
+    -Force `
+    -ErrorAction SilentlyContinue
+
+$commit = git rev-parse HEAD
+
+dotnet run `
+    --project .\src\TicTacToe.Console\TicTacToe.Console.csproj `
+    --configuration Release `
+    -- `
+    --reference-experiment `
+    --commit $commit `
+    --output $output
+
+python .\scripts\analyze-reference-experiment.py $output
+```
+
+O diretório pode ser localizado e aberto com:
+
+```powershell
+Test-Path $output
+Get-ChildItem $output -Recurse
+explorer.exe $output
+```
+
+Depois da validação, copie somente o resumo e o gráfico pequenos:
+
+```powershell
+Copy-Item `
+    (Join-Path $output "reference-summary.json") `
+    .\experiments\reference\reference-summary.json
+
+Copy-Item `
+    (Join-Path $output "reference-results.svg") `
+    .\experiments\reference\reference-results.svg
+```
+
+Os resultados brutos podem ser compactados para uma release:
+
+```powershell
+Compress-Archive `
+    -Path (Join-Path $output "*") `
+    -DestinationPath `
+        .\artifacts\experiments\tictactoe-reference-results.zip `
+    -Force
+```
+
+Esse fluxo reduz bloqueios de sincronização e evita versionar dados volumosos.

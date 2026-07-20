@@ -147,6 +147,21 @@ O usuário precisa de permissão de escrita nesse local. Em instalações
 protegidas, como `Program Files`, recomenda-se copiar o pacote para um diretório
 do usuário ou ajustar os diretórios configurados.
 
+No Windows, uma alternativa operacional é `%LOCALAPPDATA%`:
+
+```powershell
+$app_directory = Join-Path $env:LOCALAPPDATA "TicTacToe"
+New-Item -ItemType Directory -Path $app_directory -Force
+Copy-Item .\artifacts\publish\win-x64-self-contained\* `
+    $app_directory `
+    -Recurse `
+    -Force
+```
+
+Pastas sincronizadas pelo Dropbox podem bloquear arquivos durante atualização,
+quarentena ou gravação atômica. Para publicação e experimentos, prefira gerar
+artefatos fora da pasta sincronizada e copiar o resultado concluído depois.
+
 ## 9. Atualização sem perda de dados
 
 Para atualizar:
@@ -212,3 +227,31 @@ no sistema correspondente.
 - permissões variam conforme o diretório;
 - o tamanho final deve ser registrado após publicação real;
 - assinatura de código e instaladores não fazem parte desta etapa.
+
+## 13. Operações de arquivo no PowerShell
+
+Comandos úteis para diagnóstico e atualização:
+
+```powershell
+Test-Path .\data
+Get-ChildItem .\data -Recurse -Force
+Copy-Item .\data .\backup\data -Recurse -Force
+Move-Item .\data\settings.json .\data\settings.backup.json
+Remove-Item .\artifacts\publish -Recurse -Force
+Get-FileHash .\CITATION.cff -Algorithm SHA256
+```
+
+Para localizar arquivos gerados em um diretório desconhecido:
+
+```powershell
+Get-ChildItem `
+    . `
+    $env:LOCALAPPDATA `
+    -Recurse `
+    -File `
+    -Filter "reference-manifest.json" `
+    -ErrorAction SilentlyContinue
+```
+
+`Remove-Item -Recurse -Force` é destrutivo. Antes de usá-lo em dados locais,
+confirme o caminho com `Resolve-Path`, `Test-Path` e `Get-ChildItem`.
