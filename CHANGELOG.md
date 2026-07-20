@@ -39,6 +39,23 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ### Added
 
+- Quatro perfis MSBuild para publicação Windows e Linux.
+- Arquivos mínimos de distribuição e configuração de exemplo.
+- Validador e scripts para inspeção e medição dos pacotes.
+- `docs/26-publicacao.md`, `docs/27-glossario.md` e
+  `docs/28-uso-ia-generativa.md`.
+- Índice em `docs/README.md`.
+- README ampliado com arte ASCII e catálogo documental.
+
+### Changed
+
+- `CITATION.cff` passou a ser copiado explicitamente na publicação.
+- `.gitignore` passou a permitir somente os perfis versionados.
+- Publicações foram configuradas sem single-file, trimming ou ReadyToRun.
+
+
+### Added
+
 - Detecção separada de plataforma e capacidades do terminal.
 - Modo de compatibilidade para preferências efetivas da sessão.
 - Verificação de `CITATION.cff` no diretório publicado.
