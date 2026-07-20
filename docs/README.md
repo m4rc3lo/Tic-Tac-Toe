@@ -32,6 +32,7 @@ projeto.
 | [26-publicacao.md](26-publicacao.md) | Perfis e validação de publicação. |
 | [27-glossario.md](27-glossario.md) | Vocabulário geral, técnico e de domínio. |
 | [28-uso-ia-generativa.md](28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
+| [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
 
 A ordem numérica registra a evolução temática, mas alguns números foram
 reservados ou ocupados por revisões intermediárias.
