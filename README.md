@@ -139,6 +139,7 @@ Consulte
 | [`docs/10-inteligencia-artificial.md`](docs/10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
 | [`docs/11-experimentacao.md`](docs/11-experimentacao.md) | Plano formal de experimentação. |
 | [`docs/12-testes.md`](docs/12-testes.md) | Estratégia, classificação e cobertura dos testes. |
+| [`docs/13-resultados.md`](docs/13-resultados.md) | Protocolo, execução e análise do experimento de referência. |
 | [`docs/14-limitacoes.md`](docs/14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
 | [`docs/15-audio.md`](docs/15-audio.md) | Serviços de áudio e fallback. |
 | [`docs/16-apresentacao-console.md`](docs/16-apresentacao-console.md) | Entrada, saída e renderização Console. |

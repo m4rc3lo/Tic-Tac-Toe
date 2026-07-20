@@ -37,6 +37,31 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
 
+### Fixed
+
+- Experimento de referência passou a regravar obrigatoriamente o resultado
+  completo de cada cenário antes da validação e dos hashes.
+- Gravações finais possuem tentativas limitadas para falhas transitórias de
+  infraestrutura.
+- Manifesto não é produzido quando JSON, CSV e resultado em memória divergem.
+
+
+### Fixed
+
+- Validação do experimento de referência agora detecta divergências entre
+  resultado em memória, JSON e CSV antes de gerar o manifesto.
+- Script de análise passou a informar cenário e contagens inconsistentes.
+
+
+### Added
+
+- Orquestrador não interativo do experimento de referência.
+- Plano versionado com seis cenários e 600 execuções planejadas.
+- Manifesto de ambiente e hashes SHA-256 dos resultados.
+- Script de validação, agregação e geração de gráfico SVG.
+- `docs/13-resultados.md`.
+
+
 ### Added
 
 - Configuração Cobertura para `coverlet.collector`.
