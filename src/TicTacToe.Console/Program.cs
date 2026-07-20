@@ -1,3 +1,5 @@
+using TicTacToe.ReferenceExperiment;
+
 namespace TicTacToe;
 
 /// <summary>
@@ -7,6 +9,13 @@ public static class Program
 {
     public static void Main(string[] args)
     {
+        if (ReferenceExperimentCommand.try_run(
+                args,
+                global::System.Console.Out))
+        {
+            return;
+        }
+
         new ConsoleApplication(
             global::System.Console.In,
             global::System.Console.Out).run();

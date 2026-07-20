@@ -1,0 +1,16 @@
+{
+  "repetitionsPerScenario": 100,
+  "baseSeed": 20260720,
+  "seedPolicy": "base_seed + run_number - 1",
+  "alternateSymbols": true,
+  "alternateFirstParticipant": true,
+  "persistMatchesToHistory": false,
+  "scenarios": [
+    "random-random",
+    "random-heuristic",
+    "random-minimax",
+    "heuristic-heuristic",
+    "heuristic-minimax",
+    "minimax-minimax"
+  ]
+}
