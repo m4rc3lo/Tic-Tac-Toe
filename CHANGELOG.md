@@ -28,7 +28,7 @@ timeline
         2026-07-17 : v1.7.0 — recursos audiovisuais
         2026-07-18 : v1.8.0 — persistência e exportação
     section Marcos planejados
-        Data a definir : v1.9.0 — experimentação e consolidação
+        2026-07-21 : v1.9.0 — experimentação e consolidação
         Data a definir : v2.0.0 — refatoração completa
 ```
 
@@ -36,6 +36,21 @@ As versões intermediárias poderão ser ajustadas conforme a granularidade
 real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
 
 ## [Unreleased]
+
+### Fixed
+
+- Auditoria de conteúdo sensível da candidata passou a usar expressões
+  regulares do PowerShell, evitando incompatibilidade com `git grep -E`;
+- auditoria passou a distinguir identificadores públicos e caminhos fictícios
+  de caminhos pessoais reais da máquina;
+- saída do checklist passou a configurar UTF-8 explicitamente no Windows;
+- scripts PowerShell passaram a usar UTF-8 com BOM para compatibilidade com
+  Windows PowerShell 5.1;
+- publicações passaram a executar restore específico para cada RID;
+- relatório da candidata passou a usar `File.WriteAllText` com UTF-8 sem BOM,
+  compatível com Windows PowerShell 5.1.
+
+## [1.9.0] - 2026-07-21
 
 ### Added
 

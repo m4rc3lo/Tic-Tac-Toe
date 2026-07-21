@@ -37,6 +37,7 @@ ao estado real do código.
 | [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | Unreleased | Arquitetura | auditoria final |
 | [30-revisao-legal-documental.md](30-revisao-legal-documental.md) | Unreleased | Governança/Legal | auditoria legal e documental |
 | [31-matriz-documentacao.md](31-matriz-documentacao.md) | Unreleased | Governança | rastreabilidade documental |
+| [32-release-v1.9.0.md](32-release-v1.9.0.md) | 1.9.0 | Release | checklist e validação da candidata |
 
 A matriz detalhada está em
 [`31-matriz-documentacao.md`](31-matriz-documentacao.md). Documentos históricos

@@ -43,7 +43,7 @@ demonstrativo, experimentação reproduzível e publicação multiplataforma.
 | `v1.6.0` | 2026-07-17 | apresentação e navegação |
 | `v1.7.0` | 2026-07-17 | recursos audiovisuais |
 | `v1.8.0` | 2026-07-18 | persistência e CSV |
-| `Unreleased` | — | experimentação, robustez, publicação e revisão final |
+| `v1.9.0` | 2026-07-21 | experimentação, robustez e publicação candidata |
 | `v2.0.0` | a definir | consolidação final |
 
 ## Estrutura
@@ -186,8 +186,24 @@ Consulte [`docs/13-resultados.md`](docs/13-resultados.md) e
 | [`docs/29-revisao-arquitetural-final.md`](docs/29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
 | [`docs/30-revisao-legal-documental.md`](docs/30-revisao-legal-documental.md) | Revisão legal, metadados e consistência documental. |
 | [`docs/31-matriz-documentacao.md`](docs/31-matriz-documentacao.md) | Relação entre documentos, versões e componentes. |
+| [`docs/32-release-v1.9.0.md`](docs/32-release-v1.9.0.md) | Checklist e validação da candidata v1.9.0. |
 
 Também há um índice dedicado em [`docs/README.md`](docs/README.md).
+
+
+## Candidata v1.9.0
+
+A versão `1.9.0` está preparada como candidata final. A tag só deve ser criada
+após a execução e aprovação do checklist em
+[`docs/32-release-v1.9.0.md`](docs/32-release-v1.9.0.md).
+
+```powershell
+powershell.exe `
+    -NoProfile `
+    -ExecutionPolicy Bypass `
+    -File .\scripts
+alidate-release-v1.9.0.ps1
+```
 
 ## Licença e citação
 
