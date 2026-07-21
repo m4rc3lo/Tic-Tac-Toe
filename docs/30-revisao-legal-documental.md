@@ -4,7 +4,7 @@
 
 Esta revisão verifica os artefatos legais, metadados de versão, documentação,
 esquemas e instruções operacionais contra o código consolidado da versão
-`1.8.0` com alterações ainda em `Unreleased`.
+`1.9.0` preparada como candidata final.
 
 ## 2. Licença e atribuições
 
@@ -24,15 +24,14 @@ declarados pertencem somente ao projeto de testes.
 
 ## 3. Versão e citação
 
-A versão permanece `1.8.0` em:
+A versão candidata é `1.9.0` em:
 
 - `Directory.Build.props`;
 - `CITATION.cff`;
 - assembly produzido pelo MSBuild.
 
-A data `2026-07-18` identifica a release `v1.8.0`. Alterações dos prompts
-posteriores permanecem em `Unreleased` e não alteram a citação até a próxima
-release formal.
+A data `2026-07-21` identifica a candidata `v1.9.0`. A tag permanece
+pendente até a conclusão do checklist de release.
 
 O arquivo `CITATION.cff` é copiado explicitamente para build e publicação por
 `TicTacToe.Console.csproj`.

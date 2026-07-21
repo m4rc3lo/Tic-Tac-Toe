@@ -3,7 +3,7 @@
 ## 1. Finalidade
 
 A matriz relaciona cada documento ao marco de versão e ao componente que ele
-descreve. `Unreleased` identifica conteúdo implementado depois de `v1.8.0` e
+descreve. `Unreleased` identifica conteúdo implementado depois de `v1.9.0` e
 ainda não associado a uma tag formal.
 
 | Documento | Versão ou período | Componente | Finalidade |
@@ -39,7 +39,8 @@ ainda não associado a uma tag formal.
 | `28-uso-ia-generativa.md` | Unreleased | Governança | transparência de IA |
 | `29-revisao-arquitetural-final.md` | Unreleased | Arquitetura | auditoria final |
 | `30-revisao-legal-documental.md` | Unreleased | Governança/Legal | auditoria legal e documental |
-| `31-matriz-documentacao.md` | Unreleased | Governança | rastreabilidade documental |
+| `31-matriz-documentacao.md` | 1.9.0 | Governança | rastreabilidade documental |
+| `32-release-v1.9.0.md` | 1.9.0 | Release | checklist e validação da candidata |
 
 ## 2. Leitura da matriz
 

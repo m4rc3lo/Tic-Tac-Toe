@@ -29,6 +29,30 @@ public class LegalDocumentationConsistencyTests
             citation);
     }
 
+
+    [Fact]
+    public void release_candidate_should_use_expected_version_and_date()
+    {
+        string citation = File.ReadAllText(
+            Path.Combine(
+                project_root,
+                "CITATION.cff"));
+        string changelog = File.ReadAllText(
+            Path.Combine(
+                project_root,
+                "CHANGELOG.md"));
+
+        Assert.Contains(
+            "version: \"1.9.0\"",
+            citation);
+        Assert.Contains(
+            "date-released: \"2026-07-21\"",
+            citation);
+        Assert.Contains(
+            "## [1.9.0] - 2026-07-21",
+            changelog);
+    }
+
     [Fact]
     public void production_project_should_not_reference_nuget_packages()
     {

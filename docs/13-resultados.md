@@ -200,3 +200,24 @@ Compress-Archive `
 ```
 
 Esse fluxo reduz bloqueios de sincronização e evita versionar dados volumosos.
+
+
+## 12. Validação da candidata v1.9.0
+
+A candidata usa um experimento curto separado do protocolo de referência:
+
+```powershell
+dotnet run `
+    --project .\src\TicTacToe.Console\TicTacToe.Console.csproj `
+    --configuration Release `
+    --no-build `
+    -- `
+    --reference-experiment `
+    --commit (git rev-parse HEAD) `
+    --output $output `
+    --repetitions 2 `
+    --base-seed 1900
+```
+
+As opções `--repetitions` e `--base-seed` permitem validar rapidamente o
+pipeline sem alterar o plano versionado de 100 repetições por cenário.
