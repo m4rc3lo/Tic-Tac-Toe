@@ -1,0 +1,163 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -37,7 +37,10 @@
+ 
+ ## [Unreleased]
+ 
+-Nenhuma alteração registrada após `v1.9.0`.
++### Fixed
++
++- Auditoria de conteúdo sensível da candidata passou a usar expressões
++  regulares do PowerShell, evitando incompatibilidade com `git grep -E`.
+ 
+ ## [1.9.0] - 2026-07-21
+ 
+diff --git a/scripts/validate-release-v1.9.0.ps1 b/scripts/validate-release-v1.9.0.ps1
+--- a/scripts/validate-release-v1.9.0.ps1
++++ b/scripts/validate-release-v1.9.0.ps1
+@@ -62,27 +62,126 @@
+ }
+ 
+ function Assert-NoSensitiveContent {
++    $excludedPaths = @(
++        "README.md",
++        "docs/13-resultados.md",
++        "docs/26-publicacao.md",
++        "scripts/validate-release-v1.9.0.ps1"
++    )
++    $textExtensions = @(
++        ".cs",
++        ".csproj",
++        ".props",
++        ".targets",
++        ".json",
++        ".md",
++        ".cff",
++        ".txt",
++        ".csv",
++        ".xml",
++        ".ps1",
++        ".sh",
++        ".yml",
++        ".yaml",
++        ".gitignore",
++        ".gitattributes"
++    )
+     $patterns = @(
+-        'm4rc3lo',
+-        'Dropbox\\univali',
+-        'C:\\Users\\[^<>{}`"]+',
+-        'AKIA[0-9A-Z]{16}',
+-        'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY',
+-        '(?i)(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*[^\s<>{}]+'
+-    )
+-    $trackedText = @(
+-        git -C $projectRoot grep -n -I -E (
+-            $patterns -join "|"
+-        ) -- `
+-            ':!docs/13-resultados.md' `
+-            ':!docs/26-publicacao.md' `
+-            ':!README.md' 2>$null
+-    )
+-
+-    if ($trackedText.Count -gt 0) {
++        [pscustomobject]@{
++            Name = "nome de usuário local"
++            Regex = [regex]::new(
++                [regex]::Escape("m4rc3lo"),
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        },
++        [pscustomobject]@{
++            Name = "diretório pessoal do Dropbox"
++            Regex = [regex]::new(
++                'Dropbox[\\/]+univali',
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        },
++        [pscustomobject]@{
++            Name = "caminho absoluto de usuário Windows"
++            Regex = [regex]::new(
++                'C:\\Users\\[^\\/:*?"<>|\r\n]+',
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        },
++        [pscustomobject]@{
++            Name = "identificador de chave AWS"
++            Regex = [regex]::new(
++                'AKIA[0-9A-Z]{16}',
++                [Text.RegularExpressions.RegexOptions]::None
++            )
++        },
++        [pscustomobject]@{
++            Name = "chave privada"
++            Regex = [regex]::new(
++                'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY',
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        },
++        [pscustomobject]@{
++            Name = "segredo atribuído em texto"
++            Regex = [regex]::new(
++                '(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*[^\s<>{}]+',
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        }
++    )
++    $findings = [System.Collections.Generic.List[string]]::new()
++    $trackedFiles = @(
++        git -C $projectRoot ls-files
++    )
++
++    foreach ($relativePath in $trackedFiles) {
++        $normalizedPath = $relativePath.Replace("\", "/")
++
++        if ($excludedPaths -contains $normalizedPath) {
++            continue
++        }
++
++        $extension = [IO.Path]::GetExtension($normalizedPath).ToLowerInvariant()
++        $fileName = [IO.Path]::GetFileName($normalizedPath).ToLowerInvariant()
++
++        if (
++            $textExtensions -notcontains $extension -and
++            $textExtensions -notcontains $fileName
++        ) {
++            continue
++        }
++
++        $absolutePath = Join-Path $projectRoot $relativePath
++
++        try {
++            $lineNumber = 0
++
++            foreach ($line in Get-Content -LiteralPath $absolutePath) {
++                $lineNumber++
++
++                foreach ($pattern in $patterns) {
++                    if ($pattern.Regex.IsMatch($line)) {
++                        $findings.Add(
++                            "$normalizedPath`:$lineNumber " +
++                            "[$($pattern.Name)]"
++                        )
++                    }
++                }
++            }
++        }
++        catch {
++            throw (
++                "Não foi possível auditar o arquivo " +
++                "'$normalizedPath': $($_.Exception.Message)"
++            )
++        }
++    }
++
++    if ($findings.Count -gt 0) {
+         throw (
+             "Conteúdo potencialmente sensível encontrado:`n" +
+-            ($trackedText -join "`n")
++            ($findings -join "`n")
+         )
+     }
+ }

@@ -1,0 +1,1439 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,23 @@
+ 
+ ### Added
+ 
++- Registros imutáveis para partidas, participantes, jogadas e sequência vencedora.
++- Repositórios JSON de histórico e estatísticas.
++- `MatchRecordMapper` para conversão fora do domínio.
++- `MatchStatisticsCalculator` com agregação geral e por Strategy.
++- `MatchPersistenceService` com rollback do histórico em falhas de estatística.
++- Medição de duração, semente e versão na execução de partidas.
++- Testes em diretórios temporários.
++- `docs/21-partidas-e-estatisticas-json.md`.
++
++### Changed
++
++- `ConsoleMatchSessionRunner` passou a persistir partidas concluídas.
++- `MatchConfiguration` passou a aceitar semente opcional.
++
++
++### Added
++
+ - `ApplicationSettings` e `ApplicationDirectories` com valores padrão.
+ - `ISettingsRepository`, `JsonSettingsRepository` e `SettingsValidator`.
+ - Persistência JSON com propriedades desconhecidas toleradas.
+diff --git a/docs/21-partidas-e-estatisticas-json.md b/docs/21-partidas-e-estatisticas-json.md
+new file mode 100644
+--- /dev/null
++++ b/docs/21-partidas-e-estatisticas-json.md
+@@ -0,0 +1,176 @@
++# Partidas e estatísticas em JSON
++
++## 1. Finalidade
++
++Esta etapa persiste partidas concluídas e estatísticas agregadas sem adicionar
++dependências de JSON ao domínio. A conversão ocorre em `MatchRecordMapper`, na
++camada `Persistence`.
++
++Cada registro contém participantes, Strategies, jogadas, resultado, sequência
++vencedora, duração, semente e versão da aplicação.
++
++## 2. Modelo persistente
++
++Os registros são imutáveis e representam somente dados serializáveis.
++
++O diagrama entidade-relacionamento apresenta a estrutura lógica dos arquivos.
++
++```mermaid
++erDiagram
++    MATCH_RECORD ||--|| FIRST_PARTICIPANT : possui
++    MATCH_RECORD ||--|| SECOND_PARTICIPANT : possui
++    MATCH_RECORD ||--o{ MATCH_MOVE : registra
++    MATCH_RECORD ||--o{ WINNING_POSITION : identifica
++    MATCH_STATISTICS ||--o{ STRATEGY_STATISTICS : agrega
++
++    MATCH_RECORD {
++        uuid id
++        datetime started_at
++        datetime finished_at
++        long duration_milliseconds
++        string result
++        int random_seed
++        string application_version
++    }
++
++    FIRST_PARTICIPANT {
++        string name
++        string kind
++        string symbol
++        string strategy
++    }
++
++    SECOND_PARTICIPANT {
++        string name
++        string kind
++        string symbol
++        string strategy
++    }
++
++    MATCH_MOVE {
++        int turn_number
++        int row
++        int column
++        string symbol
++    }
++
++    WINNING_POSITION {
++        int row
++        int column
++    }
++
++    MATCH_STATISTICS {
++        int total_matches
++        int x_wins
++        int o_wins
++        int draws
++        int total_moves
++        double average_moves
++        double average_duration
++    }
++
++    STRATEGY_STATISTICS {
++        string strategy
++        int matches
++        int wins
++        int losses
++        int draws
++    }
++```
++
++O histórico é armazenado como coleção de `MatchRecord`. As estatísticas são
++recalculadas a partir do histórico atualizado, evitando incrementos acumulados
++com regras divergentes.
++
++## 3. Conversão fora do domínio
++
++`MatchRecordMapper` recebe `MatchPersistenceContext`. Esse contexto combina a
++partida concluída com dados externos que não pertencem ao agregado:
++
++- instante inicial;
++- instante final;
++- Strategy associada a cada participante;
++- semente;
++- versão da aplicação.
++
++O domínio não conhece `MatchRecord`, repositórios ou caminhos de arquivo.
++
++## 4. Repositórios JSON
++
++As interfaces são:
++
++- `IMatchHistoryRepository`;
++- `IMatchStatisticsRepository`.
++
++As implementações concretas utilizam `System.Text.Json`, propriedades em
++camelCase, UTF-8 sem BOM e substituição por arquivo temporário.
++
++O fluxo de salvamento é apresentado a seguir.
++
++```mermaid
++sequenceDiagram
++    participant Runner as ConsoleMatchSessionRunner
++    participant Service as MatchPersistenceService
++    participant Mapper as MatchRecordMapper
++    participant History as IMatchHistoryRepository
++    participant Calculator as MatchStatisticsCalculator
++    participant Statistics as IMatchStatisticsRepository
++
++    Runner->>Service: persist(context)
++    Service->>Mapper: map(context)
++    Mapper-->>Service: MatchRecord
++    Service->>History: load_all()
++    History-->>Service: histórico anterior
++    Service->>History: replace_all(histórico + partida)
++    Service->>Calculator: calculate(histórico atualizado)
++    Calculator-->>Service: estatísticas
++    Service->>Statistics: save(estatísticas)
++```
++
++Caso a atualização das estatísticas falhe, o serviço tenta restaurar o histórico
++anterior antes de propagar a falha. Em armazenamento local normal, isso evita
++que uma partida permaneça registrada sem a estatística correspondente.
++
++## 5. Integração com a execução
++
++`ConsoleMatchSessionRunner` mede a duração com `Stopwatch`, executa
++`MatchController` e persiste somente após o encerramento.
++
++A versão é obtida do assembly em execução. A semente vem da configuração da
++partida e pode ser nula.
++
++Os arquivos padrão são:
++
++```text
++data/matches.json
++data/statistics.json
++```
++
++O diretório-base respeita `ApplicationSettings.Directories.Data`.
++
++## 6. Recuperação e arquivos temporários
++
++Arquivos ausentes ou JSON inválido retornam histórico vazio ou estatísticas
++zeradas. A próxima gravação substitui o conteúdo por JSON válido.
++
++Cada escrita utiliza:
++
++1. criação do diretório;
++2. arquivo `*.tmp-<guid>`;
++3. serialização completa;
++4. movimento com substituição;
++5. remoção de temporário residual.
++
++## 7. Testes
++
++Os testes usam diretórios temporários e verificam:
++
++- criação de diretórios;
++- round-trip do histórico;
++- round-trip das estatísticas;
++- recuperação de JSON inválido;
++- ausência de temporários;
++- mapeamento completo;
++- agregação por resultado e Strategy;
++- persistência coordenada;
++- rollback quando a estatística falha.
+diff --git a/src/TicTacToe.Console/Persistence/BoardPositionRecord.cs b/src/TicTacToe.Console/Persistence/BoardPositionRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/BoardPositionRecord.cs
+@@ -0,0 +1,8 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa uma posição persistida do tabuleiro.
++/// </summary>
++public sealed record BoardPositionRecord(
++    int Row,
++    int Column);
+diff --git a/src/TicTacToe.Console/Persistence/IMatchHistoryRepository.cs b/src/TicTacToe.Console/Persistence/IMatchHistoryRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/IMatchHistoryRepository.cs
+@@ -0,0 +1,11 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Define persistência do histórico de partidas.
++/// </summary>
++public interface IMatchHistoryRepository
++{
++    IReadOnlyList<MatchRecord> load_all();
++
++    void replace_all(IReadOnlyList<MatchRecord> matches);
++}
+diff --git a/src/TicTacToe.Console/Persistence/IMatchPersistenceService.cs b/src/TicTacToe.Console/Persistence/IMatchPersistenceService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/IMatchPersistenceService.cs
+@@ -0,0 +1,9 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Coordena o salvamento da partida e a atualização das estatísticas.
++/// </summary>
++public interface IMatchPersistenceService
++{
++    MatchRecord persist(MatchPersistenceContext context);
++}
+diff --git a/src/TicTacToe.Console/Persistence/IMatchStatisticsRepository.cs b/src/TicTacToe.Console/Persistence/IMatchStatisticsRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/IMatchStatisticsRepository.cs
+@@ -0,0 +1,11 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Define persistência das estatísticas agregadas.
++/// </summary>
++public interface IMatchStatisticsRepository
++{
++    MatchStatisticsRecord load();
++
++    void save(MatchStatisticsRecord statistics);
++}
+diff --git a/src/TicTacToe.Console/Persistence/JsonFileStore.cs b/src/TicTacToe.Console/Persistence/JsonFileStore.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/JsonFileStore.cs
+@@ -0,0 +1,101 @@
++using System.Text;
++using System.Text.Json;
++using System.Text.Json.Serialization;
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Centraliza leitura segura e substituição atômica de arquivos JSON.
++/// </summary>
++internal sealed class JsonFileStore
++{
++    private readonly JsonSerializerOptions serializer_options;
++
++    public JsonFileStore()
++    {
++        serializer_options = new JsonSerializerOptions
++        {
++            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
++            WriteIndented = true,
++            UnmappedMemberHandling =
++                JsonUnmappedMemberHandling.Skip
++        };
++    }
++
++    public T load_or_default<T>(
++        string path,
++        T default_value)
++    {
++        try
++        {
++            if (!File.Exists(path))
++            {
++                return default_value;
++            }
++
++            string json = File.ReadAllText(
++                path,
++                Encoding.UTF8);
++
++            return JsonSerializer.Deserialize<T>(
++                       json,
++                       serializer_options)
++                   ?? default_value;
++        }
++        catch (JsonException)
++        {
++            return default_value;
++        }
++        catch (IOException)
++        {
++            return default_value;
++        }
++        catch (UnauthorizedAccessException)
++        {
++            return default_value;
++        }
++    }
++
++    public void save<T>(
++        string path,
++        T value)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(path);
++        ArgumentNullException.ThrowIfNull(value);
++
++        string? directory = Path.GetDirectoryName(path);
++
++        if (!string.IsNullOrWhiteSpace(directory))
++        {
++            Directory.CreateDirectory(directory);
++        }
++
++        string temporary_path =
++            $"{path}.tmp-{Guid.NewGuid():N}";
++
++        try
++        {
++            string json = JsonSerializer.Serialize(
++                value,
++                serializer_options);
++
++            File.WriteAllText(
++                temporary_path,
++                json,
++                new UTF8Encoding(
++                    encoderShouldEmitUTF8Identifier: false));
++
++            File.Move(
++                temporary_path,
++                path,
++                overwrite: true);
++        }
++        finally
++        {
++            if (File.Exists(temporary_path))
++            {
++                File.Delete(temporary_path);
++            }
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/JsonMatchHistoryRepository.cs b/src/TicTacToe.Console/Persistence/JsonMatchHistoryRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/JsonMatchHistoryRepository.cs
+@@ -0,0 +1,34 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Persiste o histórico completo de partidas em JSON.
++/// </summary>
++public sealed class JsonMatchHistoryRepository
++    : IMatchHistoryRepository
++{
++    private readonly string path;
++    private readonly JsonFileStore store = new();
++
++    public JsonMatchHistoryRepository(string path)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(path);
++        this.path = path;
++    }
++
++    public IReadOnlyList<MatchRecord> load_all()
++    {
++        MatchRecord[] records =
++            store.load_or_default(
++                path,
++                Array.Empty<MatchRecord>());
++
++        return Array.AsReadOnly(records);
++    }
++
++    public void replace_all(
++        IReadOnlyList<MatchRecord> matches)
++    {
++        ArgumentNullException.ThrowIfNull(matches);
++        store.save(path, matches);
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/JsonMatchStatisticsRepository.cs b/src/TicTacToe.Console/Persistence/JsonMatchStatisticsRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/JsonMatchStatisticsRepository.cs
+@@ -0,0 +1,30 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Persiste estatísticas agregadas em JSON.
++/// </summary>
++public sealed class JsonMatchStatisticsRepository
++    : IMatchStatisticsRepository
++{
++    private readonly string path;
++    private readonly JsonFileStore store = new();
++
++    public JsonMatchStatisticsRepository(string path)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(path);
++        this.path = path;
++    }
++
++    public MatchStatisticsRecord load()
++    {
++        return store.load_or_default(
++            path,
++            MatchStatisticsRecord.empty());
++    }
++
++    public void save(MatchStatisticsRecord statistics)
++    {
++        ArgumentNullException.ThrowIfNull(statistics);
++        store.save(path, statistics);
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/MatchMoveRecord.cs b/src/TicTacToe.Console/Persistence/MatchMoveRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchMoveRecord.cs
+@@ -0,0 +1,10 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa uma jogada persistida.
++/// </summary>
++public sealed record MatchMoveRecord(
++    int TurnNumber,
++    int Row,
++    int Column,
++    string Symbol);
+diff --git a/src/TicTacToe.Console/Persistence/MatchParticipantRecord.cs b/src/TicTacToe.Console/Persistence/MatchParticipantRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchParticipantRecord.cs
+@@ -0,0 +1,10 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa um participante persistido sem referência às entidades do domínio.
++/// </summary>
++public sealed record MatchParticipantRecord(
++    string Name,
++    string Kind,
++    string Symbol,
++    string? Strategy);
+diff --git a/src/TicTacToe.Console/Persistence/MatchPersistenceContext.cs b/src/TicTacToe.Console/Persistence/MatchPersistenceContext.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchPersistenceContext.cs
+@@ -0,0 +1,15 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Reúne os dados externos necessários para converter uma partida concluída.
++/// </summary>
++public sealed record MatchPersistenceContext(
++    Match Match,
++    DateTimeOffset StartedAt,
++    DateTimeOffset FinishedAt,
++    string FirstStrategy,
++    string SecondStrategy,
++    int? RandomSeed,
++    string ApplicationVersion);
+diff --git a/src/TicTacToe.Console/Persistence/MatchPersistenceService.cs b/src/TicTacToe.Console/Persistence/MatchPersistenceService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchPersistenceService.cs
+@@ -0,0 +1,56 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Salva partidas concluídas e mantém estatísticas consistentes.
++/// </summary>
++public sealed class MatchPersistenceService
++    : IMatchPersistenceService
++{
++    private readonly IMatchHistoryRepository history_repository;
++    private readonly IMatchStatisticsRepository statistics_repository;
++    private readonly MatchRecordMapper mapper;
++    private readonly MatchStatisticsCalculator calculator;
++
++    public MatchPersistenceService(
++        IMatchHistoryRepository history_repository,
++        IMatchStatisticsRepository statistics_repository,
++        MatchRecordMapper mapper,
++        MatchStatisticsCalculator calculator)
++    {
++        ArgumentNullException.ThrowIfNull(history_repository);
++        ArgumentNullException.ThrowIfNull(statistics_repository);
++        ArgumentNullException.ThrowIfNull(mapper);
++        ArgumentNullException.ThrowIfNull(calculator);
++
++        this.history_repository = history_repository;
++        this.statistics_repository = statistics_repository;
++        this.mapper = mapper;
++        this.calculator = calculator;
++    }
++
++    public MatchRecord persist(
++        MatchPersistenceContext context)
++    {
++        MatchRecord record = mapper.map(context);
++        IReadOnlyList<MatchRecord> previous_history =
++            history_repository.load_all();
++        MatchRecord[] updated_history =
++            [.. previous_history, record];
++
++        history_repository.replace_all(updated_history);
++
++        try
++        {
++            MatchStatisticsRecord statistics =
++                calculator.calculate(updated_history);
++
++            statistics_repository.save(statistics);
++            return record;
++        }
++        catch
++        {
++            history_repository.replace_all(previous_history);
++            throw;
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/MatchRecord.cs b/src/TicTacToe.Console/Persistence/MatchRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchRecord.cs
+@@ -0,0 +1,17 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa uma partida concluída em formato independente do domínio.
++/// </summary>
++public sealed record MatchRecord(
++    Guid Id,
++    DateTimeOffset StartedAt,
++    DateTimeOffset FinishedAt,
++    long DurationMilliseconds,
++    MatchParticipantRecord FirstParticipant,
++    MatchParticipantRecord SecondParticipant,
++    IReadOnlyList<MatchMoveRecord> Moves,
++    string Result,
++    IReadOnlyList<BoardPositionRecord> WinningSequence,
++    int? RandomSeed,
++    string ApplicationVersion);
+diff --git a/src/TicTacToe.Console/Persistence/MatchRecordMapper.cs b/src/TicTacToe.Console/Persistence/MatchRecordMapper.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchRecordMapper.cs
+@@ -0,0 +1,84 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Converte entidades do domínio em registros imutáveis de persistência.
++/// </summary>
++public sealed class MatchRecordMapper
++{
++    /// <summary>
++    /// Converte uma partida concluída.
++    /// </summary>
++    public MatchRecord map(MatchPersistenceContext context)
++    {
++        ArgumentNullException.ThrowIfNull(context);
++        ArgumentNullException.ThrowIfNull(context.Match);
++
++        if (context.Match.State != GameState.Finished)
++        {
++            throw new InvalidOperationException(
++                "Somente partidas concluídas podem ser persistidas.");
++        }
++
++        if (context.FinishedAt < context.StartedAt)
++        {
++            throw new ArgumentException(
++                "O término não pode anteceder o início.",
++                nameof(context));
++        }
++
++        TimeSpan duration =
++            context.FinishedAt - context.StartedAt;
++
++        return new MatchRecord(
++            Guid.NewGuid(),
++            context.StartedAt,
++            context.FinishedAt,
++            (long)duration.TotalMilliseconds,
++            map_participant(
++                context.Match.FirstPlayer,
++                context.FirstStrategy),
++            map_participant(
++                context.Match.SecondPlayer,
++                context.SecondStrategy),
++            context.Match.Moves
++                .Select(map_move)
++                .ToArray(),
++            context.Match.Result.ToString(),
++            context.Match.WinningPositions
++                .Select(position =>
++                    new BoardPositionRecord(
++                        position.Row,
++                        position.Column))
++                .ToArray(),
++            context.RandomSeed,
++            context.ApplicationVersion);
++    }
++
++    private static MatchParticipantRecord map_participant(
++        Player player,
++        string strategy)
++    {
++        string kind = player is HumanPlayer
++            ? "Human"
++            : "Computer";
++
++        return new MatchParticipantRecord(
++            player.Name,
++            kind,
++            player.Symbol.ToString(),
++            player is ComputerPlayer
++                ? strategy
++                : null);
++    }
++
++    private static MatchMoveRecord map_move(Move move)
++    {
++        return new MatchMoveRecord(
++            move.TurnNumber,
++            move.Position.Row,
++            move.Position.Column,
++            move.Symbol.ToString());
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/MatchStatisticsCalculator.cs b/src/TicTacToe.Console/Persistence/MatchStatisticsCalculator.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchStatisticsCalculator.cs
+@@ -0,0 +1,88 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Calcula estatísticas a partir do histórico persistido.
++/// </summary>
++public sealed class MatchStatisticsCalculator
++{
++    public MatchStatisticsRecord calculate(
++        IReadOnlyList<MatchRecord> matches)
++    {
++        ArgumentNullException.ThrowIfNull(matches);
++
++        if (matches.Count == 0)
++        {
++            return MatchStatisticsRecord.empty();
++        }
++
++        int x_wins =
++            matches.Count(match => match.Result == "XWins");
++        int o_wins =
++            matches.Count(match => match.Result == "OWins");
++        int draws =
++            matches.Count(match => match.Result == "Draw");
++        int total_moves =
++            matches.Sum(match => match.Moves.Count);
++
++        StrategyStatisticsRecord[] strategies =
++            matches
++                .SelectMany(get_computer_participants)
++                .GroupBy(
++                    item => item.Strategy!,
++                    StringComparer.OrdinalIgnoreCase)
++                .OrderBy(group => group.Key)
++                .Select(group =>
++                    new StrategyStatisticsRecord(
++                        group.Key,
++                        group.Count(),
++                        group.Count(item => item.Won),
++                        group.Count(item => item.Lost),
++                        group.Count(item => item.Draw)))
++                .ToArray();
++
++        return new MatchStatisticsRecord(
++            matches.Count,
++            x_wins,
++            o_wins,
++            draws,
++            total_moves,
++            (double)total_moves / matches.Count,
++            matches.Average(
++                match => match.DurationMilliseconds),
++            strategies);
++    }
++
++    private static IEnumerable<StrategyOutcome>
++        get_computer_participants(MatchRecord match)
++    {
++        foreach (MatchParticipantRecord participant in
++                 new[]
++                 {
++                     match.FirstParticipant,
++                     match.SecondParticipant
++                 })
++        {
++            if (participant.Kind != "Computer" ||
++                string.IsNullOrWhiteSpace(participant.Strategy))
++            {
++                continue;
++            }
++
++            bool draw = match.Result == "Draw";
++            bool won =
++                match.Result == $"{participant.Symbol}Wins";
++
++            yield return new StrategyOutcome(
++                participant.Strategy,
++                won,
++                !won && !draw,
++                draw);
++        }
++    }
++
++    private sealed record StrategyOutcome(
++        string Strategy,
++        bool Won,
++        bool Lost,
++        bool Draw);
++}
+diff --git a/src/TicTacToe.Console/Persistence/MatchStatisticsRecord.cs b/src/TicTacToe.Console/Persistence/MatchStatisticsRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchStatisticsRecord.cs
+@@ -0,0 +1,31 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Consolida estatísticas de todas as partidas persistidas.
++/// </summary>
++public sealed record MatchStatisticsRecord(
++    int TotalMatches,
++    int XWins,
++    int OWins,
++    int Draws,
++    int TotalMoves,
++    double AverageMoves,
++    double AverageDurationMilliseconds,
++    IReadOnlyList<StrategyStatisticsRecord> Strategies)
++{
++    /// <summary>
++    /// Cria estatísticas vazias.
++    /// </summary>
++    public static MatchStatisticsRecord empty()
++    {
++        return new MatchStatisticsRecord(
++            0,
++            0,
++            0,
++            0,
++            0,
++            0,
++            0,
++            Array.Empty<StrategyStatisticsRecord>());
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/StrategyStatisticsRecord.cs b/src/TicTacToe.Console/Persistence/StrategyStatisticsRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/StrategyStatisticsRecord.cs
+@@ -0,0 +1,11 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Consolida estatísticas de uma Strategy computacional.
++/// </summary>
++public sealed record StrategyStatisticsRecord(
++    string Strategy,
++    int Matches,
++    int Wins,
++    int Losses,
++    int Draws);
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+@@ -1,6 +1,9 @@
++using System.Diagnostics;
++using System.Reflection;
+ using TicTacToe.AI;
+ using TicTacToe.Application;
+ using TicTacToe.Domain;
++using TicTacToe.Persistence;
+ 
+ namespace TicTacToe.Presentation.Navigation;
+ 
+@@ -13,12 +16,11 @@
+     private readonly IGameOutput game_output;
+     private readonly IAnimationService animation_service;
+     private readonly PresentationPreferences preferences;
++    private readonly IMatchPersistenceService? persistence_service;
+ 
+     /// <summary>
+-    /// Inicializa o executor de sessões.
++    /// Inicializa o executor de sessões sem persistência externa.
+     /// </summary>
+-    /// <param name="game_input">Entrada utilizada nos turnos humanos.</param>
+-    /// <param name="game_output">Saída utilizada durante a partida.</param>
+     public ConsoleMatchSessionRunner(
+         IGameInput game_input,
+         IGameOutput game_output)
+@@ -31,15 +33,37 @@
+                 new PresentationPreferences(
+                     visual_effects: false)),
+             new PresentationPreferences(
+-                visual_effects: false))
++                visual_effects: false),
++            persistence_service: null)
+     {
+     }
+ 
++    /// <summary>
++    /// Inicializa o executor de sessões sem persistência externa.
++    /// </summary>
+     public ConsoleMatchSessionRunner(
+         IGameInput game_input,
+         IGameOutput game_output,
+         IAnimationService animation_service,
+         PresentationPreferences preferences)
++        : this(
++            game_input,
++            game_output,
++            animation_service,
++            preferences,
++            persistence_service: null)
++    {
++    }
++
++    /// <summary>
++    /// Inicializa o executor de sessões com persistência opcional.
++    /// </summary>
++    public ConsoleMatchSessionRunner(
++        IGameInput game_input,
++        IGameOutput game_output,
++        IAnimationService animation_service,
++        PresentationPreferences preferences,
++        IMatchPersistenceService? persistence_service)
+     {
+         ArgumentNullException.ThrowIfNull(game_input);
+         ArgumentNullException.ThrowIfNull(game_output);
+@@ -50,6 +74,7 @@
+         this.game_output = game_output;
+         this.animation_service = animation_service;
+         this.preferences = preferences;
++        this.persistence_service = persistence_service;
+     }
+ 
+     /// <inheritdoc />
+@@ -58,7 +83,9 @@
+         ArgumentNullException.ThrowIfNull(configuration);
+ 
+         IMoveStrategy strategy =
+-            create_strategy(configuration.OpponentStrategy);
++            create_strategy(
++                configuration.OpponentStrategy,
++                configuration.RandomSeed);
+ 
+         IComputerMoveStrategyResolver strategy_resolver =
+             new ConfiguredComputerMoveStrategyResolver(
+@@ -87,16 +114,54 @@
+                 configuration.OpponentStrategy.ToString(),
+                 Symbol.O));
+ 
+-        return controller.run(match);
++        DateTimeOffset started_at =
++            DateTimeOffset.UtcNow;
++        Stopwatch stopwatch = Stopwatch.StartNew();
++
++        Match completed_match =
++            controller.run(match);
++
++        stopwatch.Stop();
++
++        persistence_service?.persist(
++            new MatchPersistenceContext(
++                completed_match,
++                started_at,
++                started_at + stopwatch.Elapsed,
++                "Human",
++                configuration.OpponentStrategy.ToString(),
++                configuration.RandomSeed,
++                get_application_version()));
++
++        return completed_match;
++    }
++
++    private static string get_application_version()
++    {
++        Version? version =
++            Assembly.GetExecutingAssembly()
++                .GetName()
++                .Version;
++
++        return version is null
++            ? "unknown"
++            : $"{version.Major}.{version.Minor}.{version.Build}";
+     }
+ 
+     private static IMoveStrategy create_strategy(
+-        StrategyKind strategy_kind)
++        StrategyKind strategy_kind,
++        int? random_seed)
+     {
+         return strategy_kind switch
+         {
+-            StrategyKind.Random => new RandomMoveStrategy(),
+-            StrategyKind.Heuristic => new HeuristicMoveStrategy(),
++            StrategyKind.Random =>
++                random_seed.HasValue
++                    ? new RandomMoveStrategy(random_seed.Value)
++                    : new RandomMoveStrategy(),
++            StrategyKind.Heuristic =>
++                random_seed.HasValue
++                    ? new HeuristicMoveStrategy(random_seed.Value)
++                    : new HeuristicMoveStrategy(),
+             StrategyKind.Minimax => new MinimaxMoveStrategy(),
+             _ => throw new ArgumentOutOfRangeException(
+                 nameof(strategy_kind),
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs b/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
+@@ -7,4 +7,5 @@
+ /// <param name="OpponentStrategy">Estratégia do participante computacional.</param>
+ public sealed record MatchConfiguration(
+     string PlayerName,
+-    StrategyKind OpponentStrategy);
++    StrategyKind OpponentStrategy,
++    int? RandomSeed = null);
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -54,12 +54,31 @@
+             visual_feedback,
+             audio_service);
+ 
++        string data_directory =
++            Path.Combine(
++                AppContext.BaseDirectory,
++                settings.Directories.Data);
++
++        IMatchPersistenceService match_persistence_service =
++            new MatchPersistenceService(
++                new JsonMatchHistoryRepository(
++                    Path.Combine(
++                        data_directory,
++                        "matches.json")),
++                new JsonMatchStatisticsRepository(
++                    Path.Combine(
++                        data_directory,
++                        "statistics.json")),
++                new MatchRecordMapper(),
++                new MatchStatisticsCalculator());
++
+         IMatchSessionRunner match_session_runner =
+             new ConsoleMatchSessionRunner(
+                 game_input,
+                 game_output,
+                 animation_service,
+-                preferences);
++                preferences,
++                match_persistence_service);
+ 
+         CitationMetadata citation_metadata =
+             new CitationMetadataLoader().load(
+diff --git a/tests/TicTacToe.Tests/Persistence/JsonMatchRepositoriesTests.cs b/tests/TicTacToe.Tests/Persistence/JsonMatchRepositoriesTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/JsonMatchRepositoriesTests.cs
+@@ -0,0 +1,128 @@
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public sealed class JsonMatchRepositoriesTests : IDisposable
++{
++    private readonly string directory =
++        Path.Combine(
++            Path.GetTempPath(),
++            $"tictactoe-match-tests-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void history_repository_should_create_directory_and_round_trip()
++    {
++        string path =
++            Path.Combine(directory, "nested", "matches.json");
++        JsonMatchHistoryRepository repository = new(path);
++        MatchRecord record = create_record();
++
++        repository.replace_all([record]);
++        IReadOnlyList<MatchRecord> loaded =
++            repository.load_all();
++
++        Assert.Single(loaded);
++        Assert.Equal(record.Id, loaded[0].Id);
++        Assert.True(File.Exists(path));
++        Assert.Empty(
++            Directory.GetFiles(
++                directory,
++                "*.tmp-*",
++                SearchOption.AllDirectories));
++    }
++
++    [Fact]
++    public void statistics_repository_should_round_trip()
++    {
++        string path =
++            Path.Combine(directory, "statistics.json");
++        JsonMatchStatisticsRepository repository =
++            new(path);
++        MatchStatisticsRecord statistics = new(
++            2,
++            1,
++            0,
++            1,
++            14,
++            7,
++            150,
++            [
++                new StrategyStatisticsRecord(
++                    "Minimax",
++                    2,
++                    0,
++                    1,
++                    1)
++            ]);
++
++        repository.save(statistics);
++        MatchStatisticsRecord loaded =
++            repository.load();
++
++        Assert.Equal(statistics.TotalMatches, loaded.TotalMatches);
++        Assert.Equal(statistics.TotalMoves, loaded.TotalMoves);
++        Assert.Equal(
++            statistics.AverageDurationMilliseconds,
++            loaded.AverageDurationMilliseconds);
++        Assert.Single(loaded.Strategies);
++        Assert.Equal(
++            "Minimax",
++            loaded.Strategies[0].Strategy);
++    }
++
++    [Fact]
++    public void repositories_should_recover_from_invalid_json()
++    {
++        Directory.CreateDirectory(directory);
++        string history_path =
++            Path.Combine(directory, "matches.json");
++        string statistics_path =
++            Path.Combine(directory, "statistics.json");
++
++        File.WriteAllText(history_path, "{ invalid");
++        File.WriteAllText(statistics_path, "{ invalid");
++
++        Assert.Empty(
++            new JsonMatchHistoryRepository(
++                history_path).load_all());
++        Assert.Equal(
++            MatchStatisticsRecord.empty(),
++            new JsonMatchStatisticsRepository(
++                statistics_path).load());
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(
++                directory,
++                recursive: true);
++        }
++    }
++
++    private static MatchRecord create_record()
++    {
++        return new MatchRecord(
++            Guid.NewGuid(),
++            DateTimeOffset.UtcNow,
++            DateTimeOffset.UtcNow,
++            100,
++            new MatchParticipantRecord(
++                "Pessoa",
++                "Human",
++                "X",
++                null),
++            new MatchParticipantRecord(
++                "CPU",
++                "Computer",
++                "O",
++                "Minimax"),
++            Array.Empty<MatchMoveRecord>(),
++            "Draw",
++            Array.Empty<BoardPositionRecord>(),
++            null,
++            "1.7.0");
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/MatchPersistenceServiceTests.cs b/tests/TicTacToe.Tests/Persistence/MatchPersistenceServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/MatchPersistenceServiceTests.cs
+@@ -0,0 +1,159 @@
++using TicTacToe.Domain;
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public class MatchPersistenceServiceTests
++{
++    [Fact]
++    public void persist_should_save_match_and_update_statistics()
++    {
++        MemoryHistoryRepository history = new();
++        MemoryStatisticsRepository statistics = new();
++        MatchPersistenceService service = create_service(
++            history,
++            statistics);
++
++        MatchRecord record = service.persist(
++            create_context());
++
++        Assert.Single(history.Records);
++        Assert.Equal(record.Id, history.Records[0].Id);
++        Assert.Equal(1, statistics.Value.TotalMatches);
++        Assert.Equal(1, statistics.Value.XWins);
++    }
++
++    [Fact]
++    public void persist_should_restore_history_when_statistics_fail()
++    {
++        MatchRecord previous = create_existing_record();
++        MemoryHistoryRepository history = new([previous]);
++        ThrowingStatisticsRepository statistics = new();
++        MatchPersistenceService service = create_service(
++            history,
++            statistics);
++
++        Assert.Throws<IOException>(
++            () => service.persist(create_context()));
++
++        Assert.Single(history.Records);
++        Assert.Equal(previous.Id, history.Records[0].Id);
++    }
++
++    private static MatchPersistenceService create_service(
++        IMatchHistoryRepository history,
++        IMatchStatisticsRepository statistics)
++    {
++        return new MatchPersistenceService(
++            history,
++            statistics,
++            new MatchRecordMapper(),
++            new MatchStatisticsCalculator());
++    }
++
++    private static MatchPersistenceContext create_context()
++    {
++        Match match = new(
++            new HumanPlayer("Pessoa", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++        match.apply_move(new BoardPosition(1, 1));
++        match.apply_move(new BoardPosition(0, 2));
++
++        DateTimeOffset start =
++            new(2026, 7, 17, 10, 0, 0, TimeSpan.Zero);
++
++        return new MatchPersistenceContext(
++            match,
++            start,
++            start.AddSeconds(1),
++            "Human",
++            "Minimax",
++            null,
++            "1.7.0");
++    }
++
++    private static MatchRecord create_existing_record()
++    {
++        DateTimeOffset now = DateTimeOffset.UtcNow;
++
++        return new MatchRecord(
++            Guid.NewGuid(),
++            now,
++            now,
++            0,
++            new MatchParticipantRecord(
++                "Pessoa",
++                "Human",
++                "X",
++                null),
++            new MatchParticipantRecord(
++                "CPU",
++                "Computer",
++                "O",
++                "Random"),
++            Array.Empty<MatchMoveRecord>(),
++            "Draw",
++            Array.Empty<BoardPositionRecord>(),
++            null,
++            "1.7.0");
++    }
++
++    private sealed class MemoryHistoryRepository
++        : IMatchHistoryRepository
++    {
++        public MemoryHistoryRepository(
++            IReadOnlyList<MatchRecord>? records = null)
++        {
++            Records = records?.ToList() ?? [];
++        }
++
++        public List<MatchRecord> Records { get; private set; }
++
++        public IReadOnlyList<MatchRecord> load_all()
++        {
++            return Records.AsReadOnly();
++        }
++
++        public void replace_all(
++            IReadOnlyList<MatchRecord> matches)
++        {
++            Records = matches.ToList();
++        }
++    }
++
++    private sealed class MemoryStatisticsRepository
++        : IMatchStatisticsRepository
++    {
++        public MatchStatisticsRecord Value { get; private set; } =
++            MatchStatisticsRecord.empty();
++
++        public MatchStatisticsRecord load()
++        {
++            return Value;
++        }
++
++        public void save(MatchStatisticsRecord statistics)
++        {
++            Value = statistics;
++        }
++    }
++
++    private sealed class ThrowingStatisticsRepository
++        : IMatchStatisticsRepository
++    {
++        public MatchStatisticsRecord load()
++        {
++            return MatchStatisticsRecord.empty();
++        }
++
++        public void save(MatchStatisticsRecord statistics)
++        {
++            throw new IOException("Falha controlada.");
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/MatchRecordMapperTests.cs b/tests/TicTacToe.Tests/Persistence/MatchRecordMapperTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/MatchRecordMapperTests.cs
+@@ -0,0 +1,54 @@
++using TicTacToe.Domain;
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public class MatchRecordMapperTests
++{
++    [Fact]
++    public void map_should_create_complete_immutable_record()
++    {
++        Match match = create_finished_match();
++        DateTimeOffset started_at =
++            new(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
++        DateTimeOffset finished_at =
++            started_at.AddMilliseconds(250);
++
++        MatchRecord record =
++            new MatchRecordMapper().map(
++                new MatchPersistenceContext(
++                    match,
++                    started_at,
++                    finished_at,
++                    "Human",
++                    "Minimax",
++                    2026,
++                    "1.7.0"));
++
++        Assert.NotEqual(Guid.Empty, record.Id);
++        Assert.Equal(250, record.DurationMilliseconds);
++        Assert.Equal("Pessoa", record.FirstParticipant.Name);
++        Assert.Equal("Minimax", record.SecondParticipant.Strategy);
++        Assert.Equal(5, record.Moves.Count);
++        Assert.Equal("XWins", record.Result);
++        Assert.Equal(3, record.WinningSequence.Count);
++        Assert.Equal(2026, record.RandomSeed);
++        Assert.Equal("1.7.0", record.ApplicationVersion);
++    }
++
++    private static Match create_finished_match()
++    {
++        Match match = new(
++            new HumanPlayer("Pessoa", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++        match.apply_move(new BoardPosition(1, 1));
++        match.apply_move(new BoardPosition(0, 2));
++
++        return match;
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/MatchStatisticsCalculatorTests.cs b/tests/TicTacToe.Tests/Persistence/MatchStatisticsCalculatorTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/MatchStatisticsCalculatorTests.cs
+@@ -0,0 +1,73 @@
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public class MatchStatisticsCalculatorTests
++{
++    [Fact]
++    public void calculate_should_aggregate_results_moves_duration_and_strategy()
++    {
++        MatchRecord first =
++            create_record("XWins", 5, 100, "Minimax");
++        MatchRecord second =
++            create_record("Draw", 9, 300, "Minimax");
++
++        MatchStatisticsRecord statistics =
++            new MatchStatisticsCalculator().calculate(
++                [first, second]);
++
++        Assert.Equal(2, statistics.TotalMatches);
++        Assert.Equal(1, statistics.XWins);
++        Assert.Equal(1, statistics.Draws);
++        Assert.Equal(14, statistics.TotalMoves);
++        Assert.Equal(7, statistics.AverageMoves);
++        Assert.Equal(200, statistics.AverageDurationMilliseconds);
++
++        StrategyStatisticsRecord strategy =
++            Assert.Single(statistics.Strategies);
++
++        Assert.Equal("Minimax", strategy.Strategy);
++        Assert.Equal(2, strategy.Matches);
++        Assert.Equal(1, strategy.Losses);
++        Assert.Equal(1, strategy.Draws);
++    }
++
++    private static MatchRecord create_record(
++        string result,
++        int move_count,
++        long duration,
++        string strategy)
++    {
++        MatchMoveRecord[] moves =
++            Enumerable.Range(1, move_count)
++                .Select(turn =>
++                    new MatchMoveRecord(
++                        turn,
++                        0,
++                        0,
++                        turn % 2 == 0 ? "O" : "X"))
++                .ToArray();
++
++        return new MatchRecord(
++            Guid.NewGuid(),
++            DateTimeOffset.UtcNow,
++            DateTimeOffset.UtcNow,
++            duration,
++            new MatchParticipantRecord(
++                "Pessoa",
++                "Human",
++                "X",
++                null),
++            new MatchParticipantRecord(
++                "CPU",
++                "Computer",
++                "O",
++                strategy),
++            moves,
++            result,
++            Array.Empty<BoardPositionRecord>(),
++            null,
++            "1.7.0");
++    }
++}

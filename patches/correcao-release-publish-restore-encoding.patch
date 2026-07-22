@@ -1,0 +1,78 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -43,7 +43,10 @@
+   regulares do PowerShell, evitando incompatibilidade com `git grep -E`;
+ - auditoria passou a distinguir identificadores públicos e caminhos fictícios
+   de caminhos pessoais reais da máquina;
+-- saída do checklist passou a configurar UTF-8 explicitamente no Windows.
++- saída do checklist passou a configurar UTF-8 explicitamente no Windows;
++- scripts PowerShell passaram a usar UTF-8 com BOM para compatibilidade com
++  Windows PowerShell 5.1;
++- publicações passaram a executar restore específico para cada RID.
+ 
+ ## [1.9.0] - 2026-07-21
+ 
+diff --git a/docs/32-release-v1.9.0.md b/docs/32-release-v1.9.0.md
+--- a/docs/32-release-v1.9.0.md
++++ b/docs/32-release-v1.9.0.md
+@@ -128,3 +128,22 @@
+ 
+ A tag não deve ser criada se a árvore estiver suja, se houver warnings, falhas,
+ dados locais rastreados ou documentação pendente.
++
++## 9. Codificação no Windows PowerShell
++
++Os scripts `.ps1` da validação são versionados em UTF-8 com BOM. Essa
++codificação é necessária para que o Windows PowerShell 5.1 interprete acentos
++antes que o script configure a página de código 65001.
++
++Quando PowerShell 7 estiver disponível, o comando equivalente também pode ser
++executado com:
++
++```powershell
++pwsh `
++    -NoProfile `
++    -File .\scripts\validate-release-v1.9.0.ps1
++```
++
++Cada perfil de publicação executa seu próprio restore implícito. Isso é
++necessário porque `project.assets.json` precisa conter o alvo específico do
++RID, como `net9.0/win-x64` ou `net9.0/linux-x64`.
+diff --git a/scripts/test-coverage.ps1 b/scripts/test-coverage.ps1
+--- a/scripts/test-coverage.ps1
++++ b/scripts/test-coverage.ps1
+@@ -1,4 +1,4 @@
+-param(
++﻿param(
+     [string]$Configuration = "Release"
+ )
+ 
+diff --git a/scripts/validate-publish.ps1 b/scripts/validate-publish.ps1
+--- a/scripts/validate-publish.ps1
++++ b/scripts/validate-publish.ps1
+@@ -1,4 +1,4 @@
+-param(
++﻿param(
+     [Parameter(Mandatory = $true)]
+     [string]$PublishDirectory
+ )
+diff --git a/scripts/validate-release-v1.9.0.ps1 b/scripts/validate-release-v1.9.0.ps1
+--- a/scripts/validate-release-v1.9.0.ps1
++++ b/scripts/validate-release-v1.9.0.ps1
+@@ -1,4 +1,4 @@
+-param(
++﻿param(
+     [string]$OutputRoot = (
+         Join-Path `
+             $env:LOCALAPPDATA `
+@@ -341,8 +341,7 @@
+                 {
+                     dotnet publish `
+                         $project `
+-                        /p:PublishProfile=$profile `
+-                        --no-restore
++                        /p:PublishProfile=$profile
+                 } `
+                 "Publicação $profile"
+ 

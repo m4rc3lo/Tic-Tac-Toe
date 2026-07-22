@@ -1,0 +1,961 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0425c4b..8674feb 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -22,9 +22,8 @@ timeline
+         2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
+         2026-07-16 : v1.2.0 — domínio, regras e agregado Match
+         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
+-        2026-07-16 : Unreleased — fluxo básico de aplicação
++        2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
+     section Marcos planejados
+-        Data a definir : v1.4.0 — estratégia heurística
+         Data a definir : v1.5.0 — estratégia Minimax
+         Data a definir : v1.6.0 — apresentação e estados
+         Data a definir : v1.7.0 — recursos audiovisuais
+@@ -38,8 +37,14 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
+ 
++## [1.4.0] - 2026-07-16
++
+ ### Added
+ 
++- `HeuristicMoveStrategy` com prioridades de vitória, bloqueio, centro, cantos e laterais.
++- Simulação interna para hipóteses sem modificar o tabuleiro original.
++- Desempates reproduzíveis por `IRandomSource`.
++- Testes isolados de prioridades, validade, reprodutibilidade e preservação do estado.
+ - `IReadOnlyBoard` e `BoardView` para exposição segura do tabuleiro de `Match`.
+ - `IComputerMoveStrategyResolver` e resolvedor configurável por símbolo.
+ - Testes de fronteira do agregado, resolução de Strategy e propagação de falhas.
+@@ -56,6 +61,8 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ - Dependência `Domain → AI` removida de `ComputerPlayer`.
+ - Estratégias passaram a receber `IReadOnlyBoard`.
+ - `MatchController` passou a capturar apenas falhas da aplicação de jogadas.
++- `docs/10-inteligencia-artificial.md` ampliado com algoritmo heurístico, pseudocódigo, complexidade e limitações.
++- Versão do projeto e metadados de citação atualizados para `1.4.0`.
+ 
+ ## [1.3.0] - 2026-07-16
+ 
+diff --git a/CITATION.cff b/CITATION.cff
+index ef8da19..1edaaf8 100644
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,7 +2,7 @@ cff-version: 1.2.0
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.3.0"
++version: "1.4.0"
+ date-released: "2026-07-16"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+diff --git a/Directory.Build.props b/Directory.Build.props
+index 7183de9..0d5c618 100644
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.3.0</Version>
++        <Version>1.4.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/README.md b/README.md
+index 9b15411..b5cd39e 100644
+--- a/README.md
++++ b/README.md
+@@ -9,7 +9,8 @@ em C# para .NET 9.
+ - `v1.1.0` — 2026-07-15: solução .NET 9, governança e infraestrutura inicial;
+ - `v1.2.0` — 2026-07-16: domínio, regras e agregado de partida;
+ - `v1.3.0` — 2026-07-16: padrão Strategy e estratégia aleatória;
+-- `Unreleased` — desde 2026-07-16: fluxo básico da camada de aplicação;
++- `v1.4.0` — 2026-07-16: fluxo básico de aplicação, correções arquiteturais e estratégia heurística;
++- `Unreleased`: próxima etapa de desenvolvimento;
+ - `v2.0.0` — data a definir: consolidação final da refatoração.
+ 
+ O código legado foi movido para `legacy/` e não participa da compilação. A nova
+diff --git a/docs/10-inteligencia-artificial.md b/docs/10-inteligencia-artificial.md
+index 08b01e3..ebb93d7 100644
+--- a/docs/10-inteligencia-artificial.md
++++ b/docs/10-inteligencia-artificial.md
+@@ -2,131 +2,235 @@
+ 
+ ## 1. Finalidade
+ 
+-Este documento descreve a infraestrutura inicial de inteligência artificial do **Tic-Tac-Toe Console AI**, introduzida na versão `1.3.0`.
++Este documento descreve a infraestrutura de inteligência artificial do **Tic-Tac-Toe Console AI** até a versão `1.4.0`.
+ 
+-A primeira estratégia implementada seleciona jogadas aleatórias válidas. A arquitetura foi organizada para permitir a inclusão posterior das estratégias heurística e Minimax sem modificar o agregado `Match` nem as regras do jogo.
++O módulo contém uma estratégia aleatória, utilizada como linha de base, e uma estratégia heurística baseada em prioridades táticas e posicionais. Ambas implementam `IMoveStrategy`, recebem `IReadOnlyBoard` e não modificam o estado pertencente ao agregado `Match`.
+ 
+-## 2. Padrão Strategy
++## 2. Fronteiras arquiteturais
+ 
+-O padrão Strategy encapsula algoritmos intercambiáveis atrás de um contrato comum. Neste projeto, `IMoveStrategy` define a operação de seleção de uma posição.
++O padrão Strategy permite trocar o algoritmo de decisão sem alterar o domínio ou o fluxo da partida. Depois da revisão arquitetural posterior ao Prompt 10, `ComputerPlayer` não armazena uma Strategy. A associação entre participante computacional e algoritmo é resolvida na camada `Application`.
+ 
+-O diagrama apresenta a relação entre o participante computacional, o contrato de estratégia e a implementação aleatória.
++O diagrama apresenta as relações atuais entre aplicação, estratégias e domínio.
+ 
+ ```mermaid
+ classDiagram
+     class ComputerPlayer {
+         +string Name
+         +Symbol Symbol
+-        +IMoveStrategy Strategy
+-        +choose_move(board) BoardPosition
+     }
+ 
+-    class IMoveStrategy {
++    class IComputerMoveStrategyResolver {
+         <<interface>>
+-        +choose_move(board, symbol) BoardPosition
++        +resolve_strategy(player) IMoveStrategy
+     }
+ 
+-    class RandomMoveStrategy {
+-        -IRandomSource random_source
++    class IMoveStrategy {
++        <<interface>>
+         +choose_move(board, symbol) BoardPosition
+     }
+ 
+-    class IRandomSource {
+-        <<interface>>
+-        +next(max_exclusive) int
+-    }
++    class RandomMoveStrategy
++    class HeuristicMoveStrategy
+ 
+-    class SystemRandomSource {
+-        -Random random
+-        +next(max_exclusive) int
++    class IReadOnlyBoard {
++        <<interface>>
++        +int OccupiedCount
++        +bool IsFull
++        +get_symbol(position) Symbol
++        +get_available_positions() IReadOnlyList
++        +is_position_available(position) bool
+     }
+ 
+-    ComputerPlayer --> IMoveStrategy
++    IComputerMoveStrategyResolver --> ComputerPlayer
++    IComputerMoveStrategyResolver --> IMoveStrategy
+     IMoveStrategy <|.. RandomMoveStrategy
+-    RandomMoveStrategy --> IRandomSource
+-    IRandomSource <|.. SystemRandomSource
++    IMoveStrategy <|.. HeuristicMoveStrategy
++    RandomMoveStrategy --> IReadOnlyBoard
++    HeuristicMoveStrategy --> IReadOnlyBoard
+ ```
+ 
+-`ComputerPlayer` funciona como contexto do padrão: ele não conhece o algoritmo utilizado, apenas delega a escolha. `RandomMoveStrategy` conhece o tabuleiro somente para consultar casas disponíveis e não aplica jogadas.
++A direção das dependências permanece `Application → AI → Domain`. O módulo `Domain` não conhece estratégias, e o tabuleiro exposto por `Match` é somente para leitura.
+ 
+ ## 3. Contrato de estratégia
+ 
+-A interface recebe:
++A interface recebe o estado consultável do tabuleiro e o símbolo controlado:
+ 
+-- o tabuleiro atual;
+-- o símbolo controlado pelo agente.
++```csharp
++public interface IMoveStrategy
++{
++    BoardPosition choose_move(
++        IReadOnlyBoard board,
++        Symbol symbol);
++}
++```
+ 
+-Ela retorna uma `BoardPosition`. O contrato não retorna `Move`, pois a numeração de turno e a aplicação pertencem ao agregado `Match`.
++Ela retorna apenas uma `BoardPosition`. A criação de `Move`, a numeração do turno, a aplicação no tabuleiro, a alternância e o encerramento continuam sob responsabilidade de `Match`.
+ 
+-Essa separação impede que uma estratégia:
++## 4. Aleatoriedade injetável
+ 
+-- altere diretamente o histórico;
+-- escolha um número de turno;
+-- encerre a partida;
+-- alterne participantes;
+-- persista resultados.
++As estratégias que precisam desempatar alternativas dependem de `IRandomSource`, em vez de utilizar `Random` diretamente. Essa decisão permite:
+ 
+-## 4. Aleatoriedade injetável
++- sementes controláveis;
++- reprodução de experimentos;
++- testes determinísticos;
++- injeção de índices conhecidos;
++- substituição do gerador sem alterar o algoritmo.
+ 
+-A estratégia não utiliza `Random` diretamente. Ela depende de `IRandomSource`, o que permite:
++As estratégias aleatória e heurística oferecem construção sem parâmetros, com semente e com fonte injetada:
+ 
+-- controlar sementes;
+-- reproduzir experimentos;
+-- injetar valores conhecidos em testes;
+-- detectar geradores que violem o intervalo esperado;
+-- substituir o mecanismo pseudoaleatório sem alterar a estratégia.
++```csharp
++new RandomMoveStrategy();
++new RandomMoveStrategy(2026);
++new RandomMoveStrategy(random_source);
++
++new HeuristicMoveStrategy();
++new HeuristicMoveStrategy(2026);
++new HeuristicMoveStrategy(random_source);
++```
++
++O construtor sem parâmetros é adequado ao uso interativo. Em testes e experimentos, deve-se registrar a semente ou injetar a fonte explicitamente.
++
++## 5. Estratégia aleatória
+ 
+-O fluxo de uma decisão aleatória é apresentado a seguir.
++`RandomMoveStrategy` consulta as casas disponíveis e seleciona uma delas pelo índice fornecido por `IRandomSource`.
++
++O fluxo da estratégia aleatória é apresentado a seguir.
+ 
+ ```mermaid
+ sequenceDiagram
+-    participant Player as ComputerPlayer
++    participant Application
+     participant Strategy as RandomMoveStrategy
+-    participant Board
++    participant Board as IReadOnlyBoard
+     participant Random as IRandomSource
+ 
+-    Player->>Strategy: choose_move(board, symbol)
++    Application->>Strategy: choose_move(board, symbol)
+     Strategy->>Board: get_available_positions()
+     Board-->>Strategy: posições livres
+     Strategy->>Random: next(quantidade)
+     Random-->>Strategy: índice
+-    Strategy-->>Player: posição selecionada
++    Strategy-->>Application: posição selecionada
+ ```
+ 
+-A estratégia seleciona um índice dentro da lista ordenada de casas livres. Com o mesmo estado de tabuleiro e a mesma sequência pseudoaleatória, o resultado é reproduzível.
++A estratégia não considera vitória, bloqueio ou qualidade posicional. Por isso, ela funciona como linha de base experimental.
+ 
+-## 5. Sementes
++## 6. Estratégia heurística
+ 
+-Há três formas de construção:
++`HeuristicMoveStrategy` avalia as categorias na seguinte ordem:
+ 
+-```csharp
+-new RandomMoveStrategy();
+-new RandomMoveStrategy(seed);
+-new RandomMoveStrategy(random_source);
++1. vitória imediata;
++2. bloqueio de vitória imediata do adversário;
++3. centro;
++4. cantos;
++5. laterais.
++
++Quando uma categoria possui mais de uma alternativa equivalente, a escolha usa `IRandomSource`. Não há desempate aleatório entre categorias diferentes: a prioridade superior sempre prevalece.
++
++### 6.1 Pseudocódigo
++
++O pseudocódigo resume a decisão sem detalhes de implementação.
++
++```text
++função escolher_jogada(tabuleiro, símbolo):
++    livres ← obter_casas_livres(tabuleiro)
++    simulação ← copiar_tabuleiro(tabuleiro)
++
++    vitórias ← casas que vencem para símbolo
++    se vitórias não estiver vazia:
++        retornar desempatar(vitórias)
++
++    adversário ← símbolo oposto
++    bloqueios ← casas que vencem para adversário
++    se bloqueios não estiver vazia:
++        retornar desempatar(bloqueios)
++
++    se centro estiver livre:
++        retornar centro
++
++    cantos ← cantos livres
++    se cantos não estiver vazio:
++        retornar desempatar(cantos)
++
++    laterais ← laterais livres
++    retornar desempatar(laterais)
+ ```
+ 
+-O construtor sem parâmetros é adequado ao uso interativo. O construtor com semente deve ser utilizado em testes e experimentos. A injeção direta de `IRandomSource` permite testes determinísticos de casos específicos.
++A busca por vitória e bloqueio simula cada casa livre em uma cópia interna. Depois de cada hipótese, a célula simulada volta a `Empty`. Nenhuma operação mutável é chamada no `IReadOnlyBoard` original.
++
++### 6.2 Diagrama de decisão
++
++O diagrama mostra a precedência estrita das categorias avaliadas.
++
++```mermaid
++flowchart TD
++    A[Receber IReadOnlyBoard e símbolo] --> B{Há casas livres?}
++    B -- Não --> X[Rejeitar seleção]
++    B -- Sim --> C[Copiar símbolos para simulação interna]
++    C --> D{Há vitória imediata?}
++    D -- Sim --> E[Desempatar vitórias]
++    D -- Não --> F{Adversário pode vencer?}
++    F -- Sim --> G[Desempatar bloqueios]
++    F -- Não --> H{Centro livre?}
++    H -- Sim --> I[Escolher centro]
++    H -- Não --> J{Há canto livre?}
++    J -- Sim --> K[Desempatar cantos]
++    J -- Não --> L[Desempatar laterais]
++    E --> M[Retornar posição]
++    G --> M
++    I --> M
++    K --> M
++    L --> M
++```
++
++A decisão é determinística quando existe uma única alternativa na categoria de maior prioridade. O gerador é consultado somente quando há duas ou mais alternativas equivalentes.
++
++## 7. Representação de simulação
++
++A estratégia heurística contém uma representação interna de nove células. O construtor dessa representação copia cada símbolo por meio de `IReadOnlyBoard.get_symbol`.
++
++A simulação permite:
++
++- inserir temporariamente `X` ou `O`;
++- verificar as oito sequências vencedoras;
++- desfazer a hipótese somente na cópia;
++- preservar integralmente o tabuleiro original.
++
++Essa representação é privada à estratégia. Ela não amplia a superfície pública de mutação e não permite contornar o agregado `Match`.
++
++## 8. Complexidade
++
++Para um tabuleiro de tamanho fixo `3 × 3`, o custo prático é constante. Em termos do número `n` de casas livres:
++
++- cópia do tabuleiro: `O(9)`;
++- avaliação de vitórias do agente: até `n` hipóteses;
++- avaliação de bloqueios: até `n` hipóteses;
++- cada hipótese verifica oito linhas de três posições;
++- filtragem de cantos e laterais: custo constante.
++
++De forma generalizada para este algoritmo, o tempo é `O(n)` porque o número e o tamanho das sequências vencedoras são fixos. O espaço adicional é `O(1)` para o tabuleiro `3 × 3`.
+ 
+-## 6. Invariantes
++## 9. Invariantes
+ 
+-A implementação preserva as seguintes invariantes:
++As estratégias preservam as seguintes invariantes:
+ 
+ 1. o tabuleiro não pode ser nulo;
+ 2. o símbolo não pode ser `Empty`;
+ 3. deve existir pelo menos uma casa livre;
+ 4. a posição retornada deve estar disponível;
+-5. a estratégia não modifica o tabuleiro;
+-6. o índice produzido pelo gerador deve pertencer ao intervalo solicitado;
+-7. `ComputerPlayer` deve possuir uma estratégia não nula.
++5. o tabuleiro recebido não é modificado;
++6. o índice pseudoaleatório deve pertencer ao intervalo solicitado;
++7. sementes iguais reproduzem os mesmos desempates para estados equivalentes;
++8. vitória imediata precede bloqueio;
++9. bloqueio precede preferências posicionais;
++10. centro precede cantos, e cantos precedem laterais.
+ 
+-## 7. Limitações
++## 10. Limitações
+ 
+-A estratégia aleatória:
++A estratégia heurística não realiza busca em profundidade. Consequentemente, ela:
+ 
+-- não procura vitórias imediatas;
+-- não bloqueia o adversário;
+-- não avalia estados futuros;
+-- não garante desempenho competitivo;
+-- serve como linha de base experimental.
++- não prevê armadilhas com duas ameaças simultâneas;
++- não procura criar bifurcações deliberadamente;
++- não garante jogo perfeito;
++- não atribui pontuações graduais a estados futuros;
++- pode perder contra sequências que exigem planejamento além de um turno.
+ 
+-Essas limitações justificam as próximas implementações heurística e Minimax.
++Essas limitações justificam a implementação posterior de `MinimaxMoveStrategy`, que deverá usar um estado de busca independente e preservar o `IReadOnlyBoard` original.
+diff --git a/src/TicTacToe.Console/AI/HeuristicMoveStrategy.cs b/src/TicTacToe.Console/AI/HeuristicMoveStrategy.cs
+new file mode 100644
+index 0000000..ae7e296
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/HeuristicMoveStrategy.cs
+@@ -0,0 +1,258 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Seleciona jogadas por prioridades táticas e posicionais.
++/// </summary>
++/// <remarks>
++/// A estratégia avalia, nesta ordem: vitória imediata, bloqueio de vitória
++/// adversária, centro, cantos e laterais. Empates dentro de uma mesma prioridade
++/// são resolvidos por <see cref="IRandomSource"/>. O tabuleiro recebido nunca é
++/// modificado; todas as hipóteses são avaliadas em uma cópia interna.
++/// </remarks>
++public sealed class HeuristicMoveStrategy : IMoveStrategy
++{
++    private static readonly BoardPosition center = new(1, 1);
++
++    private static readonly BoardPosition[] corners =
++    [
++        new BoardPosition(0, 0),
++        new BoardPosition(0, 2),
++        new BoardPosition(2, 0),
++        new BoardPosition(2, 2)
++    ];
++
++    private static readonly BoardPosition[] sides =
++    [
++        new BoardPosition(0, 1),
++        new BoardPosition(1, 0),
++        new BoardPosition(1, 2),
++        new BoardPosition(2, 1)
++    ];
++
++    private static readonly BoardPosition[][] winning_lines =
++    [
++        [new BoardPosition(0, 0), new BoardPosition(0, 1), new BoardPosition(0, 2)],
++        [new BoardPosition(1, 0), new BoardPosition(1, 1), new BoardPosition(1, 2)],
++        [new BoardPosition(2, 0), new BoardPosition(2, 1), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 0), new BoardPosition(1, 0), new BoardPosition(2, 0)],
++        [new BoardPosition(0, 1), new BoardPosition(1, 1), new BoardPosition(2, 1)],
++        [new BoardPosition(0, 2), new BoardPosition(1, 2), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 0), new BoardPosition(1, 1), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 2), new BoardPosition(1, 1), new BoardPosition(2, 0)]
++    ];
++
++    private readonly IRandomSource random_source;
++
++    /// <summary>
++    /// Inicializa a estratégia com gerador pseudoaleatório padrão.
++    /// </summary>
++    public HeuristicMoveStrategy()
++        : this(new SystemRandomSource())
++    {
++    }
++
++    /// <summary>
++    /// Inicializa a estratégia com semente controlável.
++    /// </summary>
++    /// <param name="seed">Semente utilizada nos desempates.</param>
++    public HeuristicMoveStrategy(int seed)
++        : this(new SystemRandomSource(seed))
++    {
++    }
++
++    /// <summary>
++    /// Inicializa a estratégia com uma fonte pseudoaleatória injetada.
++    /// </summary>
++    /// <param name="random_source">Fonte utilizada nos desempates.</param>
++    public HeuristicMoveStrategy(IRandomSource random_source)
++    {
++        ArgumentNullException.ThrowIfNull(random_source);
++        this.random_source = random_source;
++    }
++
++    /// <inheritdoc />
++    /// <exception cref="ArgumentNullException">
++    /// Lançada quando o tabuleiro é nulo.
++    /// </exception>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando o símbolo é vazio.
++    /// </exception>
++    /// <exception cref="InvalidOperationException">
++    /// Lançada quando não há casas disponíveis ou quando a fonte
++    /// pseudoaleatória viola o intervalo solicitado.
++    /// </exception>
++    public BoardPosition choose_move(IReadOnlyBoard board, Symbol symbol)
++    {
++        ArgumentNullException.ThrowIfNull(board);
++
++        if (symbol == Symbol.Empty)
++        {
++            throw new ArgumentException(
++                "A estratégia deve selecionar uma jogada para X ou O.",
++                nameof(symbol));
++        }
++
++        IReadOnlyList<BoardPosition> available_positions =
++            board.get_available_positions();
++
++        if (available_positions.Count == 0)
++        {
++            throw new InvalidOperationException(
++                "Não existem casas disponíveis para seleção.");
++        }
++
++        SimulationBoard simulation = new(board);
++
++        IReadOnlyList<BoardPosition> winning_positions =
++            find_winning_positions(simulation, symbol, available_positions);
++
++        if (winning_positions.Count > 0)
++        {
++            return choose_candidate(winning_positions);
++        }
++
++        Symbol opponent_symbol = get_opponent_symbol(symbol);
++        IReadOnlyList<BoardPosition> blocking_positions =
++            find_winning_positions(
++                simulation,
++                opponent_symbol,
++                available_positions);
++
++        if (blocking_positions.Count > 0)
++        {
++            return choose_candidate(blocking_positions);
++        }
++
++        if (simulation.is_available(center))
++        {
++            return center;
++        }
++
++        IReadOnlyList<BoardPosition> available_corners =
++            filter_available(simulation, corners);
++
++        if (available_corners.Count > 0)
++        {
++            return choose_candidate(available_corners);
++        }
++
++        IReadOnlyList<BoardPosition> available_sides =
++            filter_available(simulation, sides);
++
++        if (available_sides.Count > 0)
++        {
++            return choose_candidate(available_sides);
++        }
++
++        throw new InvalidOperationException(
++            "Não foi possível selecionar uma casa disponível.");
++    }
++
++    private IReadOnlyList<BoardPosition> find_winning_positions(
++        SimulationBoard simulation,
++        Symbol symbol,
++        IReadOnlyList<BoardPosition> available_positions)
++    {
++        List<BoardPosition> candidates = [];
++
++        foreach (BoardPosition position in available_positions)
++        {
++            simulation.set_symbol(position, symbol);
++
++            if (has_winning_line(simulation, symbol))
++            {
++                candidates.Add(position);
++            }
++
++            simulation.set_symbol(position, Symbol.Empty);
++        }
++
++        return candidates.AsReadOnly();
++    }
++
++    private static bool has_winning_line(
++        SimulationBoard simulation,
++        Symbol symbol)
++    {
++        return winning_lines.Any(
++            line => line.All(
++                position => simulation.get_symbol(position) == symbol));
++    }
++
++    private static IReadOnlyList<BoardPosition> filter_available(
++        SimulationBoard simulation,
++        IEnumerable<BoardPosition> positions)
++    {
++        return positions
++            .Where(simulation.is_available)
++            .ToArray();
++    }
++
++    private BoardPosition choose_candidate(
++        IReadOnlyList<BoardPosition> candidates)
++    {
++        if (candidates.Count == 1)
++        {
++            return candidates[0];
++        }
++
++        int selected_index = random_source.next(candidates.Count);
++
++        if (selected_index < 0 || selected_index >= candidates.Count)
++        {
++            throw new InvalidOperationException(
++                "O gerador pseudoaleatório retornou um índice inválido.");
++        }
++
++        return candidates[selected_index];
++    }
++
++    private static Symbol get_opponent_symbol(Symbol symbol)
++    {
++        return symbol == Symbol.X
++            ? Symbol.O
++            : Symbol.X;
++    }
++
++    /// <summary>
++    /// Representa uma cópia mutável restrita ao algoritmo heurístico.
++    /// </summary>
++    private sealed class SimulationBoard
++    {
++        private readonly Symbol[,] cells =
++            new Symbol[BoardPosition.BoardSize, BoardPosition.BoardSize];
++
++        public SimulationBoard(IReadOnlyBoard board)
++        {
++            for (int row = 0; row < BoardPosition.BoardSize; row++)
++            {
++                for (int column = 0;
++                     column < BoardPosition.BoardSize;
++                     column++)
++                {
++                    BoardPosition position = new(row, column);
++                    cells[row, column] = board.get_symbol(position);
++                }
++            }
++        }
++
++        public Symbol get_symbol(BoardPosition position)
++        {
++            return cells[position.Row, position.Column];
++        }
++
++        public bool is_available(BoardPosition position)
++        {
++            return get_symbol(position) == Symbol.Empty;
++        }
++
++        public void set_symbol(
++            BoardPosition position,
++            Symbol symbol)
++        {
++            cells[position.Row, position.Column] = symbol;
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/AI/HeuristicMoveStrategyTests.cs b/tests/TicTacToe.Tests/AI/HeuristicMoveStrategyTests.cs
+new file mode 100644
+index 0000000..79cba83
+--- /dev/null
++++ b/tests/TicTacToe.Tests/AI/HeuristicMoveStrategyTests.cs
+@@ -0,0 +1,307 @@
++using TicTacToe.AI;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.AI;
++
++/// <summary>
++/// Verifica prioridades, validade e reprodutibilidade da estratégia heurística.
++/// </summary>
++public class HeuristicMoveStrategyTests
++{
++    /// <summary>
++    /// Confirma que uma vitória imediata tem prioridade máxima.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_prioritize_immediate_win()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (0, 1, Symbol.X),
++            (1, 0, Symbol.O),
++            (1, 1, Symbol.O));
++        HeuristicMoveStrategy strategy = new(1);
++
++        BoardPosition position = strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(0, 2), position);
++    }
++
++    /// <summary>
++    /// Confirma que a vitória é escolhida antes de um bloqueio possível.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_choose_win_before_block()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (0, 1, Symbol.X),
++            (1, 0, Symbol.O),
++            (1, 1, Symbol.O));
++        HeuristicMoveStrategy strategy = new(1);
++
++        BoardPosition position = strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(0, 2), position);
++        Assert.NotEqual(new BoardPosition(1, 2), position);
++    }
++
++    /// <summary>
++    /// Confirma o bloqueio de uma vitória imediata do adversário.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_prioritize_block_after_win()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.O),
++            (0, 1, Symbol.O),
++            (1, 1, Symbol.X));
++        HeuristicMoveStrategy strategy = new(1);
++
++        BoardPosition position = strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(0, 2), position);
++    }
++
++    /// <summary>
++    /// Confirma a preferência pelo centro quando não há tática imediata.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_prioritize_center()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.O));
++        HeuristicMoveStrategy strategy = new(1);
++
++        BoardPosition position = strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(1, 1), position);
++    }
++
++    /// <summary>
++    /// Confirma a preferência por cantos quando o centro está ocupado.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_prioritize_corner_after_center()
++    {
++        Board board = create_board(
++            (1, 1, Symbol.O));
++        HeuristicMoveStrategy strategy = new(
++            new FixedRandomSource(2));
++
++        BoardPosition position = strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(2, 0), position);
++    }
++
++    /// <summary>
++    /// Confirma a escolha de uma lateral quando centro e cantos estão ocupados.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_choose_side_after_corners()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (0, 2, Symbol.O),
++            (1, 0, Symbol.O),
++            (1, 1, Symbol.X),
++            (1, 2, Symbol.X),
++            (2, 0, Symbol.X),
++            (2, 1, Symbol.O),
++            (2, 2, Symbol.O));
++        HeuristicMoveStrategy strategy = new(1);
++
++        BoardPosition position = strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(0, 1), position);
++    }
++
++    /// <summary>
++    /// Confirma o desempate reproduzível entre múltiplas vitórias.
++    /// </summary>
++    [Fact]
++    public void same_seed_should_reproduce_winning_tie_break()
++    {
++        Board board = create_board(
++            (1, 0, Symbol.X),
++            (1, 1, Symbol.X),
++            (0, 2, Symbol.X),
++            (1, 2, Symbol.O),
++            (2, 2, Symbol.X),
++            (0, 1, Symbol.O),
++            (2, 1, Symbol.O));
++        HeuristicMoveStrategy first_strategy = new(2026);
++        HeuristicMoveStrategy second_strategy = new(2026);
++
++        BoardPosition first_position =
++            first_strategy.choose_move(board, Symbol.X);
++        BoardPosition second_position =
++            second_strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(first_position, second_position);
++        Assert.Contains(
++            first_position,
++            new[]
++            {
++                new BoardPosition(0, 0),
++                new BoardPosition(2, 0)
++            });
++    }
++
++    /// <summary>
++    /// Confirma que a posição escolhida está disponível.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_return_available_position()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (1, 1, Symbol.O),
++            (2, 2, Symbol.X));
++        HeuristicMoveStrategy strategy = new(42);
++
++        BoardPosition position = strategy.choose_move(board, Symbol.O);
++
++        Assert.True(board.is_position_available(position));
++    }
++
++    /// <summary>
++    /// Confirma que a avaliação não modifica o tabuleiro recebido.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_preserve_original_board()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (0, 1, Symbol.X),
++            (1, 1, Symbol.O));
++        Symbol[,] before = capture_symbols(board);
++        int occupied_count = board.OccupiedCount;
++        HeuristicMoveStrategy strategy = new(42);
++
++        strategy.choose_move(board, Symbol.O);
++
++        Assert.Equal(occupied_count, board.OccupiedCount);
++        assert_symbols_equal(before, board);
++    }
++
++    /// <summary>
++    /// Confirma a rejeição de um tabuleiro completo.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_full_board()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (0, 1, Symbol.O),
++            (0, 2, Symbol.X),
++            (1, 0, Symbol.X),
++            (1, 1, Symbol.O),
++            (1, 2, Symbol.O),
++            (2, 0, Symbol.O),
++            (2, 1, Symbol.X),
++            (2, 2, Symbol.X));
++        HeuristicMoveStrategy strategy = new(1);
++
++        Assert.Throws<InvalidOperationException>(
++            () => strategy.choose_move(board, Symbol.X));
++    }
++
++    /// <summary>
++    /// Confirma a rejeição do símbolo vazio.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_empty_symbol()
++    {
++        HeuristicMoveStrategy strategy = new(1);
++
++        Assert.Throws<ArgumentException>(
++            () => strategy.choose_move(new Board(), Symbol.Empty));
++    }
++
++    /// <summary>
++    /// Confirma que um índice inválido da fonte injetada é detectado.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_invalid_random_index()
++    {
++        Board board = create_board(
++            (1, 1, Symbol.X));
++        HeuristicMoveStrategy strategy = new(
++            new FixedRandomSource(4));
++
++        Assert.Throws<InvalidOperationException>(
++            () => strategy.choose_move(board, Symbol.O));
++    }
++
++    private static Board create_board(
++        params (int Row, int Column, Symbol Symbol)[] cells)
++    {
++        Board board = new();
++        int turn_number = 1;
++
++        foreach ((int row, int column, Symbol symbol) in cells)
++        {
++            board.apply_move(
++                new Move(
++                    new BoardPosition(row, column),
++                    symbol,
++                    turn_number));
++
++            turn_number++;
++        }
++
++        return board;
++    }
++
++    private static Symbol[,] capture_symbols(IReadOnlyBoard board)
++    {
++        Symbol[,] symbols =
++            new Symbol[BoardPosition.BoardSize, BoardPosition.BoardSize];
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0;
++                 column < BoardPosition.BoardSize;
++                 column++)
++            {
++                symbols[row, column] =
++                    board.get_symbol(new BoardPosition(row, column));
++            }
++        }
++
++        return symbols;
++    }
++
++    private static void assert_symbols_equal(
++        Symbol[,] expected,
++        IReadOnlyBoard board)
++    {
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0;
++                 column < BoardPosition.BoardSize;
++                 column++)
++            {
++                Assert.Equal(
++                    expected[row, column],
++                    board.get_symbol(new BoardPosition(row, column)));
++            }
++        }
++    }
++
++    private sealed class FixedRandomSource : IRandomSource
++    {
++        private readonly int value;
++
++        public FixedRandomSource(int value)
++        {
++            this.value = value;
++        }
++
++        public int next(int max_exclusive)
++        {
++            return value;
++        }
++    }
++}

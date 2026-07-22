@@ -1,0 +1,818 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -36,6 +36,16 @@
+ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
++
++### Added
++
++- `ConsoleGameInput` como adaptador de `IGameInput` baseado em `TextReader`.
++- `ConsoleGameOutput` como adaptador de `IGameOutput` baseado em `TextWriter`.
++- `ConsoleBoardRenderer` para tabuleiro ASCII com coordenadas.
++- Composição mínima de partida pessoa contra Minimax em `Program.Main`.
++- Testes de parsing e renderização sem dependência do Console físico.
++- `docs/16-apresentacao-console.md` com arquitetura e fluxo dos adaptadores.
++
+ 
+ ## [1.5.0] - 2026-07-17
+ 
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -1,16 +1,50 @@
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++using TicTacToe.Presentation;
++
+ namespace TicTacToe;
+ 
+ /// <summary>
+-/// Define o ponto de entrada da nova aplicação.
++/// Define o ponto de composição da aplicação Console.
+ /// </summary>
+ public static class Program
+ {
+     /// <summary>
+-    /// Inicia a aplicação Console.
++    /// Inicia uma partida mínima entre pessoa e agente Minimax.
+     /// </summary>
+     /// <param name="args">Argumentos recebidos pela linha de comando.</param>
+     public static void Main(string[] args)
+     {
+-        global::System.Console.WriteLine("Tic-Tac-Toe Console AI — estrutura inicial da versão 1.1.0");
++        TextReader reader = global::System.Console.In;
++        TextWriter writer = global::System.Console.Out;
++
++        ConsoleBoardRenderer board_renderer = new(writer);
++        ConsoleGameInput game_input = new(reader, writer);
++        ConsoleGameOutput game_output = new(writer, board_renderer);
++
++        IComputerMoveStrategyResolver strategy_resolver =
++            new ConfiguredComputerMoveStrategyResolver(
++                new Dictionary<Symbol, IMoveStrategy>
++                {
++                    [Symbol.O] = new MinimaxMoveStrategy()
++                });
++
++        IMoveSelector move_selector = new DefaultMoveSelector(
++            game_input,
++            strategy_resolver);
++
++        MatchController controller = new(
++            move_selector,
++            game_output);
++
++        Match match = new(
++            new HumanPlayer("Pessoa", Symbol.X),
++            new ComputerPlayer("Minimax", Symbol.O));
++
++        writer.WriteLine("Tic-Tac-Toe Console AI");
++        writer.WriteLine("Pessoa: X | Minimax: O");
++
++        controller.run(match);
+     }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs b/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
+@@ -0,0 +1,67 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Renderiza um tabuleiro somente para leitura em formato ASCII.
++/// </summary>
++public sealed class ConsoleBoardRenderer
++{
++    private readonly TextWriter writer;
++
++    /// <summary>
++    /// Inicializa o renderizador.
++    /// </summary>
++    /// <param name="writer">Destino textual da renderização.</param>
++    public ConsoleBoardRenderer(TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    /// <summary>
++    /// Escreve coordenadas, casas e separadores do tabuleiro.
++    /// </summary>
++    /// <param name="board">Tabuleiro consultado.</param>
++    public void render(IReadOnlyBoard board)
++    {
++        ArgumentNullException.ThrowIfNull(board);
++
++        writer.WriteLine("    1   2   3");
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            writer.Write($"{row + 1}   ");
++
++            for (int column = 0;
++                 column < BoardPosition.BoardSize;
++                 column++)
++            {
++                BoardPosition position = new(row, column);
++                writer.Write(format_symbol(board.get_symbol(position)));
++
++                if (column < BoardPosition.BoardSize - 1)
++                {
++                    writer.Write(" | ");
++                }
++            }
++
++            writer.WriteLine();
++
++            if (row < BoardPosition.BoardSize - 1)
++            {
++                writer.WriteLine("   ---+---+---");
++            }
++        }
++    }
++
++    private static char format_symbol(Symbol symbol)
++    {
++        return symbol switch
++        {
++            Symbol.X => 'X',
++            Symbol.O => 'O',
++            _ => ' '
++        };
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleGameInput.cs b/src/TicTacToe.Console/Presentation/ConsoleGameInput.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/ConsoleGameInput.cs
+@@ -0,0 +1,125 @@
++using System.Globalization;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Obtém jogadas humanas a partir de um fluxo textual.
++/// </summary>
++public sealed class ConsoleGameInput : IGameInput
++{
++    private static readonly char[] separators =
++        [' ', '\t', ',', ';'];
++
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    /// <summary>
++    /// Inicializa a entrada textual.
++    /// </summary>
++    /// <param name="reader">Origem das linhas informadas.</param>
++    /// <param name="writer">Destino dos prompts e mensagens de validação.</param>
++    public ConsoleGameInput(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    /// <inheritdoc />
++    public BoardPosition read_move(
++        Match match,
++        HumanPlayer player)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++        ArgumentNullException.ThrowIfNull(player);
++
++        while (true)
++        {
++            writer.Write(
++                $"{player.Name} ({player.Symbol}), informe linha e coluna (1-3): ");
++
++            string? input = reader.ReadLine();
++
++            if (input is null)
++            {
++                throw new EndOfStreamException(
++                    "A entrada foi encerrada antes da seleção de uma jogada.");
++            }
++
++            if (!try_parse_position(input, out BoardPosition position))
++            {
++                writer.WriteLine(
++                    "Entrada inválida. Use dois números de 1 a 3.");
++                continue;
++            }
++
++            if (!match.Board.is_position_available(position))
++            {
++                writer.WriteLine(
++                    "A posição informada já está ocupada.");
++                continue;
++            }
++
++            return position;
++        }
++    }
++
++    /// <summary>
++    /// Tenta converter coordenadas humanas de 1 a 3 para índices de 0 a 2.
++    /// </summary>
++    /// <param name="input">Texto recebido.</param>
++    /// <param name="position">Posição convertida quando válida.</param>
++    /// <returns><see langword="true"/> quando a conversão é válida.</returns>
++    public static bool try_parse_position(
++        string? input,
++        out BoardPosition position)
++    {
++        position = default;
++
++        if (string.IsNullOrWhiteSpace(input))
++        {
++            return false;
++        }
++
++        string[] parts = input.Split(
++            separators,
++            StringSplitOptions.RemoveEmptyEntries |
++            StringSplitOptions.TrimEntries);
++
++        if (parts.Length != 2)
++        {
++            return false;
++        }
++
++        bool has_row = int.TryParse(
++            parts[0],
++            NumberStyles.Integer,
++            CultureInfo.InvariantCulture,
++            out int row);
++
++        bool has_column = int.TryParse(
++            parts[1],
++            NumberStyles.Integer,
++            CultureInfo.InvariantCulture,
++            out int column);
++
++        if (!has_row ||
++            !has_column ||
++            row < 1 ||
++            row > BoardPosition.BoardSize ||
++            column < 1 ||
++            column > BoardPosition.BoardSize)
++        {
++            return false;
++        }
++
++        position = new BoardPosition(row - 1, column - 1);
++        return true;
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+@@ -0,0 +1,97 @@
++using TicTacToe.Application;
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Apresenta estados e resultados de uma partida em um fluxo textual.
++/// </summary>
++public sealed class ConsoleGameOutput : IGameOutput
++{
++    private readonly TextWriter writer;
++    private readonly ConsoleBoardRenderer board_renderer;
++
++    /// <summary>
++    /// Inicializa a saída textual.
++    /// </summary>
++    /// <param name="writer">Destino das mensagens.</param>
++    /// <param name="board_renderer">Renderizador de tabuleiro.</param>
++    public ConsoleGameOutput(
++        TextWriter writer,
++        ConsoleBoardRenderer board_renderer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        ArgumentNullException.ThrowIfNull(board_renderer);
++
++        this.writer = writer;
++        this.board_renderer = board_renderer;
++    }
++
++    /// <inheritdoc />
++    public void show_match(Match match)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++
++        writer.WriteLine();
++        board_renderer.render(match.Board);
++
++        if (match.State == GameState.InProgress)
++        {
++            writer.WriteLine();
++            writer.WriteLine(
++                $"Jogador atual: {match.CurrentPlayer.Name} " +
++                $"({match.CurrentPlayer.Symbol})");
++        }
++    }
++
++    /// <inheritdoc />
++    public void show_invalid_move(
++        Player player,
++        BoardPosition position,
++        string message)
++    {
++        ArgumentNullException.ThrowIfNull(player);
++
++        writer.WriteLine(
++            $"Jogada inválida de {player.Name} " +
++            $"na posição ({position.Row + 1}, {position.Column + 1}): " +
++            message);
++    }
++
++    /// <inheritdoc />
++    public void show_result(Match match)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++
++        writer.WriteLine();
++
++        switch (match.Result)
++        {
++            case GameResult.XWins:
++                show_winner(match, Symbol.X);
++                break;
++
++            case GameResult.OWins:
++                show_winner(match, Symbol.O);
++                break;
++
++            case GameResult.Draw:
++                writer.WriteLine("Resultado: empate.");
++                break;
++
++            default:
++                writer.WriteLine("Resultado ainda não definido.");
++                break;
++        }
++    }
++
++    private void show_winner(
++        Match match,
++        Symbol symbol)
++    {
++        Player winner = match.get_player(symbol);
++
++        writer.WriteLine(
++            $"Resultado: {winner.Name} venceu com {symbol}.");
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/ConsoleGameInputTests.cs b/tests/TicTacToe.Tests/Presentation/ConsoleGameInputTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/ConsoleGameInputTests.cs
+@@ -0,0 +1,117 @@
++using TicTacToe.AI;
++using TicTacToe.Domain;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++/// <summary>
++/// Verifica parsing e repetição da entrada textual.
++/// </summary>
++public class ConsoleGameInputTests
++{
++    /// <summary>
++    /// Confirma coordenadas separadas por espaço.
++    /// </summary>
++    [Fact]
++    public void try_parse_position_should_accept_valid_coordinates()
++    {
++        bool parsed = ConsoleGameInput.try_parse_position(
++            "2 3",
++            out BoardPosition position);
++
++        Assert.True(parsed);
++        Assert.Equal(new BoardPosition(1, 2), position);
++    }
++
++    /// <summary>
++    /// Confirma separadores alternativos suportados.
++    /// </summary>
++    [Theory]
++    [InlineData("1,3", 0, 2)]
++    [InlineData("3;1", 2, 0)]
++    [InlineData(" 2\t2 ", 1, 1)]
++    public void try_parse_position_should_accept_supported_separators(
++        string input,
++        int expected_row,
++        int expected_column)
++    {
++        bool parsed = ConsoleGameInput.try_parse_position(
++            input,
++            out BoardPosition position);
++
++        Assert.True(parsed);
++        Assert.Equal(
++            new BoardPosition(expected_row, expected_column),
++            position);
++    }
++
++    /// <summary>
++    /// Confirma a rejeição de texto, quantidade e intervalo inválidos.
++    /// </summary>
++    [Theory]
++    [InlineData("")]
++    [InlineData("abc")]
++    [InlineData("1")]
++    [InlineData("1 2 3")]
++    [InlineData("0 1")]
++    [InlineData("4 2")]
++    public void try_parse_position_should_reject_invalid_input(
++        string input)
++    {
++        bool parsed = ConsoleGameInput.try_parse_position(
++            input,
++            out _);
++
++        Assert.False(parsed);
++    }
++
++    /// <summary>
++    /// Confirma nova tentativa após texto inválido.
++    /// </summary>
++    [Fact]
++    public void read_move_should_retry_after_invalid_text()
++    {
++        StringReader reader = new(
++            "texto" + Environment.NewLine +
++            "2 3" + Environment.NewLine);
++        StringWriter writer = new();
++        ConsoleGameInput input = new(reader, writer);
++        Match match = create_match();
++
++        BoardPosition position =
++            input.read_move(match, (HumanPlayer)match.FirstPlayer);
++
++        Assert.Equal(new BoardPosition(1, 2), position);
++        Assert.Contains("Entrada inválida", writer.ToString());
++    }
++
++    /// <summary>
++    /// Confirma nova tentativa quando a casa já está ocupada.
++    /// </summary>
++    [Fact]
++    public void read_move_should_retry_after_occupied_position()
++    {
++        Match match = create_match();
++        match.apply_move(new BoardPosition(0, 0));
++
++        StringReader reader = new(
++            "1 1" + Environment.NewLine +
++            "2 2" + Environment.NewLine);
++        StringWriter writer = new();
++        ConsoleGameInput input = new(reader, writer);
++
++        BoardPosition position =
++            input.read_move(match, (HumanPlayer)match.FirstPlayer);
++
++        Assert.Equal(new BoardPosition(1, 1), position);
++        Assert.Contains("já está ocupada", writer.ToString());
++    }
++
++    private static Match create_match()
++    {
++        return new Match(
++            new HumanPlayer("Pessoa", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/ConsoleBoardRendererTests.cs b/tests/TicTacToe.Tests/Presentation/ConsoleBoardRendererTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/ConsoleBoardRendererTests.cs
+@@ -0,0 +1,49 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++/// <summary>
++/// Verifica a renderização ASCII do tabuleiro.
++/// </summary>
++public class ConsoleBoardRendererTests
++{
++    /// <summary>
++    /// Confirma coordenadas, símbolos e separadores.
++    /// </summary>
++    [Fact]
++    public void render_should_write_ascii_board()
++    {
++        Board board = new();
++        board.apply_move(
++            new Move(
++                new BoardPosition(0, 0),
++                Symbol.X,
++                1));
++        board.apply_move(
++            new Move(
++                new BoardPosition(1, 1),
++                Symbol.O,
++                2));
++
++        StringWriter writer = new();
++        ConsoleBoardRenderer renderer = new(writer);
++
++        renderer.render(board);
++
++        string expected = string.Join(
++            Environment.NewLine,
++            [
++                "    1   2   3",
++                "1   X |   |  ",
++                "   ---+---+---",
++                "2     | O |  ",
++                "   ---+---+---",
++                "3     |   |  ",
++                string.Empty
++            ]);
++
++        Assert.Equal(expected, writer.ToString());
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/ConsoleGameOutputTests.cs b/tests/TicTacToe.Tests/Presentation/ConsoleGameOutputTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/ConsoleGameOutputTests.cs
+@@ -0,0 +1,94 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++/// <summary>
++/// Verifica mensagens da saída textual.
++/// </summary>
++public class ConsoleGameOutputTests
++{
++    /// <summary>
++    /// Confirma a apresentação do jogador atual.
++    /// </summary>
++    [Fact]
++    public void show_match_should_present_board_and_current_player()
++    {
++        Match match = create_match();
++        StringWriter writer = new();
++        ConsoleGameOutput output = new(
++            writer,
++            new ConsoleBoardRenderer(writer));
++
++        output.show_match(match);
++
++        string text = writer.ToString();
++
++        Assert.Contains("1   2   3", text);
++        Assert.Contains("Jogador atual: Pessoa (X)", text);
++    }
++
++    /// <summary>
++    /// Confirma a apresentação do vencedor.
++    /// </summary>
++    [Fact]
++    public void show_result_should_present_winner()
++    {
++        Match match = create_finished_match();
++        StringWriter writer = new();
++        ConsoleGameOutput output = new(
++            writer,
++            new ConsoleBoardRenderer(writer));
++
++        output.show_result(match);
++
++        Assert.Contains(
++            "Resultado: Pessoa venceu com X.",
++            writer.ToString());
++    }
++
++    /// <summary>
++    /// Confirma a mensagem de jogada inválida.
++    /// </summary>
++    [Fact]
++    public void show_invalid_move_should_present_position_and_message()
++    {
++        Match match = create_match();
++        StringWriter writer = new();
++        ConsoleGameOutput output = new(
++            writer,
++            new ConsoleBoardRenderer(writer));
++
++        output.show_invalid_move(
++            match.FirstPlayer,
++            new BoardPosition(1, 2),
++            "Posição ocupada.");
++
++        string text = writer.ToString();
++
++        Assert.Contains("Pessoa", text);
++        Assert.Contains("(2, 3)", text);
++        Assert.Contains("Posição ocupada.", text);
++    }
++
++    private static Match create_match()
++    {
++        return new Match(
++            new HumanPlayer("Pessoa", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++    }
++
++    private static Match create_finished_match()
++    {
++        Match match = create_match();
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++        match.apply_move(new BoardPosition(1, 1));
++        match.apply_move(new BoardPosition(0, 2));
++
++        return match;
++    }
++}
+diff --git a/docs/16-apresentacao-console.md b/docs/16-apresentacao-console.md
+new file mode 100644
+--- /dev/null
++++ b/docs/16-apresentacao-console.md
+@@ -0,0 +1,157 @@
++# Implementações de Console
++
++## 1. Finalidade
++
++Este documento descreve os adaptadores concretos introduzidos após a versão
++`1.5.0`. Eles conectam as portas da camada `Application` aos fluxos textuais do
++.NET sem adicionar regras ao domínio.
++
++A etapa fornece uma partida mínima jogável entre uma pessoa, usando `X`, e uma
++estratégia Minimax, usando `O`.
++
++## 2. Adaptadores
++
++A apresentação concreta contém:
++
++- `ConsoleGameInput`, que implementa `IGameInput`;
++- `ConsoleGameOutput`, que implementa `IGameOutput`;
++- `ConsoleBoardRenderer`, que renderiza `IReadOnlyBoard`;
++- `Program`, que compõe as dependências.
++
++O diagrama apresenta a direção das dependências.
++
++```mermaid
++classDiagram
++    class IGameInput {
++        <<interface>>
++        +read_move(match, player) BoardPosition
++    }
++
++    class IGameOutput {
++        <<interface>>
++        +show_match(match)
++        +show_invalid_move(player, position, message)
++        +show_result(match)
++    }
++
++    class ConsoleGameInput {
++        -TextReader reader
++        -TextWriter writer
++        +read_move(match, player) BoardPosition
++        +try_parse_position(input, position) bool
++    }
++
++    class ConsoleGameOutput {
++        -TextWriter writer
++        -ConsoleBoardRenderer board_renderer
++    }
++
++    class ConsoleBoardRenderer {
++        -TextWriter writer
++        +render(board)
++    }
++
++    IGameInput <|.. ConsoleGameInput
++    IGameOutput <|.. ConsoleGameOutput
++    ConsoleGameOutput --> ConsoleBoardRenderer
++```
++
++Os adaptadores dependem das portas de aplicação e dos contratos somente para
++leitura do domínio. Nenhuma interface existente foi recriada.
++
++## 3. Entrada
++
++As coordenadas são apresentadas ao usuário no intervalo de `1` a `3` e
++convertidas internamente para índices entre `0` e `2`.
++
++São aceitos espaço, tabulação, vírgula ou ponto e vírgula como separadores. A
++conversão utiliza `int.TryParse`, de modo que texto inválido e valores fora do
++intervalo não dependem de exceções para o fluxo normal.
++
++O diagrama mostra a repetição da leitura.
++
++```mermaid
++flowchart TD
++    A[Solicitar linha e coluna] --> B[Ler linha]
++    B --> C{Entrada encerrada?}
++    C -- Sim --> X[Lançar EndOfStreamException]
++    C -- Não --> D{Parsing válido?}
++    D -- Não --> E[Exibir orientação]
++    E --> A
++    D -- Sim --> F{Casa disponível?}
++    F -- Não --> G[Informar casa ocupada]
++    G --> A
++    F -- Sim --> H[Retornar BoardPosition]
++```
++
++Somente o encerramento inesperado do fluxo é tratado como exceção. Erros
++corrigíveis de digitação ou ocupação geram mensagem e nova tentativa.
++
++## 4. Saída e tabuleiro
++
++A renderização inicial utiliza somente caracteres ASCII. Ela apresenta:
++
++- coordenadas;
++- símbolos `X` e `O`;
++- separadores;
++- jogador atual;
++- jogada inválida;
++- vitória ou empate.
++
++Unicode, cores ANSI, limpeza de tela, temas e artes serão adicionados em etapas
++posteriores.
++
++## 5. Composição mínima
++
++`Program.Main` funciona como composition root. Ele instancia leitores,
++escritores, adaptadores, resolvedor de Strategy, controlador e participantes.
++
++O fluxo completo é apresentado a seguir.
++
++```mermaid
++sequenceDiagram
++    participant Program
++    participant Input as ConsoleGameInput
++    participant Output as ConsoleGameOutput
++    participant Controller as MatchController
++    participant Match
++    participant AI as MinimaxMoveStrategy
++
++    Program->>Controller: run(match)
++    Controller->>Output: show_match(match)
++
++    loop enquanto a partida estiver em andamento
++        alt turno humano
++            Controller->>Input: read_move(match, player)
++            Input-->>Controller: posição
++        else turno computacional
++            Controller->>AI: choose_move(board, O)
++            AI-->>Controller: posição
++        end
++
++        Controller->>Match: apply_move(position)
++        Controller->>Output: show_match(match)
++    end
++
++    Controller->>Output: show_result(match)
++```
++
++A composição não implementa menu ou configuração interativa. Essas
++responsabilidades pertencem às próximas etapas de apresentação.
++
++## 6. Testabilidade
++
++`TextReader` e `TextWriter` são injetados nos adaptadores. Os testes utilizam
++`StringReader` e `StringWriter`, sem acesso ao Console físico.
++
++A suíte cobre:
++
++- parsing válido;
++- separadores aceitos;
++- entradas inválidas;
++- repetição após erro;
++- repetição após casa ocupada;
++- renderização ASCII;
++- jogador atual;
++- resultado;
++- mensagem de jogada inválida.

@@ -1,0 +1,800 @@
+diff --git a/src/TicTacToe.Console/AI/IMoveStrategy.cs b/src/TicTacToe.Console/AI/IMoveStrategy.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/IMoveStrategy.cs
+@@ -0,0 +1,22 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Define o contrato do padrão Strategy para seleção de jogadas.
++/// </summary>
++/// <remarks>
++/// Implementações recebem apenas o estado necessário para escolher uma posição.
++/// Elas não aplicam a jogada, não alteram o tabuleiro e não controlam o fluxo da
++/// partida.
++/// </remarks>
++public interface IMoveStrategy
++{
++    /// <summary>
++    /// Seleciona uma posição válida para o símbolo informado.
++    /// </summary>
++    /// <param name="board">Tabuleiro consultado.</param>
++    /// <param name="symbol">Símbolo controlado pelo agente.</param>
++    /// <returns>Posição escolhida entre as casas disponíveis.</returns>
++    BoardPosition choose_move(Board board, Symbol symbol);
++}
+diff --git a/src/TicTacToe.Console/AI/IRandomSource.cs b/src/TicTacToe.Console/AI/IRandomSource.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/IRandomSource.cs
+@@ -0,0 +1,16 @@
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Abstrai a geração de números pseudoaleatórios para permitir testes e
++/// experimentos reproduzíveis.
++/// </summary>
++public interface IRandomSource
++{
++    /// <summary>
++    /// Produz um inteiro no intervalo de zero, inclusivo, até o limite,
++    /// exclusivo.
++    /// </summary>
++    /// <param name="max_exclusive">Limite superior exclusivo.</param>
++    /// <returns>Valor pseudoaleatório válido para o intervalo.</returns>
++    int next(int max_exclusive);
++}
+diff --git a/src/TicTacToe.Console/AI/SystemRandomSource.cs b/src/TicTacToe.Console/AI/SystemRandomSource.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/SystemRandomSource.cs
+@@ -0,0 +1,45 @@
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Implementa <see cref="IRandomSource"/> utilizando <see cref="Random"/>.
++/// </summary>
++public sealed class SystemRandomSource : IRandomSource
++{
++    private readonly Random random;
++
++    /// <summary>
++    /// Inicializa um gerador com semente definida pelo ambiente.
++    /// </summary>
++    public SystemRandomSource()
++        : this(new Random())
++    {
++    }
++
++    /// <summary>
++    /// Inicializa um gerador com semente controlável.
++    /// </summary>
++    /// <param name="seed">Semente utilizada pelo gerador.</param>
++    public SystemRandomSource(int seed)
++        : this(new Random(seed))
++    {
++    }
++
++    private SystemRandomSource(Random random)
++    {
++        this.random = random;
++    }
++
++    /// <inheritdoc />
++    public int next(int max_exclusive)
++    {
++        if (max_exclusive <= 0)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(max_exclusive),
++                max_exclusive,
++                "O limite superior deve ser maior que zero.");
++        }
++
++        return random.Next(max_exclusive);
++    }
++}
+diff --git a/src/TicTacToe.Console/AI/RandomMoveStrategy.cs b/src/TicTacToe.Console/AI/RandomMoveStrategy.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/RandomMoveStrategy.cs
+@@ -0,0 +1,84 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Seleciona uniformemente uma das casas disponíveis.
++/// </summary>
++/// <remarks>
++/// Esta classe implementa o padrão Strategy. A dependência de aleatoriedade é
++/// injetada por <see cref="IRandomSource"/>, permitindo substituir o gerador em
++/// testes e controlar sementes em experimentos.
++/// </remarks>
++public sealed class RandomMoveStrategy : IMoveStrategy
++{
++    private readonly IRandomSource random_source;
++
++    /// <summary>
++    /// Inicializa a estratégia com gerador padrão.
++    /// </summary>
++    public RandomMoveStrategy()
++        : this(new SystemRandomSource())
++    {
++    }
++
++    /// <summary>
++    /// Inicializa a estratégia com semente controlável.
++    /// </summary>
++    /// <param name="seed">Semente pseudoaleatória.</param>
++    public RandomMoveStrategy(int seed)
++        : this(new SystemRandomSource(seed))
++    {
++    }
++
++    /// <summary>
++    /// Inicializa a estratégia com um gerador injetado.
++    /// </summary>
++    /// <param name="random_source">Fonte de números pseudoaleatórios.</param>
++    public RandomMoveStrategy(IRandomSource random_source)
++    {
++        ArgumentNullException.ThrowIfNull(random_source);
++        this.random_source = random_source;
++    }
++
++    /// <inheritdoc />
++    /// <exception cref="ArgumentNullException">
++    /// Lançada quando o tabuleiro é nulo.
++    /// </exception>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando o símbolo é vazio.
++    /// </exception>
++    /// <exception cref="InvalidOperationException">
++    /// Lançada quando o tabuleiro não possui casas livres.
++    /// </exception>
++    public BoardPosition choose_move(Board board, Symbol symbol)
++    {
++        ArgumentNullException.ThrowIfNull(board);
++
++        if (symbol == Symbol.Empty)
++        {
++            throw new ArgumentException(
++                "A estratégia deve selecionar uma jogada para X ou O.",
++                nameof(symbol));
++        }
++
++        IReadOnlyList<BoardPosition> available_positions =
++            board.get_available_positions();
++
++        if (available_positions.Count == 0)
++        {
++            throw new InvalidOperationException(
++                "Não existem casas disponíveis para seleção.");
++        }
++
++        int selected_index = random_source.next(available_positions.Count);
++
++        if (selected_index < 0 || selected_index >= available_positions.Count)
++        {
++            throw new InvalidOperationException(
++                "O gerador pseudoaleatório retornou um índice inválido.");
++        }
++
++        return available_positions[selected_index];
++    }
++}
+diff --git a/src/TicTacToe.Console/Domain/ComputerPlayer.cs b/src/TicTacToe.Console/Domain/ComputerPlayer.cs
+--- a/src/TicTacToe.Console/Domain/ComputerPlayer.cs
++++ b/src/TicTacToe.Console/Domain/ComputerPlayer.cs
+@@ -1,11 +1,13 @@
++using TicTacToe.AI;
++
+ namespace TicTacToe.Domain;
+ 
+ /// <summary>
+-/// Representa um participante controlado computacionalmente.
++/// Representa um participante controlado por uma estratégia de jogada.
+ /// </summary>
+ /// <remarks>
+-/// A estratégia de decisão será associada em uma etapa posterior. Nesta versão,
+-/// a classe identifica apenas a natureza do participante no domínio.
++/// A classe atua como contexto do padrão Strategy: mantém uma implementação de
++/// <see cref="IMoveStrategy"/> e delega a ela a seleção de posições.
+ /// </remarks>
+ public sealed class ComputerPlayer : Player
+ {
+@@ -14,8 +16,29 @@
+     /// </summary>
+     /// <param name="name">Nome de exibição.</param>
+     /// <param name="symbol">Símbolo controlado.</param>
+-    public ComputerPlayer(string name, Symbol symbol)
++    /// <param name="strategy">Estratégia utilizada para escolher jogadas.</param>
++    public ComputerPlayer(
++        string name,
++        Symbol symbol,
++        IMoveStrategy strategy)
+         : base(name, symbol)
+     {
++        ArgumentNullException.ThrowIfNull(strategy);
++        Strategy = strategy;
++    }
++
++    /// <summary>
++    /// Obtém a estratégia associada ao participante.
++    /// </summary>
++    public IMoveStrategy Strategy { get; }
++
++    /// <summary>
++    /// Solicita à estratégia uma posição válida.
++    /// </summary>
++    /// <param name="board">Tabuleiro atual.</param>
++    /// <returns>Posição selecionada pela estratégia.</returns>
++    public BoardPosition choose_move(Board board)
++    {
++        return Strategy.choose_move(board, Symbol);
+     }
+ }
+diff --git a/tests/TicTacToe.Tests/AI/RandomMoveStrategyTests.cs b/tests/TicTacToe.Tests/AI/RandomMoveStrategyTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/AI/RandomMoveStrategyTests.cs
+@@ -0,0 +1,175 @@
++using TicTacToe.AI;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.AI;
++
++/// <summary>
++/// Verifica validade, injeção e reprodutibilidade da estratégia aleatória.
++/// </summary>
++public class RandomMoveStrategyTests
++{
++    /// <summary>
++    /// Confirma que a estratégia seleciona uma casa disponível.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_return_available_position()
++    {
++        Board board = new();
++        board.apply_move(new Move(new BoardPosition(0, 0), Symbol.X, 1));
++        board.apply_move(new Move(new BoardPosition(1, 1), Symbol.O, 2));
++
++        RandomMoveStrategy strategy = new(new FixedRandomSource(0));
++
++        BoardPosition selected_position = strategy.choose_move(board, Symbol.X);
++
++        Assert.True(board.is_position_available(selected_position));
++        Assert.NotEqual(new BoardPosition(0, 0), selected_position);
++        Assert.NotEqual(new BoardPosition(1, 1), selected_position);
++    }
++
++    /// <summary>
++    /// Confirma que a posição selecionada corresponde ao índice injetado.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_use_injected_random_source()
++    {
++        Board board = new();
++        RandomMoveStrategy strategy = new(new FixedRandomSource(4));
++
++        BoardPosition selected_position = strategy.choose_move(board, Symbol.O);
++
++        Assert.Equal(new BoardPosition(1, 1), selected_position);
++    }
++
++    /// <summary>
++    /// Confirma que geradores com a mesma semente produzem a mesma sequência.
++    /// </summary>
++    [Fact]
++    public void same_seed_should_produce_same_sequence()
++    {
++        RandomMoveStrategy first_strategy = new(2026);
++        RandomMoveStrategy second_strategy = new(2026);
++
++        List<BoardPosition> first_sequence = create_sequence(first_strategy);
++        List<BoardPosition> second_sequence = create_sequence(second_strategy);
++
++        Assert.Equal(first_sequence, second_sequence);
++    }
++
++    /// <summary>
++    /// Confirma que a estratégia não modifica o tabuleiro.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_not_modify_board()
++    {
++        Board board = new();
++        board.apply_move(new Move(new BoardPosition(2, 2), Symbol.X, 1));
++        int occupied_count = board.OccupiedCount;
++
++        RandomMoveStrategy strategy = new(10);
++
++        strategy.choose_move(board, Symbol.O);
++
++        Assert.Equal(occupied_count, board.OccupiedCount);
++        Assert.Equal(Symbol.X, board.get_symbol(new BoardPosition(2, 2)));
++    }
++
++    /// <summary>
++    /// Confirma que um tabuleiro completo é rejeitado.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_full_board()
++    {
++        Board board = create_full_board();
++        RandomMoveStrategy strategy = new(1);
++
++        Assert.Throws<InvalidOperationException>(
++            () => strategy.choose_move(board, Symbol.X));
++    }
++
++    /// <summary>
++    /// Confirma que o símbolo vazio é rejeitado.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_empty_symbol()
++    {
++        RandomMoveStrategy strategy = new(1);
++
++        Assert.Throws<ArgumentException>(
++            () => strategy.choose_move(new Board(), Symbol.Empty));
++    }
++
++    /// <summary>
++    /// Confirma que índices inválidos do gerador injetado são detectados.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_invalid_random_index()
++    {
++        RandomMoveStrategy strategy = new(new FixedRandomSource(9));
++
++        Assert.Throws<InvalidOperationException>(
++            () => strategy.choose_move(new Board(), Symbol.X));
++    }
++
++    private static List<BoardPosition> create_sequence(
++        RandomMoveStrategy strategy)
++    {
++        Board board = new();
++        List<BoardPosition> positions = [];
++
++        for (int turn_number = 1; turn_number <= 5; turn_number++)
++        {
++            Symbol symbol = turn_number % 2 == 1
++                ? Symbol.X
++                : Symbol.O;
++
++            BoardPosition position = strategy.choose_move(board, symbol);
++            positions.Add(position);
++            board.apply_move(new Move(position, symbol, turn_number));
++        }
++
++        return positions;
++    }
++
++    private static Board create_full_board()
++    {
++        Board board = new();
++        int turn_number = 1;
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0; column < BoardPosition.BoardSize; column++)
++            {
++                Symbol symbol = turn_number % 2 == 1
++                    ? Symbol.X
++                    : Symbol.O;
++
++                board.apply_move(
++                    new Move(
++                        new BoardPosition(row, column),
++                        symbol,
++                        turn_number));
++
++                turn_number++;
++            }
++        }
++
++        return board;
++    }
++
++    private sealed class FixedRandomSource : IRandomSource
++    {
++        private readonly int value;
++
++        public FixedRandomSource(int value)
++        {
++            this.value = value;
++        }
++
++        public int next(int max_exclusive)
++        {
++            return value;
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/AI/SystemRandomSourceTests.cs b/tests/TicTacToe.Tests/AI/SystemRandomSourceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/AI/SystemRandomSourceTests.cs
+@@ -0,0 +1,62 @@
++using TicTacToe.AI;
++using Xunit;
++
++namespace TicTacToe.Tests.AI;
++
++/// <summary>
++/// Verifica o contrato do gerador pseudoaleatório padrão.
++/// </summary>
++public class SystemRandomSourceTests
++{
++    /// <summary>
++    /// Confirma que valores produzidos respeitam o intervalo.
++    /// </summary>
++    [Fact]
++    public void next_should_return_value_inside_range()
++    {
++        SystemRandomSource random_source = new(42);
++
++        for (int sample = 0; sample < 100; sample++)
++        {
++            int value = random_source.next(7);
++
++            Assert.InRange(value, 0, 6);
++        }
++    }
++
++    /// <summary>
++    /// Confirma que a mesma semente reproduz a sequência.
++    /// </summary>
++    [Fact]
++    public void same_seed_should_reproduce_values()
++    {
++        SystemRandomSource first_source = new(1234);
++        SystemRandomSource second_source = new(1234);
++
++        int[] first_values = Enumerable
++            .Range(0, 20)
++            .Select(_ => first_source.next(100))
++            .ToArray();
++
++        int[] second_values = Enumerable
++            .Range(0, 20)
++            .Select(_ => second_source.next(100))
++            .ToArray();
++
++        Assert.Equal(first_values, second_values);
++    }
++
++    /// <summary>
++    /// Confirma a rejeição de limites não positivos.
++    /// </summary>
++    [Theory]
++    [InlineData(0)]
++    [InlineData(-1)]
++    public void next_should_reject_non_positive_limit(int max_exclusive)
++    {
++        SystemRandomSource random_source = new(1);
++
++        Assert.Throws<ArgumentOutOfRangeException>(
++            () => random_source.next(max_exclusive));
++    }
++}
+diff --git a/tests/TicTacToe.Tests/AI/ComputerPlayerStrategyTests.cs b/tests/TicTacToe.Tests/AI/ComputerPlayerStrategyTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/AI/ComputerPlayerStrategyTests.cs
+@@ -0,0 +1,61 @@
++using TicTacToe.AI;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.AI;
++
++/// <summary>
++/// Verifica a delegação entre <see cref="ComputerPlayer"/> e sua estratégia.
++/// </summary>
++public class ComputerPlayerStrategyTests
++{
++    /// <summary>
++    /// Confirma que o participante delega tabuleiro e símbolo à estratégia.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_delegate_to_strategy()
++    {
++        Board board = new();
++        BoardPosition expected_position = new(2, 1);
++        RecordingStrategy strategy = new(expected_position);
++        ComputerPlayer player = new("CPU", Symbol.O, strategy);
++
++        BoardPosition selected_position = player.choose_move(board);
++
++        Assert.Equal(expected_position, selected_position);
++        Assert.Same(board, strategy.ReceivedBoard);
++        Assert.Equal(Symbol.O, strategy.ReceivedSymbol);
++    }
++
++    /// <summary>
++    /// Confirma que estratégia nula é rejeitada.
++    /// </summary>
++    [Fact]
++    public void constructor_should_reject_null_strategy()
++    {
++        Assert.Throws<ArgumentNullException>(
++            () => new ComputerPlayer("CPU", Symbol.O, null!));
++    }
++
++    private sealed class RecordingStrategy : IMoveStrategy
++    {
++        private readonly BoardPosition position;
++
++        public RecordingStrategy(BoardPosition position)
++        {
++            this.position = position;
++        }
++
++        public Board? ReceivedBoard { get; private set; }
++
++        public Symbol ReceivedSymbol { get; private set; }
++
++        public BoardPosition choose_move(Board board, Symbol symbol)
++        {
++            ReceivedBoard = board;
++            ReceivedSymbol = symbol;
++
++            return position;
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/PlayerTests.cs b/tests/TicTacToe.Tests/Domain/PlayerTests.cs
+--- a/tests/TicTacToe.Tests/Domain/PlayerTests.cs
++++ b/tests/TicTacToe.Tests/Domain/PlayerTests.cs
+@@ -1,3 +1,4 @@
++using TicTacToe.AI;
+ using TicTacToe.Domain;
+ using Xunit;
+ 
+@@ -26,7 +27,10 @@
+     [Fact]
+     public void player_should_trim_name()
+     {
+-        ComputerPlayer player = new("  CPU  ", Symbol.O);
++        ComputerPlayer player = new(
++            "  CPU  ",
++            Symbol.O,
++            new RandomMoveStrategy(1));
+ 
+         Assert.Equal("CPU", player.Name);
+     }
+@@ -48,6 +52,9 @@
+     public void player_should_reject_empty_symbol()
+     {
+         Assert.Throws<ArgumentException>(
+-            () => new ComputerPlayer("CPU", Symbol.Empty));
++            () => new ComputerPlayer(
++                "CPU",
++                Symbol.Empty,
++                new RandomMoveStrategy(1)));
+     }
+ }
+diff --git a/tests/TicTacToe.Tests/Domain/MatchTests.cs b/tests/TicTacToe.Tests/Domain/MatchTests.cs
+--- a/tests/TicTacToe.Tests/Domain/MatchTests.cs
++++ b/tests/TicTacToe.Tests/Domain/MatchTests.cs
+@@ -1,3 +1,4 @@
++using TicTacToe.AI;
+ using TicTacToe.Domain;
+ using Xunit;
+ 
+@@ -33,7 +34,10 @@
+     public void constructor_should_reject_equal_symbols()
+     {
+         HumanPlayer first_player = new("Ana", Symbol.X);
+-        ComputerPlayer second_player = new("CPU", Symbol.X);
++        ComputerPlayer second_player = new(
++            "CPU",
++            Symbol.X,
++            new RandomMoveStrategy(1));
+ 
+         Assert.Throws<ArgumentException>(
+             () => new Match(first_player, second_player));
+@@ -248,6 +252,9 @@
+     {
+         return (
+             new HumanPlayer("Ana", Symbol.X),
+-            new ComputerPlayer("CPU", Symbol.O));
++            new ComputerPlayer(
++                "CPU",
++                Symbol.O,
++                new RandomMoveStrategy(1)));
+     }
+ }
+diff --git a/docs/10-inteligencia-artificial.md b/docs/10-inteligencia-artificial.md
+new file mode 100644
+--- /dev/null
++++ b/docs/10-inteligencia-artificial.md
+@@ -0,0 +1,132 @@
++# Inteligência artificial e padrão Strategy
++
++## 1. Finalidade
++
++Este documento descreve a infraestrutura inicial de inteligência artificial do **Tic-Tac-Toe Console AI**, introduzida na versão `1.3.0`.
++
++A primeira estratégia implementada seleciona jogadas aleatórias válidas. A arquitetura foi organizada para permitir a inclusão posterior das estratégias heurística e Minimax sem modificar o agregado `Match` nem as regras do jogo.
++
++## 2. Padrão Strategy
++
++O padrão Strategy encapsula algoritmos intercambiáveis atrás de um contrato comum. Neste projeto, `IMoveStrategy` define a operação de seleção de uma posição.
++
++O diagrama apresenta a relação entre o participante computacional, o contrato de estratégia e a implementação aleatória.
++
++```mermaid
++classDiagram
++    class ComputerPlayer {
++        +string Name
++        +Symbol Symbol
++        +IMoveStrategy Strategy
++        +choose_move(board) BoardPosition
++    }
++
++    class IMoveStrategy {
++        <<interface>>
++        +choose_move(board, symbol) BoardPosition
++    }
++
++    class RandomMoveStrategy {
++        -IRandomSource random_source
++        +choose_move(board, symbol) BoardPosition
++    }
++
++    class IRandomSource {
++        <<interface>>
++        +next(max_exclusive) int
++    }
++
++    class SystemRandomSource {
++        -Random random
++        +next(max_exclusive) int
++    }
++
++    ComputerPlayer --> IMoveStrategy
++    IMoveStrategy <|.. RandomMoveStrategy
++    RandomMoveStrategy --> IRandomSource
++    IRandomSource <|.. SystemRandomSource
++```
++
++`ComputerPlayer` funciona como contexto do padrão: ele não conhece o algoritmo utilizado, apenas delega a escolha. `RandomMoveStrategy` conhece o tabuleiro somente para consultar casas disponíveis e não aplica jogadas.
++
++## 3. Contrato de estratégia
++
++A interface recebe:
++
++- o tabuleiro atual;
++- o símbolo controlado pelo agente.
++
++Ela retorna uma `BoardPosition`. O contrato não retorna `Move`, pois a numeração de turno e a aplicação pertencem ao agregado `Match`.
++
++Essa separação impede que uma estratégia:
++
++- altere diretamente o histórico;
++- escolha um número de turno;
++- encerre a partida;
++- alterne participantes;
++- persista resultados.
++
++## 4. Aleatoriedade injetável
++
++A estratégia não utiliza `Random` diretamente. Ela depende de `IRandomSource`, o que permite:
++
++- controlar sementes;
++- reproduzir experimentos;
++- injetar valores conhecidos em testes;
++- detectar geradores que violem o intervalo esperado;
++- substituir o mecanismo pseudoaleatório sem alterar a estratégia.
++
++O fluxo de uma decisão aleatória é apresentado a seguir.
++
++```mermaid
++sequenceDiagram
++    participant Player as ComputerPlayer
++    participant Strategy as RandomMoveStrategy
++    participant Board
++    participant Random as IRandomSource
++
++    Player->>Strategy: choose_move(board, symbol)
++    Strategy->>Board: get_available_positions()
++    Board-->>Strategy: posições livres
++    Strategy->>Random: next(quantidade)
++    Random-->>Strategy: índice
++    Strategy-->>Player: posição selecionada
++```
++
++A estratégia seleciona um índice dentro da lista ordenada de casas livres. Com o mesmo estado de tabuleiro e a mesma sequência pseudoaleatória, o resultado é reproduzível.
++
++## 5. Sementes
++
++Há três formas de construção:
++
++```csharp
++new RandomMoveStrategy();
++new RandomMoveStrategy(seed);
++new RandomMoveStrategy(random_source);
++```
++
++O construtor sem parâmetros é adequado ao uso interativo. O construtor com semente deve ser utilizado em testes e experimentos. A injeção direta de `IRandomSource` permite testes determinísticos de casos específicos.
++
++## 6. Invariantes
++
++A implementação preserva as seguintes invariantes:
++
++1. o tabuleiro não pode ser nulo;
++2. o símbolo não pode ser `Empty`;
++3. deve existir pelo menos uma casa livre;
++4. a posição retornada deve estar disponível;
++5. a estratégia não modifica o tabuleiro;
++6. o índice produzido pelo gerador deve pertencer ao intervalo solicitado;
++7. `ComputerPlayer` deve possuir uma estratégia não nula.
++
++## 7. Limitações
++
++A estratégia aleatória:
++
++- não procura vitórias imediatas;
++- não bloqueia o adversário;
++- não avalia estados futuros;
++- não garante desempenho competitivo;
++- serve como linha de base experimental.
++
++Essas limitações justificam as próximas implementações heurística e Minimax.
+diff --git a/Directory.Build.props b/Directory.Build.props
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.2.0</Version>
++        <Version>1.3.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,7 +2,7 @@
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.2.0"
++version: "1.3.0"
+ date-released: "2026-07-16"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -32,6 +32,22 @@
+ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
++
++## [1.3.0] - 2026-07-16
++
++### Added
++
++- Contrato `IMoveStrategy` para algoritmos intercambiáveis de decisão.
++- Contrato `IRandomSource` para geração pseudoaleatória injetável.
++- `SystemRandomSource` com suporte a semente controlável.
++- `RandomMoveStrategy` para seleção de casas livres.
++- Associação obrigatória entre `ComputerPlayer` e uma estratégia.
++- Testes de validade, delegação, intervalo e reprodutibilidade.
++- `docs/10-inteligencia-artificial.md` com documentação do padrão Strategy.
++
++### Changed
++
++- Versão do projeto e metadados de citação atualizados para `1.3.0`.
+ 
+ ## [1.2.0] - 2026-07-16
+ 

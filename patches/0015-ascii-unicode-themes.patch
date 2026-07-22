@@ -1,0 +1,1107 @@
+diff --git a/src/TicTacToe.Console/Presentation/PresentationPreferences.cs b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+@@ -0,0 +1,34 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Contém preferências visuais fornecidas à camada de apresentação.
++/// </summary>
++public sealed class PresentationPreferences
++{
++    /// <summary>
++    /// Inicializa preferências com valores seguros e configuráveis.
++    /// </summary>
++    /// <param name="use_ansi_colors">Habilita sequências de cor ANSI.</param>
++    /// <param name="use_unicode">Habilita caracteres Unicode.</param>
++    /// <param name="clear_screen">Habilita limpeza do terminal entre telas.</param>
++    /// <param name="visual_effects">Habilita artes e efeitos visuais.</param>
++    public PresentationPreferences(
++        bool use_ansi_colors = false,
++        bool use_unicode = true,
++        bool clear_screen = false,
++        bool visual_effects = true)
++    {
++        UseAnsiColors = use_ansi_colors;
++        UseUnicode = use_unicode;
++        ClearScreen = clear_screen;
++        VisualEffects = visual_effects;
++    }
++
++    public bool UseAnsiColors { get; set; }
++
++    public bool UseUnicode { get; set; }
++
++    public bool ClearScreen { get; set; }
++
++    public bool VisualEffects { get; set; }
++}
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleTheme.cs b/src/TicTacToe.Console/Presentation/ConsoleTheme.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/ConsoleTheme.cs
+@@ -0,0 +1,64 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Centraliza caracteres, cores e operações dependentes das preferências visuais.
++/// </summary>
++public sealed class ConsoleTheme
++{
++    private const string Reset = "\u001b[0m";
++    private const string Accent = "\u001b[36m";
++    private const string Success = "\u001b[32m";
++    private const string Warning = "\u001b[33m";
++    private const string Error = "\u001b[31m";
++
++    public ConsoleTheme(PresentationPreferences preferences)
++    {
++        ArgumentNullException.ThrowIfNull(preferences);
++        Preferences = preferences;
++    }
++
++    public PresentationPreferences Preferences { get; }
++
++    public string VerticalSeparator =>
++        Preferences.UseUnicode ? "│" : "|";
++
++    public string HorizontalSeparator =>
++        Preferences.UseUnicode ? "───┼───┼───" : "---+---+---";
++
++    public string colorize_accent(string text)
++    {
++        return colorize(text, Accent);
++    }
++
++    public string colorize_success(string text)
++    {
++        return colorize(text, Success);
++    }
++
++    public string colorize_warning(string text)
++    {
++        return colorize(text, Warning);
++    }
++
++    public string colorize_error(string text)
++    {
++        return colorize(text, Error);
++    }
++
++    public void clear(TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++
++        if (Preferences.ClearScreen)
++        {
++            writer.Write("\u001b[2J\u001b[H");
++        }
++    }
++
++    private string colorize(string text, string color)
++    {
++        return Preferences.UseAnsiColors
++            ? $"{color}{text}{Reset}"
++            : text;
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/AsciiArtCatalog.cs b/src/TicTacToe.Console/Presentation/AsciiArtCatalog.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/AsciiArtCatalog.cs
+@@ -0,0 +1,68 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Fornece artes textuais da aplicação com variantes Unicode e ASCII.
++/// </summary>
++public sealed class AsciiArtCatalog
++{
++    private static readonly string[] unicode_logo =
++    [
++        "╔══════════════════════════════╗",
++        "║   TIC-TAC-TOE  CONSOLE AI   ║",
++        "╚══════════════════════════════╝"
++    ];
++
++    private static readonly string[] ascii_logo =
++    [
++        "+------------------------------+",
++        "|   TIC-TAC-TOE  CONSOLE AI   |",
++        "+------------------------------+"
++    ];
++
++    private static readonly string[] victory =
++    [
++        @" __     _____ _____ ___  ____  ___    _    ",
++        @" \ \   / /_ _|_   _/ _ \|  _ \|_ _|  / \   ",
++        @"  \ \ / / | |  | || | | | |_) || |  / _ \  ",
++        @"   \ V /  | |  | || |_| |  _ < | | / ___ \ ",
++        @"    \_/  |___| |_| \___/|_| \_\___/_/   \_\"
++    ];
++
++    private static readonly string[] defeat =
++    [
++        @"  ____  _____ ____  ____   ___ _____  _    ",
++        @" |  _ \| ____|  _ \|  _ \ / _ \_   _|/ \   ",
++        @" | | | |  _| | |_) | |_) | | | || | / _ \  ",
++        @" | |_| | |___|  _ <|  _ <| |_| || |/ ___ \ ",
++        @" |____/|_____|_| \_\_| \_\\___/ |_/_/   \_\"
++    ];
++
++    private static readonly string[] draw =
++    [
++        @"  _____ __  __ ____   _  _____ _____ ",
++        @" | ____|  \/  |  _ \ / \|_   _| ____|",
++        @" |  _| | |\/| | |_) / _ \ | | |  _|  ",
++        @" | |___| |  | |  __/ ___ \| | | |___ ",
++        @" |_____|_|  |_|_| /_/   \_\_| |_____|"
++    ];
++
++    public IReadOnlyList<string> get_logo(bool use_unicode)
++    {
++        return use_unicode ? unicode_logo : ascii_logo;
++    }
++
++    public IReadOnlyList<string> get_victory()
++    {
++        return victory;
++    }
++
++    public IReadOnlyList<string> get_defeat()
++    {
++        return defeat;
++    }
++
++    public IReadOnlyList<string> get_draw()
++    {
++        return draw;
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs b/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
+--- a/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
++++ b/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
+@@ -3,26 +3,34 @@
+ namespace TicTacToe.Presentation;
+ 
+ /// <summary>
+-/// Renderiza um tabuleiro somente para leitura em formato ASCII.
++/// Renderiza um tabuleiro somente para leitura em Unicode ou ASCII.
+ /// </summary>
+ public sealed class ConsoleBoardRenderer
+ {
+     private readonly TextWriter writer;
++    private readonly ConsoleTheme theme;
+ 
+-    /// <summary>
+-    /// Inicializa o renderizador.
+-    /// </summary>
+-    /// <param name="writer">Destino textual da renderização.</param>
+     public ConsoleBoardRenderer(TextWriter writer)
++        : this(
++            writer,
++            new ConsoleTheme(
++                new PresentationPreferences(
++                    use_unicode: false,
++                    visual_effects: false)))
++    {
++    }
++
++    public ConsoleBoardRenderer(
++        TextWriter writer,
++        ConsoleTheme theme)
+     {
+         ArgumentNullException.ThrowIfNull(writer);
++        ArgumentNullException.ThrowIfNull(theme);
++
+         this.writer = writer;
++        this.theme = theme;
+     }
+ 
+-    /// <summary>
+-    /// Escreve coordenadas, casas e separadores do tabuleiro.
+-    /// </summary>
+-    /// <param name="board">Tabuleiro consultado.</param>
+     public void render(IReadOnlyBoard board)
+     {
+         ArgumentNullException.ThrowIfNull(board);
+@@ -42,7 +50,8 @@
+ 
+                 if (column < BoardPosition.BoardSize - 1)
+                 {
+-                    writer.Write(" | ");
++                    writer.Write(
++                        $" {theme.VerticalSeparator} ");
+                 }
+             }
+ 
+@@ -50,7 +59,8 @@
+ 
+             if (row < BoardPosition.BoardSize - 1)
+             {
+-                writer.WriteLine("   ---+---+---");
++                writer.WriteLine(
++                    $"   {theme.HorizontalSeparator}");
+             }
+         }
+     }
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+--- a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
++++ b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+@@ -10,24 +10,37 @@
+ {
+     private readonly TextWriter writer;
+     private readonly ConsoleBoardRenderer board_renderer;
++    private readonly ConsoleTheme theme;
++    private readonly AsciiArtCatalog art_catalog;
+ 
+-    /// <summary>
+-    /// Inicializa a saída textual.
+-    /// </summary>
+-    /// <param name="writer">Destino das mensagens.</param>
+-    /// <param name="board_renderer">Renderizador de tabuleiro.</param>
+     public ConsoleGameOutput(
+         TextWriter writer,
+         ConsoleBoardRenderer board_renderer)
++        : this(
++            writer,
++            board_renderer,
++            new ConsoleTheme(new PresentationPreferences()),
++            new AsciiArtCatalog())
++    {
++    }
++
++    public ConsoleGameOutput(
++        TextWriter writer,
++        ConsoleBoardRenderer board_renderer,
++        ConsoleTheme theme,
++        AsciiArtCatalog art_catalog)
+     {
+         ArgumentNullException.ThrowIfNull(writer);
+         ArgumentNullException.ThrowIfNull(board_renderer);
++        ArgumentNullException.ThrowIfNull(theme);
++        ArgumentNullException.ThrowIfNull(art_catalog);
+ 
+         this.writer = writer;
+         this.board_renderer = board_renderer;
++        this.theme = theme;
++        this.art_catalog = art_catalog;
+     }
+ 
+-    /// <inheritdoc />
+     public void show_match(Match match)
+     {
+         ArgumentNullException.ThrowIfNull(match);
+@@ -39,12 +52,12 @@
+         {
+             writer.WriteLine();
+             writer.WriteLine(
+-                $"Jogador atual: {match.CurrentPlayer.Name} " +
+-                $"({match.CurrentPlayer.Symbol})");
++                theme.colorize_accent(
++                    $"Jogador atual: {match.CurrentPlayer.Name} " +
++                    $"({match.CurrentPlayer.Symbol})"));
+         }
+     }
+ 
+-    /// <inheritdoc />
+     public void show_invalid_move(
+         Player player,
+         BoardPosition position,
+@@ -53,12 +66,12 @@
+         ArgumentNullException.ThrowIfNull(player);
+ 
+         writer.WriteLine(
+-            $"Jogada inválida de {player.Name} " +
+-            $"na posição ({position.Row + 1}, {position.Column + 1}): " +
+-            message);
++            theme.colorize_warning(
++                $"Jogada inválida de {player.Name} " +
++                $"na posição ({position.Row + 1}, {position.Column + 1}): " +
++                message));
+     }
+ 
+-    /// <inheritdoc />
+     public void show_result(Match match)
+     {
+         ArgumentNullException.ThrowIfNull(match);
+@@ -76,7 +89,9 @@
+                 break;
+ 
+             case GameResult.Draw:
+-                writer.WriteLine("Resultado: empate.");
++                show_art(art_catalog.get_draw());
++                writer.WriteLine(
++                    theme.colorize_warning("Resultado: empate."));
+                 break;
+ 
+             default:
+@@ -90,8 +105,32 @@
+         Symbol symbol)
+     {
+         Player winner = match.get_player(symbol);
++        bool human_won = winner is HumanPlayer;
++
++        show_art(
++            human_won
++                ? art_catalog.get_victory()
++                : art_catalog.get_defeat());
++
++        string message =
++            $"Resultado: {winner.Name} venceu com {symbol}.";
+ 
+         writer.WriteLine(
+-            $"Resultado: {winner.Name} venceu com {symbol}.");
++            human_won
++                ? theme.colorize_success(message)
++                : theme.colorize_error(message));
++    }
++
++    private void show_art(IReadOnlyList<string> lines)
++    {
++        if (!theme.Preferences.VisualEffects)
++        {
++            return;
++        }
++
++        foreach (string line in lines)
++        {
++            writer.WriteLine(line);
++        }
+     }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/CitationMetadata.cs b/src/TicTacToe.Console/Presentation/CitationMetadata.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/CitationMetadata.cs
+@@ -0,0 +1,11 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Representa os metadados necessários para a tela de créditos.
++/// </summary>
++public sealed record CitationMetadata(
++    string Title,
++    string Version,
++    string Author,
++    string License,
++    string Repository);
+diff --git a/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs b/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
+@@ -0,0 +1,71 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Carrega campos simples de crédito a partir de CITATION.cff.
++/// </summary>
++public sealed class CitationMetadataLoader
++{
++    public CitationMetadata load(string path)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(path);
++
++        if (!File.Exists(path))
++        {
++            return create_fallback();
++        }
++
++        string[] lines = File.ReadAllLines(path);
++
++        string title = get_scalar(lines, "title") ?? "Tic-Tac-Toe Console AI";
++        string version = get_scalar(lines, "version") ?? "desconhecida";
++        string license = get_scalar(lines, "license") ?? "Apache-2.0";
++        string repository =
++            get_scalar(lines, "repository-code") ??
++            "https://github.com/m4rc3lo/Tic-Tac-Toe";
++
++        string family_names =
++            get_scalar(lines, "family-names") ?? "Lopes";
++        string given_names =
++            get_scalar(lines, "given-names") ?? "Marcelo Dornbusch";
++
++        return new CitationMetadata(
++            title,
++            version,
++            $"{given_names} {family_names}",
++            license,
++            repository);
++    }
++
++    private static string? get_scalar(
++        IEnumerable<string> lines,
++        string key)
++    {
++        string prefix = $"{key}:";
++
++        string? line = lines.FirstOrDefault(
++            candidate =>
++                candidate.TrimStart().StartsWith(
++                    prefix,
++                    StringComparison.Ordinal));
++
++        if (line is null)
++        {
++            return null;
++        }
++
++        return line.Trim()
++            .Substring(prefix.Length)
++            .Trim()
++            .Trim('"');
++    }
++
++    private static CitationMetadata create_fallback()
++    {
++        return new CitationMetadata(
++            "Tic-Tac-Toe Console AI",
++            "1.6.0",
++            "Marcelo Dornbusch Lopes",
++            "Apache-2.0",
++            "https://github.com/m4rc3lo/Tic-Tac-Toe");
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
+@@ -14,5 +14,6 @@
+     ExperimentSetup,
+     Settings,
+     Help,
++    Credits,
+     Exit
+ }
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
+@@ -1,4 +1,5 @@
+ using TicTacToe.Domain;
++using TicTacToe.Presentation;
+ 
+ namespace TicTacToe.Presentation.Navigation;
+ 
+@@ -7,6 +8,22 @@
+ /// </summary>
+ public sealed class ScreenContext
+ {
++    public ScreenContext()
++        : this(new PresentationPreferences())
++    {
++    }
++
++    public ScreenContext(PresentationPreferences presentation_preferences)
++    {
++        ArgumentNullException.ThrowIfNull(presentation_preferences);
++        PresentationPreferences = presentation_preferences;
++    }
++
++    /// <summary>
++    /// Obtém as preferências visuais compartilhadas pelas telas.
++    /// </summary>
++    public PresentationPreferences PresentationPreferences { get; }
++
+     /// <summary>
+     /// Obtém a configuração selecionada para a próxima partida.
+     /// </summary>
+diff --git a/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs b/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
+@@ -34,6 +34,7 @@
+             writer.WriteLine("3 - Experimentos");
+             writer.WriteLine("4 - Configurações");
+             writer.WriteLine("5 - Ajuda");
++            writer.WriteLine("6 - Créditos");
+             writer.WriteLine("0 - Sair");
+             writer.Write("Opção: ");
+ 
+@@ -46,6 +47,7 @@
+                 "3" => ScreenState.ExperimentSetup,
+                 "4" => ScreenState.Settings,
+                 "5" => ScreenState.Help,
++                "6" => ScreenState.Credits,
+                 "0" => ScreenState.Exit,
+                 _ => null
+             };
+diff --git a/src/TicTacToe.Console/Presentation/Screens/CreditsScreen.cs b/src/TicTacToe.Console/Presentation/Screens/CreditsScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/CreditsScreen.cs
+@@ -0,0 +1,47 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta créditos derivados dos metadados de citação do projeto.
++/// </summary>
++public sealed class CreditsScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++    private readonly CitationMetadata metadata;
++
++    public CreditsScreen(
++        TextReader reader,
++        TextWriter writer,
++        CitationMetadata metadata)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++        ArgumentNullException.ThrowIfNull(metadata);
++
++        this.reader = reader;
++        this.writer = writer;
++        this.metadata = metadata;
++    }
++
++    public ScreenState State => ScreenState.Credits;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine();
++        writer.WriteLine("Créditos");
++        writer.WriteLine($"Projeto: {metadata.Title}");
++        writer.WriteLine($"Versão: {metadata.Version}");
++        writer.WriteLine($"Autor: {metadata.Author}");
++        writer.WriteLine($"Licença: {metadata.License}");
++        writer.WriteLine($"Repositório: {metadata.Repository}");
++        writer.WriteLine();
++        writer.WriteLine(
++            "Metadados baseados no arquivo CITATION.cff.");
++        writer.WriteLine("Pressione Enter para voltar ao menu.");
++        reader.ReadLine();
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+@@ -3,7 +3,7 @@
+ namespace TicTacToe.Presentation.Screens;
+ 
+ /// <summary>
+-/// Apresenta a área reservada para configurações.
++/// Permite ativar ou desativar preferências visuais da apresentação.
+ /// </summary>
+ public sealed class SettingsScreen : IScreen
+ {
+@@ -25,11 +25,54 @@
+ 
+     public ScreenTransition show(ScreenContext context)
+     {
+-        writer.WriteLine();
+-        writer.WriteLine("Configurações persistentes ainda não disponíveis.");
+-        writer.WriteLine("Pressione Enter para voltar ao menu.");
+-        reader.ReadLine();
++        PresentationPreferences preferences =
++            context.PresentationPreferences;
+ 
+-        return new ScreenTransition(ScreenState.MainMenu);
++        while (true)
++        {
++            writer.WriteLine();
++            writer.WriteLine("Configurações visuais");
++            writer.WriteLine(
++                $"1 - Unicode: {format(preferences.UseUnicode)}");
++            writer.WriteLine(
++                $"2 - Cores ANSI: {format(preferences.UseAnsiColors)}");
++            writer.WriteLine(
++                $"3 - Limpeza de tela: {format(preferences.ClearScreen)}");
++            writer.WriteLine(
++                $"4 - Efeitos visuais: {format(preferences.VisualEffects)}");
++            writer.WriteLine("0 - Voltar");
++            writer.Write("Opção: ");
++
++            switch (reader.ReadLine()?.Trim())
++            {
++                case "1":
++                    preferences.UseUnicode = !preferences.UseUnicode;
++                    break;
++
++                case "2":
++                    preferences.UseAnsiColors = !preferences.UseAnsiColors;
++                    break;
++
++                case "3":
++                    preferences.ClearScreen = !preferences.ClearScreen;
++                    break;
++
++                case "4":
++                    preferences.VisualEffects = !preferences.VisualEffects;
++                    break;
++
++                case "0":
++                    return new ScreenTransition(ScreenState.MainMenu);
++
++                default:
++                    writer.WriteLine("Opção inválida.");
++                    break;
++            }
++        }
++    }
++
++    private static string format(bool value)
++    {
++        return value ? "ativado" : "desativado";
+     }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+@@ -9,23 +9,46 @@
+ {
+     private readonly TextReader reader;
+     private readonly TextWriter writer;
++    private readonly ConsoleTheme theme;
++    private readonly AsciiArtCatalog art_catalog;
+ 
+     public SplashScreen(
+         TextReader reader,
+-        TextWriter writer)
++        TextWriter writer,
++        ConsoleTheme theme,
++        AsciiArtCatalog art_catalog)
+     {
+         ArgumentNullException.ThrowIfNull(reader);
+         ArgumentNullException.ThrowIfNull(writer);
++        ArgumentNullException.ThrowIfNull(theme);
++        ArgumentNullException.ThrowIfNull(art_catalog);
+ 
+         this.reader = reader;
+         this.writer = writer;
++        this.theme = theme;
++        this.art_catalog = art_catalog;
+     }
+ 
+     public ScreenState State => ScreenState.Splash;
+ 
+     public ScreenTransition show(ScreenContext context)
+     {
+-        writer.WriteLine("Tic-Tac-Toe Console AI");
++        theme.clear(writer);
++
++        if (theme.Preferences.VisualEffects)
++        {
++            foreach (string line in art_catalog.get_logo(
++                         theme.Preferences.UseUnicode))
++            {
++                writer.WriteLine(
++                    theme.colorize_accent(line));
++            }
++        }
++        else
++        {
++            writer.WriteLine("Tic-Tac-Toe Console AI");
++        }
++
+         writer.WriteLine("Pressione Enter para continuar.");
+         reader.ReadLine();
+ 
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -9,29 +9,43 @@
+ /// </summary>
+ public static class Program
+ {
+-    /// <summary>
+-    /// Inicia a máquina de estados da apresentação.
+-    /// </summary>
+-    /// <param name="args">Argumentos recebidos pela linha de comando.</param>
+     public static void Main(string[] args)
+     {
+         TextReader reader = global::System.Console.In;
+         TextWriter writer = global::System.Console.Out;
+ 
+-        ConsoleBoardRenderer board_renderer = new(writer);
++        PresentationPreferences preferences = new();
++        ConsoleTheme theme = new(preferences);
++        AsciiArtCatalog art_catalog = new();
++
++        ConsoleBoardRenderer board_renderer = new(
++            writer,
++            theme);
+         ConsoleGameInput game_input = new(reader, writer);
+         ConsoleGameOutput game_output = new(
+             writer,
+-            board_renderer);
++            board_renderer,
++            theme,
++            art_catalog);
+ 
+         IMatchSessionRunner match_session_runner =
+             new ConsoleMatchSessionRunner(
+                 game_input,
+                 game_output);
+ 
++        CitationMetadata citation_metadata =
++            new CitationMetadataLoader().load(
++                Path.Combine(
++                    AppContext.BaseDirectory,
++                    "CITATION.cff"));
++
+         IScreen[] screens =
+         [
+-            new SplashScreen(reader, writer),
++            new SplashScreen(
++                reader,
++                writer,
++                theme,
++                art_catalog),
+             new MainMenuScreen(reader, writer),
+             new MatchSetupScreen(reader, writer),
+             new PlayingScreen(match_session_runner),
+@@ -40,11 +54,15 @@
+             new ExperimentSetupScreen(reader, writer),
+             new SettingsScreen(reader, writer),
+             new HelpScreen(reader, writer),
++            new CreditsScreen(
++                reader,
++                writer,
++                citation_metadata),
+             new ExitScreen(writer)
+         ];
+ 
+         ScreenManager screen_manager = new(screens);
+-        ScreenContext context = new();
++        ScreenContext context = new(preferences);
+ 
+         screen_manager.run(
+             ScreenState.Splash,
+diff --git a/tests/TicTacToe.Tests/Presentation/ConsoleBoardThemeTests.cs b/tests/TicTacToe.Tests/Presentation/ConsoleBoardThemeTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/ConsoleBoardThemeTests.cs
+@@ -0,0 +1,78 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++/// <summary>
++/// Verifica saídas exatas dos modos ASCII e Unicode.
++/// </summary>
++public class ConsoleBoardThemeTests
++{
++    [Fact]
++    public void render_should_write_exact_ascii_board()
++    {
++        string actual = render(use_unicode: false);
++
++        string expected = string.Join(
++            Environment.NewLine,
++            [
++                "    1   2   3",
++                "1   X |   |  ",
++                "   ---+---+---",
++                "2     | O |  ",
++                "   ---+---+---",
++                "3     |   |  ",
++                string.Empty
++            ]);
++
++        Assert.Equal(expected, actual);
++    }
++
++    [Fact]
++    public void render_should_write_exact_unicode_board()
++    {
++        string actual = render(use_unicode: true);
++
++        string expected = string.Join(
++            Environment.NewLine,
++            [
++                "    1   2   3",
++                "1   X │   │  ",
++                "   ───┼───┼───",
++                "2     │ O │  ",
++                "   ───┼───┼───",
++                "3     │   │  ",
++                string.Empty
++            ]);
++
++        Assert.Equal(expected, actual);
++    }
++
++    private static string render(bool use_unicode)
++    {
++        Board board = new();
++        board.apply_move(
++            new Move(
++                new BoardPosition(0, 0),
++                Symbol.X,
++                1));
++        board.apply_move(
++            new Move(
++                new BoardPosition(1, 1),
++                Symbol.O,
++                2));
++
++        StringWriter writer = new();
++        PresentationPreferences preferences = new(
++            use_unicode: use_unicode,
++            visual_effects: false);
++        ConsoleBoardRenderer renderer = new(
++            writer,
++            new ConsoleTheme(preferences));
++
++        renderer.render(board);
++
++        return writer.ToString();
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/CreditsScreenTests.cs b/tests/TicTacToe.Tests/Presentation/CreditsScreenTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/CreditsScreenTests.cs
+@@ -0,0 +1,31 @@
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++public class CreditsScreenTests
++{
++    [Fact]
++    public void show_should_present_citation_metadata_and_return_to_menu()
++    {
++        StringWriter writer = new();
++        CreditsScreen screen = new(
++            new StringReader(Environment.NewLine),
++            writer,
++            new CitationMetadata(
++                "Tic-Tac-Toe Console AI",
++                "1.6.0",
++                "Marcelo Dornbusch Lopes",
++                "Apache-2.0",
++                "https://github.com/m4rc3lo/Tic-Tac-Toe"));
++
++        ScreenTransition transition =
++            screen.show(new ScreenContext());
++
++        Assert.Equal(ScreenState.MainMenu, transition.Target);
++        Assert.Contains("Marcelo Dornbusch Lopes", writer.ToString());
++        Assert.Contains("CITATION.cff", writer.ToString());
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs b/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
+@@ -0,0 +1,35 @@
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++public class SettingsScreenTests
++{
++    [Fact]
++    public void show_should_toggle_all_visual_preferences()
++    {
++        PresentationPreferences preferences = new(
++            use_ansi_colors: false,
++            use_unicode: true,
++            clear_screen: false,
++            visual_effects: true);
++        ScreenContext context = new(preferences);
++        StringReader reader = new(
++            string.Join(
++                Environment.NewLine,
++                ["1", "2", "3", "4", "0", string.Empty]));
++        SettingsScreen screen = new(
++            reader,
++            new StringWriter());
++
++        ScreenTransition transition = screen.show(context);
++
++        Assert.Equal(ScreenState.MainMenu, transition.Target);
++        Assert.False(preferences.UseUnicode);
++        Assert.True(preferences.UseAnsiColors);
++        Assert.True(preferences.ClearScreen);
++        Assert.False(preferences.VisualEffects);
++    }
++}
+diff --git a/docs/17-screen-manager.md b/docs/17-screen-manager.md
+--- a/docs/17-screen-manager.md
++++ b/docs/17-screen-manager.md
+@@ -68,6 +68,7 @@
+ - `ExperimentSetup`;
+ - `Settings`;
+ - `Help`;
++- `Credits`;
+ - `Exit`.
+ 
+ O diagrama registra as transições implementadas.
+@@ -82,6 +83,7 @@
+     MainMenu --> ExperimentSetup : experimentos
+     MainMenu --> Settings : configurações
+     MainMenu --> Help : ajuda
++    MainMenu --> Credits : créditos
+     MainMenu --> Exit : sair
+ 
+     MatchSetup --> Playing : configuração válida
+@@ -94,6 +96,7 @@
+     ExperimentSetup --> MainMenu
+     Settings --> MainMenu
+     Help --> MainMenu
++    Credits --> MainMenu
+ 
+     Exit --> [*]
+ ```
+diff --git a/docs/18-temas-e-creditos.md b/docs/18-temas-e-creditos.md
+new file mode 100644
+--- /dev/null
++++ b/docs/18-temas-e-creditos.md
+@@ -0,0 +1,117 @@
++# ASCII art, Unicode, temas e créditos
++
++## 1. Finalidade
++
++Esta etapa amplia exclusivamente a camada de apresentação. Preferências visuais,
++artes textuais e capacidades do terminal não são conhecidas pelo domínio, pela
++inteligência artificial ou pelo controlador de partidas.
++
++Também foi incluída uma tela de créditos disponível no menu principal. Seus
++dados são derivados dos campos relevantes de `CITATION.cff`, com fallback
++seguro quando o arquivo não está disponível no diretório de execução.
++
++## 2. Configuração visual
++
++`PresentationPreferences` contém quatro opções independentes:
++
++- cores ANSI;
++- caracteres Unicode;
++- limpeza de tela;
++- efeitos visuais.
++
++O diagrama apresenta como a configuração chega aos adaptadores.
++
++```mermaid
++classDiagram
++    class PresentationPreferences {
++        +bool UseAnsiColors
++        +bool UseUnicode
++        +bool ClearScreen
++        +bool VisualEffects
++    }
++
++    class ConsoleTheme {
++        +PresentationPreferences Preferences
++        +string VerticalSeparator
++        +string HorizontalSeparator
++        +colorize_accent(text) string
++        +clear(writer)
++    }
++
++    class ConsoleBoardRenderer
++    class ConsoleGameOutput
++    class SplashScreen
++    class SettingsScreen
++
++    ConsoleTheme *-- PresentationPreferences
++    ConsoleBoardRenderer --> ConsoleTheme
++    ConsoleGameOutput --> ConsoleTheme
++    SplashScreen --> ConsoleTheme
++    SettingsScreen --> PresentationPreferences
++```
++
++O mesmo objeto de preferências é fornecido ao tema e ao `ScreenContext`.
++Alterações realizadas em `SettingsScreen` passam a valer nas renderizações
++posteriores sem alterar entidades de domínio.
++
++## 3. Renderização ASCII e Unicode
++
++O tabuleiro possui dois modos. O modo ASCII usa `|`, `-` e `+`; o modo Unicode
++usa `│`, `─` e `┼`.
++
++```text
++ASCII                 Unicode
++
++X |   |               X │   │
++--+---+--              ──┼───┼──
++  | O |                  │ O │
++```
++
++Os testes comparam a saída textual integral, incluindo espaços e quebras de
++linha. Isso protege o fallback ASCII e a variante Unicode contra alterações
++acidentais.
++
++## 4. Artes e cores
++
++`AsciiArtCatalog` fornece:
++
++- logotipo;
++- vitória;
++- derrota;
++- empate.
++
++Quando efeitos visuais estão desativados, as artes são omitidas. Quando cores
++ANSI estão desativadas, nenhuma sequência de escape é emitida.
++
++A limpeza de tela também é opcional. Ela usa sequências ANSI somente quando
++explicitamente habilitada.
++
++## 5. Créditos
++
++A tela de créditos é alcançada pelo menu principal e retorna ao menu após a
++leitura.
++
++```mermaid
++stateDiagram-v2
++    MainMenu --> Credits : opção Créditos
++    Credits --> MainMenu : continuar
++```
++
++`CitationMetadataLoader` lê título, versão, autor, licença e repositório de
++`CITATION.cff`. Como a publicação pode não copiar esse arquivo, a apresentação
++possui fallback com os mesmos campos essenciais.
++
++## 6. Limitações e fallback
++
++Nem todo terminal oferece suporte uniforme a Unicode ou ANSI. As principais
++limitações são:
++
++- fontes sem glifos Unicode podem exibir quadrados;
++- terminais antigos podem imprimir códigos ANSI literalmente;
++- saída redirecionada não deve receber limpeza de tela;
++- largura de caracteres pode variar conforme fonte e locale;
++- `CITATION.cff` pode não estar ao lado do executável publicado.
++
++O fallback recomendado é desativar Unicode, cores, limpeza e efeitos visuais.
++Nesse modo, a aplicação permanece funcional com texto e caracteres ASCII
++básicos.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -37,6 +37,22 @@
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- `AsciiArtCatalog` com logotipo e artes de vitória, derrota e empate.
++- `ConsoleTheme` e `PresentationPreferences` para capacidades visuais configuráveis.
++- Renderização Unicode e fallback ASCII do tabuleiro.
++- `CreditsScreen` com metadados derivados de `CITATION.cff`.
++- Testes exatos dos modos Unicode e ASCII.
++- `docs/18-temas-e-creditos.md` com limitações e fallback.
++
++### Changed
++
++- Menu principal ampliado com a opção Créditos.
++- Tela de configurações passou a alternar Unicode, ANSI, limpeza e efeitos.
++- Splash e resultados passaram a respeitar o tema visual.
++
++
+ ## [1.6.0] - 2026-07-17
+ 
+ ### Added

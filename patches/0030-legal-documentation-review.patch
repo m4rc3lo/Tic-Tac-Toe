@@ -1,0 +1,864 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -37,143 +37,42 @@
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- modo demonstrativo IA contra IA e modo experimental em lote;
++- plano e executor do experimento de referência com ambiente e hashes SHA-256;
++- persistência experimental JSON e CSV com isolamento de repositórios;
++- quarentena de JSON inválido e recuperação de estatísticas pelo histórico;
++- detecção separada de plataforma e capacidades do terminal;
++- quatro perfis de publicação Windows e Linux;
++- validadores e scripts de publicação, cobertura e análise experimental;
++- módulos explícitos no namespace `Composition`;
++- testes arquiteturais, de imutabilidade, cobertura e publicação;
++- documentação `docs/11` a `docs/31`, incluindo glossário, uso de IA,
++  resultados, revisão legal e matriz documental.
++
++### Changed
++
++- `Program.Main` e `ConsoleApplication` foram reduzidos, mantendo
++  `ConsoleApplicationComposer` como composition root;
++- recursos ANSI, Unicode, áudio, limpeza e interação por tecla passaram a
++  considerar capacidades reais do ambiente;
++- `ScreenManager` deixou de impor limite global de transições;
++- records com coleções passaram a realizar cópias defensivas;
++- pacotes publicados passaram a incluir `CITATION.cff`,
++  `README-PUBLISH.md` e `settings.example.json`;
++- README, índices e diagramas foram alinhados aos nomes e fluxos atuais.
++
+ ### Fixed
+ 
+-- Experimento de referência passou a regravar obrigatoriamente o resultado
+-  completo de cada cenário antes da validação e dos hashes.
+-- Gravações finais possuem tentativas limitadas para falhas transitórias de
+-  infraestrutura.
+-- Manifesto não é produzido quando JSON, CSV e resultado em memória divergem.
+-
+-
+-### Fixed
+-
+-- Validação do experimento de referência agora detecta divergências entre
+-  resultado em memória, JSON e CSV antes de gerar o manifesto.
+-- Script de análise passou a informar cenário e contagens inconsistentes.
+-
+-
+-### Added
+-
+-- Orquestrador não interativo do experimento de referência.
+-- Plano versionado com seis cenários e 600 execuções planejadas.
+-- Manifesto de ambiente e hashes SHA-256 dos resultados.
+-- Script de validação, agregação e geração de gráfico SVG.
+-- `docs/13-resultados.md`.
+-
+-
+-### Added
+-
+-- Configuração Cobertura para `coverlet.collector`.
+-- Scripts PowerShell e Bash para execução e resumo de cobertura.
+-- Classificação estrutural dos testes em unitários, integração local e
+-  validação de publicação.
+-- Testes para perfis de publicação e ramos críticos remanescentes.
+-- `docs/12-testes.md`.
+-
+-### Changed
+-
+-- Revisão de cobertura passou a priorizar invariantes e fronteiras externas,
+-  sem estabelecer porcentagem isolada como meta.
+-
+-
+-### Added
+-
+-- Namespace `Composition` com módulos explícitos para configuração, persistência,
+-  apresentação e telas.
+-- Testes arquiteturais para fronteiras públicas do domínio.
+-- Testes de cópia defensiva dos registros persistentes.
+-- `docs/29-revisao-arquitetural-final.md`.
+-
+-### Changed
+-
+-- `ConsoleApplication` passou a delegar a composição ao
+-  `ConsoleApplicationComposer`.
+-- Records com coleções passaram a realizar cópias defensivas.
+-- Diagramas arquiteturais foram atualizados para o código real.
+-
+-
+-### Added
+-
+-- Quatro perfis MSBuild para publicação Windows e Linux.
+-- Arquivos mínimos de distribuição e configuração de exemplo.
+-- Validador e scripts para inspeção e medição dos pacotes.
+-- `docs/26-publicacao.md`, `docs/27-glossario.md` e
+-  `docs/28-uso-ia-generativa.md`.
+-- Índice em `docs/README.md`.
+-- README ampliado com arte ASCII e catálogo documental.
+-
+-### Changed
+-
+-- `CITATION.cff` passou a ser copiado explicitamente na publicação.
+-- `.gitignore` passou a permitir somente os perfis versionados.
+-- Publicações foram configuradas sem single-file, trimming ou ReadyToRun.
+-
+-
+-### Added
+-
+-- Detecção separada de plataforma e capacidades do terminal.
+-- Modo de compatibilidade para preferências efetivas da sessão.
+-- Verificação de `CITATION.cff` no diretório publicado.
+-- Testes com detectores de ambiente injetáveis.
+-- `docs/14-limitacoes.md` com matriz Windows e Unix-like.
+-
+-### Changed
+-
+-- Áudio passou a considerar capacidade real, não apenas plataforma.
+-- Pausa e cancelamento deixaram de consultar teclas em entrada redirecionada.
+-- Recursos visuais são reduzidos automaticamente em saída redirecionada.
+-- Documentação XML de `MatchConfiguration.RandomSeed` foi corrigida.
+-
+-
+-### Added
+-
+-- Quarentena de arquivos JSON inválidos antes da recuperação.
+-- Exceções de infraestrutura com identificador diagnóstico seguro.
+-- Recuperação das estatísticas a partir do histórico.
+-- Reporters testáveis para falhas externas e experimentais.
+-- Detecção opcional de ciclos de navegação.
+-- Testes de falhas controladas nas fronteiras externas.
+-- `docs/25-robustez-fronteiras-externas.md`.
+-
+-### Changed
+-
+-- Falhas de persistência deixaram de encerrar telas de partida.
+-- Repositórios experimentais passaram a falhar de forma isolada.
+-- Fallback de áudio passou a capturar apenas falhas operacionais.
+-- `ScreenManager` deixou de impor limite padrão às sessões reais.
+-- Créditos passaram a usar fallback também em falhas de leitura.
+-
+-
+-### Added
+-
+-- `ExperimentController` para confrontos IA contra IA em lote.
+-- Política determinística de sementes e alternância independente.
+-- Contrato opcional `ISearchMetricsProvider`.
+-- Persistência experimental acumulada em JSON e CSV.
+-- Captura de falhas individuais sem descarte do lote.
+-- Testes sem apresentação, tempo real ou arquivos permanentes.
+-- `docs/24-modo-experimental.md`.
+-- `docs/11-experimentacao.md` com protocolo formal, esquemas e plano de análise.
+-
+-
+-### Added
+-
+-- modo demonstrativo IA contra IA com Strategies independentes para X e O;
+-- pausa e cancelamento por contrato testável;
+-- aplicação de Strategy e semente padrão;
+-- persistência opcional de partidas demonstrativas;
+-- `PreferenceAwareAudioService` para áudio reativo;
+-- `MoveStrategyFactory` compartilhada pelos runners;
+-- `docs/23-modo-automatico.md`.
+-
+-### Changed
+-
+-- configurações alteradas na interface passaram a ser persistidas;
+-- atraso de animação passou a ser editável pela tela de configurações;
+-- `Program.Main` foi reduzido e a composição movida para `ConsoleApplication`;
+-- menu principal passou a oferecer o modo demonstrativo.
+-
++- falhas externas passaram a produzir recuperação e diagnóstico controlados;
++- persistência experimental final passou a verificar consistência entre
++  memória, JSON e CSV antes do manifesto;
++- bloqueios transitórios de arquivos passaram a ter tentativas limitadas no
++  experimento de referência;
++- documentação XML de `MatchConfiguration.RandomSeed`;
++- descrições antigas sobre ciclos de navegação e cópia de `CITATION.cff`;
++- atribuições e dependências efetivamente utilizadas no `NOTICE`.
+ 
+ ## [1.8.0] - 2026-07-18
+ 
+diff --git a/LICENSE.md b/LICENSE.md
+--- a/LICENSE.md
++++ b/LICENSE.md
+@@ -1,8 +1,10 @@
+ # Licenciamento
+ 
+-O **Tic-Tac-Toe Console AI**, a partir da linha de desenvolvimento posterior à versão legada `v1.0.0`, é disponibilizado sob a **Apache License 2.0**.
++O **Tic-Tac-Toe Console AI** é distribuído sob a **Apache License 2.0** na
++linha de refatoração posterior ao estado legado preservado pela tag `v1.0.0`.
+ 
+-O texto juridicamente aplicável está no arquivo [`LICENSE`](LICENSE). Este documento oferece apenas uma explicação resumida e não substitui os termos integrais da licença.
++O texto juridicamente aplicável está em [`LICENSE`](LICENSE). Este documento é
++apenas uma explicação resumida e não substitui a licença integral.
+ 
+ ## Condições gerais
+ 
+@@ -10,18 +12,26 @@
+ 
+ - usar o software para fins acadêmicos, pessoais ou comerciais;
+ - estudar e modificar o código-fonte;
+-- redistribuir cópias do código ou de versões modificadas;
++- redistribuir cópias ou versões modificadas;
+ - incorporar o código em outros projetos, observadas as condições da licença.
+ 
+ Ao redistribuir o projeto ou uma obra derivada, é necessário:
+ 
+ - fornecer uma cópia da Apache License 2.0;
+ - preservar avisos pertinentes de copyright, patente, marca e atribuição;
+-- identificar de modo claro os arquivos modificados;
+-- preservar as atribuições aplicáveis registradas no arquivo [`NOTICE`](NOTICE).
++- identificar claramente os arquivos modificados;
++- preservar as atribuições aplicáveis registradas em [`NOTICE`](NOTICE).
+ 
+-A licença não oferece garantia e não transfere direitos sobre marcas além do uso necessário para descrever a origem do software.
++A licença não oferece garantia e não transfere direitos sobre marcas além do
++uso necessário para descrever a origem do software.
+ 
+ ## Estado legado
+ 
+-A tag `v1.0.0` preserva o estado histórico do projeto originalmente publicado sob a licença MIT. Os arquivos mantidos em `legacy/` documentam essa origem. O desenvolvimento da refatoração e os novos artefatos, a partir da série `1.x`, adotam a Apache License 2.0, conforme autorizado pelo titular dos direitos autorais.
++A tag `v1.0.0` preserva o estado histórico originalmente distribuído sob a
++licença MIT. Os arquivos em `legacy/` possuem finalidade histórica, didática e
++comparativa e mantêm a rastreabilidade desse estado.
++
++Os arquivos novos ou substancialmente refatorados da série `1.x` adotam a
++Apache License 2.0, conforme autorizado pelo titular dos direitos autorais.
++Consulte também [`NOTICE`](NOTICE) para a relação entre o legado e a
++refatoração.
+diff --git a/NOTICE b/NOTICE
+--- a/NOTICE
++++ b/NOTICE
+@@ -4,20 +4,31 @@
+ Este produto inclui uma refatoração e ampliação de uma implementação anterior
+ do jogo da velha, criada pelo mesmo autor e preservada na tag v1.0.0.
+ 
+-O estado legado foi originalmente distribuído sob a licença MIT. A partir da
+-linha de refatoração posterior à versão v1.0.0, o projeto passa a ser
+-licenciado sob a Apache License 2.0.
++O estado legado foi originalmente distribuído sob a licença MIT. A linha de
++refatoração posterior à tag v1.0.0 é distribuída sob a Apache License 2.0.
++Os arquivos em legacy/ possuem finalidade histórica, didática e comparativa e
++não integram a compilação da solução .NET 9.
+ 
+-Os arquivos mantidos no diretório legacy/ possuem finalidade histórica,
+-didática e comparativa. Eles não integram a compilação da nova solução.
++A aplicação de produção não declara pacotes NuGet de terceiros. Ela utiliza as
++bibliotecas do runtime .NET 9.
+ 
+-Até a versão 1.1.0, não foram incorporados recursos artísticos, fontes,
+-trechos de código ou bibliotecas de terceiros que exijam atribuições
+-adicionais neste arquivo.
++O projeto de testes utiliza:
+ 
+-O projeto utiliza componentes do ecossistema .NET e, exclusivamente no
+-projeto de testes, o framework xUnit. As licenças desses componentes permanecem
+-sob responsabilidade de seus respectivos titulares.
++- Microsoft.NET.Test.Sdk 18.8.1;
++- xunit.v3 3.2.2;
++- xunit.runner.visualstudio 3.1.5;
++- coverlet.collector 10.0.1.
++
++O script de análise do experimento de referência utiliza somente a biblioteca
++padrão do Python. Os diagramas Mermaid são documentação textual e não são
++empacotados como dependência da aplicação.
++
++As licenças dos componentes do ecossistema .NET, xUnit, Coverlet e demais
++ferramentas permanecem sob responsabilidade de seus respectivos titulares.
++
++Até esta revisão, não foram incorporados recursos artísticos, fontes, sons,
++imagens ou trechos de código de terceiros que exijam atribuições adicionais
++neste arquivo.
+ 
+ Este arquivo NOTICE possui caráter informativo e não modifica os termos da
+ Apache License 2.0.
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -43,7 +43,7 @@
+ | `v1.6.0` | 2026-07-17 | apresentação e navegação |
+ | `v1.7.0` | 2026-07-17 | recursos audiovisuais |
+ | `v1.8.0` | 2026-07-18 | persistência e CSV |
+-| `Unreleased` | — | experimentação, robustez e publicação |
++| `Unreleased` | — | experimentação, robustez, publicação e revisão final |
+ | `v2.0.0` | a definir | consolidação final |
+ 
+ ## Estrutura
+@@ -112,6 +112,34 @@
+ Consulte
+ [`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md).
+ 
++
++## Arquivos locais no Windows
++
++Para experimentos ou publicações com muitas substituições de arquivos, evite
++gravar diretamente em pastas sincronizadas pelo Dropbox. Um diretório local
++pode ser criado em `%LOCALAPPDATA%`:
++
++```powershell
++$output = Join-Path `
++    $env:LOCALAPPDATA `
++    "TicTacToe\experiments\reference"
++
++New-Item -ItemType Directory -Path $output -Force
++Get-ChildItem $output -Recurse
++explorer.exe $output
++```
++
++Antes de remover dados, confirme o caminho:
++
++```powershell
++Resolve-Path $output
++Test-Path $output
++Get-ChildItem $output -Force
++```
++
++Consulte [`docs/13-resultados.md`](docs/13-resultados.md) e
++[`docs/26-publicacao.md`](docs/26-publicacao.md) para os fluxos completos.
++
+ ## Convenções
+ 
+ - identificadores em inglês;
+@@ -156,6 +184,8 @@
+ | [`docs/27-glossario.md`](docs/27-glossario.md) | Vocabulário geral, técnico e de domínio. |
+ | [`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
+ | [`docs/29-revisao-arquitetural-final.md`](docs/29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
++| [`docs/30-revisao-legal-documental.md`](docs/30-revisao-legal-documental.md) | Revisão legal, metadados e consistência documental. |
++| [`docs/31-matriz-documentacao.md`](docs/31-matriz-documentacao.md) | Relação entre documentos, versões e componentes. |
+ 
+ Também há um índice dedicado em [`docs/README.md`](docs/README.md).
+ 
+diff --git a/docs/13-resultados.md b/docs/13-resultados.md
+--- a/docs/13-resultados.md
++++ b/docs/13-resultados.md
+@@ -137,3 +137,66 @@
+ transitórias. Somente depois são comparadas as contagens do resultado em
+ memória, do JSON e do CSV. O manifesto e os hashes não são produzidos quando
+ essas contagens divergem.
++
++## 11. Diretório recomendado no Windows
++
++Diretórios sincronizados pelo Dropbox podem bloquear temporariamente arquivos
++durante substituições atômicas frequentes. Para o experimento de referência,
++recomenda-se escrever primeiro em `%LOCALAPPDATA%` e copiar apenas os artefatos
++finais validados para o repositório ou para a release.
++
++```powershell
++$output = Join-Path `
++    $env:LOCALAPPDATA `
++    "TicTacToe\experiments\reference"
++
++Remove-Item `
++    $output `
++    -Recurse `
++    -Force `
++    -ErrorAction SilentlyContinue
++
++$commit = git rev-parse HEAD
++
++dotnet run `
++    --project .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    --configuration Release `
++    -- `
++    --reference-experiment `
++    --commit $commit `
++    --output $output
++
++python .\scripts\analyze-reference-experiment.py $output
++```
++
++O diretório pode ser localizado e aberto com:
++
++```powershell
++Test-Path $output
++Get-ChildItem $output -Recurse
++explorer.exe $output
++```
++
++Depois da validação, copie somente o resumo e o gráfico pequenos:
++
++```powershell
++Copy-Item `
++    (Join-Path $output "reference-summary.json") `
++    .\experiments\reference\reference-summary.json
++
++Copy-Item `
++    (Join-Path $output "reference-results.svg") `
++    .\experiments\reference\reference-results.svg
++```
++
++Os resultados brutos podem ser compactados para uma release:
++
++```powershell
++Compress-Archive `
++    -Path (Join-Path $output "*") `
++    -DestinationPath `
++        .\artifacts\experiments\tictactoe-reference-results.zip `
++    -Force
++```
++
++Esse fluxo reduz bloqueios de sincronização e evita versionar dados volumosos.
+diff --git a/docs/17-screen-manager.md b/docs/17-screen-manager.md
+--- a/docs/17-screen-manager.md
++++ b/docs/17-screen-manager.md
+@@ -155,12 +155,13 @@
+ 
+ ## 5. Segurança contra ciclos
+ 
+-`ScreenManager` recebe um limite máximo de transições. O valor padrão é alto o
+-suficiente para uso interativo, mas impede que telas simuladas ou defeituosas
+-mantenham um ciclo infinito silencioso.
++`ScreenManager` não impõe um limite global às sessões interativas reais. A
++detecção de ciclos é um contrato opcional, representado por
++`INavigationCycleDetector`.
+ 
+-Ao exceder o limite, o gerenciador lança `InvalidOperationException` com uma
+-mensagem que indica possível ciclo de navegação.
++Testes e diagnósticos podem utilizar `TransitionLimitCycleDetector`. Quando o
++limite configurado é excedido, o detector sinaliza uma possível repetição
++defeituosa sem transformar uma sessão longa e legítima em erro.
+ 
+ ## 6. Testabilidade
+ 
+@@ -170,7 +171,7 @@
+ - transições válidas;
+ - retorno ao menu;
+ - encerramento em `Exit`;
+-- limite contra ciclos;
++- detector opcional de ciclos e limite de transições em testes;
+ - armazenamento da configuração;
+ - cancelamento da configuração;
+ - delegação da partida;
+diff --git a/docs/18-temas-e-creditos.md b/docs/18-temas-e-creditos.md
+--- a/docs/18-temas-e-creditos.md
++++ b/docs/18-temas-e-creditos.md
+@@ -98,8 +98,9 @@
+ ```
+ 
+ `CitationMetadataLoader` lê título, versão, autor, licença e repositório de
+-`CITATION.cff`. Como a publicação pode não copiar esse arquivo, a apresentação
+-possui fallback com os mesmos campos essenciais.
++`CITATION.cff`. Os perfis oficiais copiam esse arquivo para build e publicação.
++A apresentação mantém fallback para leitura inválida, pacote manual incompleto
++ou falha operacional de acesso.
+ 
+ ## 6. Limitações e fallback
+ 
+@@ -110,7 +111,7 @@
+ - terminais antigos podem imprimir códigos ANSI literalmente;
+ - saída redirecionada não deve receber limpeza de tela;
+ - largura de caracteres pode variar conforme fonte e locale;
+-- `CITATION.cff` pode não estar ao lado do executável publicado.
++- pacotes montados manualmente podem omitir ou corromper `CITATION.cff`.
+ 
+ O fallback recomendado é desativar Unicode, cores, limpeza e efeitos visuais.
+ Nesse modo, a aplicação permanece funcional com texto e caracteres ASCII
+diff --git a/docs/26-publicacao.md b/docs/26-publicacao.md
+--- a/docs/26-publicacao.md
++++ b/docs/26-publicacao.md
+@@ -147,6 +147,21 @@
+ protegidas, como `Program Files`, recomenda-se copiar o pacote para um diretório
+ do usuário ou ajustar os diretórios configurados.
+ 
++No Windows, uma alternativa operacional é `%LOCALAPPDATA%`:
++
++```powershell
++$app_directory = Join-Path $env:LOCALAPPDATA "TicTacToe"
++New-Item -ItemType Directory -Path $app_directory -Force
++Copy-Item .\artifacts\publish\win-x64-self-contained\* `
++    $app_directory `
++    -Recurse `
++    -Force
++```
++
++Pastas sincronizadas pelo Dropbox podem bloquear arquivos durante atualização,
++quarentena ou gravação atômica. Para publicação e experimentos, prefira gerar
++artefatos fora da pasta sincronizada e copiar o resultado concluído depois.
++
+ ## 9. Atualização sem perda de dados
+ 
+ Para atualizar:
+@@ -212,3 +227,31 @@
+ - permissões variam conforme o diretório;
+ - o tamanho final deve ser registrado após publicação real;
+ - assinatura de código e instaladores não fazem parte desta etapa.
++
++## 13. Operações de arquivo no PowerShell
++
++Comandos úteis para diagnóstico e atualização:
++
++```powershell
++Test-Path .\data
++Get-ChildItem .\data -Recurse -Force
++Copy-Item .\data .\backup\data -Recurse -Force
++Move-Item .\data\settings.json .\data\settings.backup.json
++Remove-Item .\artifacts\publish -Recurse -Force
++Get-FileHash .\CITATION.cff -Algorithm SHA256
++```
++
++Para localizar arquivos gerados em um diretório desconhecido:
++
++```powershell
++Get-ChildItem `
++    . `
++    $env:LOCALAPPDATA `
++    -Recurse `
++    -File `
++    -Filter "reference-manifest.json" `
++    -ErrorAction SilentlyContinue
++```
++
++`Remove-Item -Recurse -Force` é destrutivo. Antes de usá-lo em dados locais,
++confirme o caminho com `Resolve-Path`, `Test-Path` e `Get-ChildItem`.
+diff --git a/docs/30-revisao-legal-documental.md b/docs/30-revisao-legal-documental.md
+new file mode 100644
+--- /dev/null
++++ b/docs/30-revisao-legal-documental.md
+@@ -0,0 +1,100 @@
++# Revisão legal e documental
++
++## 1. Escopo
++
++Esta revisão verifica os artefatos legais, metadados de versão, documentação,
++esquemas e instruções operacionais contra o código consolidado da versão
++`1.8.0` com alterações ainda em `Unreleased`.
++
++## 2. Licença e atribuições
++
++O arquivo `LICENSE` contém o texto integral da Apache License 2.0.
++`LICENSE.md` apresenta uma explicação acessível sem substituir o texto legal.
++
++`NOTICE` registra:
++
++- origem do legado sob licença MIT na tag `v1.0.0`;
++- refatoração posterior sob Apache License 2.0;
++- autoria;
++- ausência de recursos artísticos de terceiros;
++- dependências reais de desenvolvimento e teste.
++
++A aplicação de produção não possui `PackageReference`. Os pacotes NuGet
++declarados pertencem somente ao projeto de testes.
++
++## 3. Versão e citação
++
++A versão permanece `1.8.0` em:
++
++- `Directory.Build.props`;
++- `CITATION.cff`;
++- assembly produzido pelo MSBuild.
++
++A data `2026-07-18` identifica a release `v1.8.0`. Alterações dos prompts
++posteriores permanecem em `Unreleased` e não alteram a citação até a próxima
++release formal.
++
++O arquivo `CITATION.cff` é copiado explicitamente para build e publicação por
++`TicTacToe.Console.csproj`.
++
++## 4. Idioma e nomes
++
++A política consolidada é:
++
++- identificadores de código em inglês;
++- classes e tipos em `CamelCase`;
++- métodos e variáveis em `snake_case`;
++- documentação, mensagens públicas e commits em português do Brasil;
++- nomes técnicos consagrados preservados quando melhoram precisão.
++
++Os documentos foram comparados com nomes reais, incluindo
++`ConsoleApplicationComposer`, `TransitionLimitCycleDetector`,
++`ExperimentController`, `ReferenceExperimentRunner`,
++`PublishPackageVerifier` e `CitationMetadataLoader`.
++
++## 5. Dependências documentais
++
++O fluxo real entre código e documentação é apresentado abaixo.
++
++```mermaid
++flowchart LR
++    A[Directory.Build.props] --> B[Assembly 1.8.0]
++    A --> C[CITATION.cff 1.8.0]
++    D[TicTacToe.Console.csproj] --> E[Pacote publicado]
++    C --> E
++    F[CHANGELOG.md] --> G[Histórico e Unreleased]
++    H[docs/README.md] --> I[Documentos técnicos]
++    J[NOTICE] --> K[Origem e dependências]
++```
++
++A próxima versão deve atualizar assembly, `CITATION.cff`, `CHANGELOG.md` e tag
++na mesma alteração de release.
++
++## 6. Esquemas e comandos
++
++Os esquemas documentados continuam usando:
++
++- JSON em camelCase;
++- CSV UTF-8 sem BOM;
++- separador ponto e vírgula;
++- datas ISO 8601;
++- números com cultura invariável.
++
++Os comandos foram revisados para PowerShell e Bash. Artefatos temporários,
++publicações, cobertura e resultados brutos permanecem fora do versionamento.
++
++## 7. Dropbox e dados locais
++
++Substituições atômicas podem coincidir com a sincronização do Dropbox e causar
++bloqueios transitórios. Experimentos e publicações devem preferir diretórios
++locais, como `%LOCALAPPDATA%`, e copiar apenas resultados concluídos.
++
++A aplicação normal ainda resolve `data/` e `exports/` em relação ao diretório
++do executável. Essa decisão é diferente do diretório opcional fornecido ao
++comando do experimento de referência.
++
++## 8. Resultado
++
++Não foram alterados os termos da Apache License 2.0. Foram atualizados
++`LICENSE.md`, `NOTICE`, índices, matriz documental e descrições que ainda
++refletiam arquiteturas intermediárias.
+diff --git a/docs/31-matriz-documentacao.md b/docs/31-matriz-documentacao.md
+new file mode 100644
+--- /dev/null
++++ b/docs/31-matriz-documentacao.md
+@@ -0,0 +1,60 @@
++# Matriz da documentação
++
++## 1. Finalidade
++
++A matriz relaciona cada documento ao marco de versão e ao componente que ele
++descreve. `Unreleased` identifica conteúdo implementado depois de `v1.8.0` e
++ainda não associado a uma tag formal.
++
++| Documento | Versão ou período | Componente | Finalidade |
++|---|---|---|---|
++| `00-decisoes-e-escopo.md` | 1.2.0+ | Governança | convenções, Git, idioma e versões |
++| `01-projeto-original.md` | 1.0.0 | Legado | inventário histórico |
++| `02-requisitos.md` | 1.2.0+ | Projeto | requisitos e critérios |
++| `03-arquitetura.md` | 1.2.0–Unreleased | Arquitetura | camadas e composition root |
++| `04-modelo-conceitual.md` | 1.2.0 | Domain | entidades e relações |
++| `05-game-rules.md` | 1.2.0 | Domain | regras e avaliação |
++| `06-match-aggregate.md` | 1.2.0 | Domain | agregado e invariantes |
++| `07-fluxo-aplicacao.md` | 1.4.0 | Application | controlador e portas |
++| `08-revisao-prompt-10.md` | 1.3.0 | Governança | revisão histórica intermediária |
++| `09-correcao-fronteiras-arquiteturais.md` | 1.4.0 | Domain/AI/Application | fronteiras corrigidas |
++| `10-inteligencia-artificial.md` | 1.3.0–1.5.0 | AI | Strategies e Minimax |
++| `11-experimentacao.md` | Unreleased | Application/Persistence | protocolo experimental |
++| `12-testes.md` | Unreleased | Tests | estratégia e cobertura |
++| `13-resultados.md` | Unreleased | Experiment | experimento de referência |
++| `14-limitacoes.md` | Unreleased | Compatibility | plataformas e terminal |
++| `15-audio.md` | 1.7.0 | Audio | beep, bell e fallback |
++| `16-apresentacao-console.md` | 1.6.0 | Presentation | adaptadores Console |
++| `17-screen-manager.md` | 1.6.0–Unreleased | Presentation | navegação e ciclos |
++| `18-temas-e-creditos.md` | 1.7.0–Unreleased | Presentation | ASCII, Unicode e citação |
++| `19-feedback-visual-e-animacoes.md` | 1.7.0 | Presentation | feedback e atraso |
++| `20-configuracoes-json.md` | 1.8.0 | Persistence | settings e esquema |
++| `21-partidas-e-estatisticas-json.md` | 1.8.0–Unreleased | Persistence | histórico, estatísticas e recuperação |
++| `22-exportacao-csv.md` | 1.8.0 | Persistence | CSV e esquemas |
++| `23-modo-automatico.md` | Unreleased | Application/Presentation | IA contra IA demonstrativa |
++| `24-modo-experimental.md` | Unreleased | Application/Persistence | lotes sem apresentação |
++| `25-robustez-fronteiras-externas.md` | Unreleased | Infrastructure | falhas e recuperação |
++| `26-publicacao.md` | Unreleased | Publication | perfis e empacotamento |
++| `27-glossario.md` | Unreleased | Projeto | vocabulário |
++| `28-uso-ia-generativa.md` | Unreleased | Governança | transparência de IA |
++| `29-revisao-arquitetural-final.md` | Unreleased | Arquitetura | auditoria final |
++| `30-revisao-legal-documental.md` | Unreleased | Governança/Legal | auditoria legal e documental |
++| `31-matriz-documentacao.md` | Unreleased | Governança | rastreabilidade documental |
++
++## 2. Leitura da matriz
++
++Documentos que atravessam várias versões registram evolução arquitetural.
++Documentos históricos, como `01-projeto-original.md` e
++`08-revisao-prompt-10.md`, não devem ser reescritos para parecer documentação
++do estado atual; sua função é preservar rastreabilidade.
++
++```mermaid
++flowchart LR
++    A[Versão ou Unreleased] --> B[Documento]
++    C[Componente] --> B
++    B --> D[Decisão, esquema ou procedimento]
++    D --> E[Teste, código ou artefato]
++```
++
++A matriz deve ser atualizada quando um documento novo for criado ou quando uma
++release mover conteúdo de `Unreleased` para uma versão numerada.
+diff --git a/docs/README.md b/docs/README.md
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -1,40 +1,44 @@
+ # Índice da documentação
+ 
+-Este índice orienta a navegação pelos documentos técnicos e acadêmicos do
+-projeto.
++Este índice relaciona os documentos técnicos, acadêmicos, legais e operacionais
++ao estado real do código.
+ 
+-| Documento | Conteúdo |
+-|---|---|
+-| [00-decisoes-e-escopo.md](00-decisoes-e-escopo.md) | Decisões gerais, convenções e escopo. |
+-| [01-projeto-original.md](01-projeto-original.md) | Inventário e contexto do código legado. |
+-| [02-requisitos.md](02-requisitos.md) | Requisitos funcionais, não funcionais e restrições. |
+-| [03-arquitetura.md](03-arquitetura.md) | Módulos, dependências e componentes. |
+-| [04-modelo-conceitual.md](04-modelo-conceitual.md) | Entidades, objetos de valor e relações. |
+-| [05-game-rules.md](05-game-rules.md) | Regras e avaliação do jogo. |
+-| [06-match-aggregate.md](06-match-aggregate.md) | Agregado Match e invariantes. |
+-| [07-fluxo-aplicacao.md](07-fluxo-aplicacao.md) | Controlador e portas da aplicação. |
+-| [08-revisao-prompt-10.md](08-revisao-prompt-10.md) | Revisão intermediária após o Prompt 10. |
+-| [09-correcao-fronteiras-arquiteturais.md](09-correcao-fronteiras-arquiteturais.md) | Correção de dependências e fronteiras. |
+-| [10-inteligencia-artificial.md](10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
+-| [11-experimentacao.md](11-experimentacao.md) | Plano formal de experimentação. |
+-| [12-testes.md](12-testes.md) | Estratégia, classificação e cobertura dos testes. |
+-| [13-resultados.md](13-resultados.md) | Protocolo, execução e análise do experimento de referência. |
+-| [14-limitacoes.md](14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
+-| [15-audio.md](15-audio.md) | Serviços de áudio e fallback. |
+-| [16-apresentacao-console.md](16-apresentacao-console.md) | Entrada, saída e renderização Console. |
+-| [17-screen-manager.md](17-screen-manager.md) | Estados e navegação. |
+-| [18-temas-e-creditos.md](18-temas-e-creditos.md) | Temas, ASCII, Unicode e créditos. |
+-| [19-feedback-visual-e-animacoes.md](19-feedback-visual-e-animacoes.md) | Animações e feedback visual. |
+-| [20-configuracoes-json.md](20-configuracoes-json.md) | Configuração persistente em JSON. |
+-| [21-partidas-e-estatisticas-json.md](21-partidas-e-estatisticas-json.md) | Histórico e estatísticas. |
+-| [22-exportacao-csv.md](22-exportacao-csv.md) | Esquemas e regras CSV. |
+-| [23-modo-automatico.md](23-modo-automatico.md) | Demonstração IA contra IA. |
+-| [24-modo-experimental.md](24-modo-experimental.md) | Execução experimental em lote. |
+-| [25-robustez-fronteiras-externas.md](25-robustez-fronteiras-externas.md) | Falhas externas e recuperação. |
+-| [26-publicacao.md](26-publicacao.md) | Perfis e validação de publicação. |
+-| [27-glossario.md](27-glossario.md) | Vocabulário geral, técnico e de domínio. |
+-| [28-uso-ia-generativa.md](28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
+-| [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
++| Documento | Versão | Componente | Conteúdo |
++|---|---|---|---|
++| [00-decisoes-e-escopo.md](00-decisoes-e-escopo.md) | 1.2.0+ | Governança | convenções, Git, idioma e versões |
++| [01-projeto-original.md](01-projeto-original.md) | 1.0.0 | Legado | inventário histórico |
++| [02-requisitos.md](02-requisitos.md) | 1.2.0+ | Projeto | requisitos e critérios |
++| [03-arquitetura.md](03-arquitetura.md) | 1.2.0–Unreleased | Arquitetura | camadas e composition root |
++| [04-modelo-conceitual.md](04-modelo-conceitual.md) | 1.2.0 | Domain | entidades e relações |
++| [05-game-rules.md](05-game-rules.md) | 1.2.0 | Domain | regras e avaliação |
++| [06-match-aggregate.md](06-match-aggregate.md) | 1.2.0 | Domain | agregado e invariantes |
++| [07-fluxo-aplicacao.md](07-fluxo-aplicacao.md) | 1.4.0 | Application | controlador e portas |
++| [08-revisao-prompt-10.md](08-revisao-prompt-10.md) | 1.3.0 | Governança | revisão histórica intermediária |
++| [09-correcao-fronteiras-arquiteturais.md](09-correcao-fronteiras-arquiteturais.md) | 1.4.0 | Domain/AI/Application | fronteiras corrigidas |
++| [10-inteligencia-artificial.md](10-inteligencia-artificial.md) | 1.3.0–1.5.0 | AI | Strategies e Minimax |
++| [11-experimentacao.md](11-experimentacao.md) | Unreleased | Application/Persistence | protocolo experimental |
++| [12-testes.md](12-testes.md) | Unreleased | Tests | estratégia e cobertura |
++| [13-resultados.md](13-resultados.md) | Unreleased | Experiment | experimento de referência |
++| [14-limitacoes.md](14-limitacoes.md) | Unreleased | Compatibility | plataformas e terminal |
++| [15-audio.md](15-audio.md) | 1.7.0 | Audio | beep, bell e fallback |
++| [16-apresentacao-console.md](16-apresentacao-console.md) | 1.6.0 | Presentation | adaptadores Console |
++| [17-screen-manager.md](17-screen-manager.md) | 1.6.0–Unreleased | Presentation | navegação e ciclos |
++| [18-temas-e-creditos.md](18-temas-e-creditos.md) | 1.7.0–Unreleased | Presentation | ASCII, Unicode e citação |
++| [19-feedback-visual-e-animacoes.md](19-feedback-visual-e-animacoes.md) | 1.7.0 | Presentation | feedback e atraso |
++| [20-configuracoes-json.md](20-configuracoes-json.md) | 1.8.0 | Persistence | settings e esquema |
++| [21-partidas-e-estatisticas-json.md](21-partidas-e-estatisticas-json.md) | 1.8.0–Unreleased | Persistence | histórico, estatísticas e recuperação |
++| [22-exportacao-csv.md](22-exportacao-csv.md) | 1.8.0 | Persistence | CSV e esquemas |
++| [23-modo-automatico.md](23-modo-automatico.md) | Unreleased | Application/Presentation | IA contra IA demonstrativa |
++| [24-modo-experimental.md](24-modo-experimental.md) | Unreleased | Application/Persistence | lotes sem apresentação |
++| [25-robustez-fronteiras-externas.md](25-robustez-fronteiras-externas.md) | Unreleased | Infrastructure | falhas e recuperação |
++| [26-publicacao.md](26-publicacao.md) | Unreleased | Publication | perfis e empacotamento |
++| [27-glossario.md](27-glossario.md) | Unreleased | Projeto | vocabulário |
++| [28-uso-ia-generativa.md](28-uso-ia-generativa.md) | Unreleased | Governança | transparência de IA |
++| [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | Unreleased | Arquitetura | auditoria final |
++| [30-revisao-legal-documental.md](30-revisao-legal-documental.md) | Unreleased | Governança/Legal | auditoria legal e documental |
++| [31-matriz-documentacao.md](31-matriz-documentacao.md) | Unreleased | Governança | rastreabilidade documental |
+ 
+-A ordem numérica registra a evolução temática, mas alguns números foram
+-reservados ou ocupados por revisões intermediárias.
++A matriz detalhada está em
++[`31-matriz-documentacao.md`](31-matriz-documentacao.md). Documentos históricos
++preservam o contexto da versão em que foram produzidos; documentos marcados
++como `Unreleased` pertencem à próxima release ainda não versionada.
+diff --git a/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs b/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
+@@ -0,0 +1,92 @@
++using System.Xml.Linq;
++using Xunit;
++
++namespace TicTacToe.Tests.Publication;
++
++public class LegalDocumentationConsistencyTests
++{
++    private static readonly string project_root =
++        find_project_root();
++
++    [Fact]
++    public void citation_version_should_match_assembly_version()
++    {
++        XDocument props = XDocument.Load(
++            Path.Combine(
++                project_root,
++                "Directory.Build.props"));
++        string assembly_version = props
++            .Descendants("Version")
++            .Single()
++            .Value;
++        string citation = File.ReadAllText(
++            Path.Combine(
++                project_root,
++                "CITATION.cff"));
++
++        Assert.Contains(
++            $"version: \"{assembly_version}\"",
++            citation);
++    }
++
++    [Fact]
++    public void production_project_should_not_reference_nuget_packages()
++    {
++        XDocument project = XDocument.Load(
++            Path.Combine(
++                project_root,
++                "src",
++                "TicTacToe.Console",
++                "TicTacToe.Console.csproj"));
++
++        Assert.Empty(project.Descendants("PackageReference"));
++    }
++
++    [Fact]
++    public void every_document_should_be_listed_in_documentation_index()
++    {
++        string docs_directory = Path.Combine(
++            project_root,
++            "docs");
++        string index = File.ReadAllText(
++            Path.Combine(
++                docs_directory,
++                "README.md"));
++
++        foreach (string path in Directory.EnumerateFiles(
++                     docs_directory,
++                     "*.md"))
++        {
++            string file_name = Path.GetFileName(path);
++
++            if (file_name == "README.md")
++            {
++                continue;
++            }
++
++            Assert.Contains(file_name, index);
++        }
++    }
++
++    private static string find_project_root()
++    {
++        DirectoryInfo? current = new(
++            AppContext.BaseDirectory);
++
++        while (current is not null)
++        {
++            if (File.Exists(
++                    Path.Combine(
++                        current.FullName,
++                        "TicTacToe.sln")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException(
++            "A raiz do projeto não foi encontrada.");
++    }
++}

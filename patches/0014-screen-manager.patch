@@ -1,0 +1,1429 @@
+diff --git a/Directory.Build.props b/Directory.Build.props
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.5.0</Version>
++        <Version>1.6.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,8 +2,8 @@
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.5.0"
+-date-released: "2026-07-16"
++version: "1.6.0"
++date-released: "2026-07-17"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+ authors:
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -11,6 +11,7 @@
+ - `v1.3.0` — 2026-07-16: padrão Strategy e estratégia aleatória;
+ - `v1.4.0` — 2026-07-16: fluxo básico de aplicação, correções arquiteturais e estratégia heurística;
+ - `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
++- `v1.6.0` — 2026-07-17: apresentação Console e máquina de estados;
+ - `Unreleased`: próxima etapa de desenvolvimento;
+ - `v2.0.0` — data a definir: consolidação final da refatoração.
+ 
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -24,8 +24,8 @@
+         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
+         2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
+         2026-07-17 : v1.5.0 — estratégia Minimax
++        2026-07-17 : v1.6.0 — apresentação e estados
+     section Marcos planejados
+-        Data a definir : v1.6.0 — apresentação e estados
+         Data a definir : v1.7.0 — recursos audiovisuais
+         Data a definir : v1.8.0 — persistência e exportação
+         Data a definir : v1.9.0 — experimentação e consolidação
+@@ -37,8 +37,16 @@
+ 
+ ## [Unreleased]
+ 
++## [1.6.0] - 2026-07-17
++
+ ### Added
+ 
++- `ScreenManager` com máquina de estados centralizada e limite de transições.
++- Contratos `IScreen`, `ScreenTransition`, `ScreenContext` e `IMatchSessionRunner`.
++- Estados Splash, menu, configuração, partida, resultado, estatísticas, experimentos, configurações, ajuda e saída.
++- Configuração de nome e Strategy antes da partida.
++- Testes de transição, retorno ao menu, saída, configuração e proteção contra ciclos.
++- `docs/17-screen-manager.md` com diagramas de estados e sequência.
+ - `ConsoleGameInput` como adaptador de `IGameInput` baseado em `TextReader`.
+ - `ConsoleGameOutput` como adaptador de `IGameOutput` baseado em `TextWriter`.
+ - `ConsoleBoardRenderer` para tabuleiro ASCII com coordenadas.
+@@ -46,6 +54,10 @@
+ - Testes de parsing e renderização sem dependência do Console físico.
+ - `docs/16-apresentacao-console.md` com arquitetura e fluxo dos adaptadores.
+ 
++### Changed
++
++- `Program.Main` passou a compor e iniciar a máquina de estados.
++- Versão do projeto e metadados de citação atualizados para `1.6.0`.
+ 
+ ## [1.5.0] - 2026-07-17
+ 
+diff --git a/docs/17-screen-manager.md b/docs/17-screen-manager.md
+new file mode 100644
+--- /dev/null
++++ b/docs/17-screen-manager.md
+@@ -0,0 +1,164 @@
++# ScreenManager e estados de navegação
++
++## 1. Finalidade
++
++A versão `1.6.0` introduz uma máquina de estados para centralizar a navegação da
++aplicação. Cada tela executa uma responsabilidade de apresentação e retorna
++somente o próximo estado desejado.
++
++As telas não aplicam regras de vitória, não alternam jogadores e não modificam
++diretamente o tabuleiro. A execução de partidas permanece delegada à camada
++`Application`.
++
++## 2. Contratos
++
++A navegação utiliza:
++
++- `ScreenState`, enumeração dos estados;
++- `ScreenTransition`, resultado de uma tela;
++- `IScreen`, contrato mínimo de execução;
++- `ScreenContext`, dados compartilhados;
++- `ScreenManager`, coordenador central.
++
++O diagrama apresenta essas relações.
++
++```mermaid
++classDiagram
++    class ScreenManager {
++        -IReadOnlyDictionary screens
++        -int max_transitions
++        +run(initial_state, context) ScreenState
++    }
++
++    class IScreen {
++        <<interface>>
++        +ScreenState State
++        +show(context) ScreenTransition
++    }
++
++    class ScreenTransition {
++        +ScreenState Target
++    }
++
++    class ScreenContext {
++        +MatchConfiguration MatchConfiguration
++        +Match LastMatch
++        +set_match_configuration(configuration)
++        +set_last_match(match)
++    }
++
++    ScreenManager --> IScreen
++    IScreen --> ScreenTransition
++    IScreen --> ScreenContext
++```
++
++As telas não mantêm referências diretas umas às outras. Elas conhecem apenas o
++estado de destino; `ScreenManager` resolve a implementação correspondente.
++
++## 3. Estados
++
++A máquina contém os estados solicitados:
++
++- `Splash`;
++- `MainMenu`;
++- `MatchSetup`;
++- `Playing`;
++- `MatchResult`;
++- `Statistics`;
++- `ExperimentSetup`;
++- `Settings`;
++- `Help`;
++- `Exit`.
++
++O diagrama registra as transições implementadas.
++
++```mermaid
++stateDiagram-v2
++    [*] --> Splash
++    Splash --> MainMenu
++
++    MainMenu --> MatchSetup : jogar
++    MainMenu --> Statistics : estatísticas
++    MainMenu --> ExperimentSetup : experimentos
++    MainMenu --> Settings : configurações
++    MainMenu --> Help : ajuda
++    MainMenu --> Exit : sair
++
++    MatchSetup --> Playing : configuração válida
++    MatchSetup --> MainMenu : cancelar
++    Playing --> MatchSetup : configuração ausente
++    Playing --> MatchResult : partida executada
++    MatchResult --> MainMenu
++
++    Statistics --> MainMenu
++    ExperimentSetup --> MainMenu
++    Settings --> MainMenu
++    Help --> MainMenu
++
++    Exit --> [*]
++```
++
++`Statistics`, `ExperimentSetup` e `Settings` são estados reais, porém ainda
++apresentam conteúdo provisório. A estrutura já evita que esses recursos futuros
++sejam adicionados diretamente ao menu principal.
++
++## 4. Configuração e execução de partida
++
++`MatchSetupScreen` coleta nome e Strategy. `PlayingScreen` não cria regras nem
++executa jogadas; ela delega a `IMatchSessionRunner`.
++
++O fluxo é apresentado a seguir.
++
++```mermaid
++sequenceDiagram
++    participant Manager as ScreenManager
++    participant Setup as MatchSetupScreen
++    participant Context as ScreenContext
++    participant Playing as PlayingScreen
++    participant Runner as IMatchSessionRunner
++    participant Application as MatchController
++    participant Result as MatchResultScreen
++
++    Manager->>Setup: show(context)
++    Setup->>Context: set_match_configuration(...)
++    Setup-->>Manager: Playing
++
++    Manager->>Playing: show(context)
++    Playing->>Runner: play(configuration)
++    Runner->>Application: run(match)
++    Application-->>Runner: match concluída
++    Runner-->>Playing: match
++    Playing->>Context: set_last_match(match)
++    Playing-->>Manager: MatchResult
++
++    Manager->>Result: show(context)
++    Result-->>Manager: MainMenu
++```
++
++A Strategy selecionada é associada ao participante computacional no executor de
++sessão, por meio de `IComputerMoveStrategyResolver`.
++
++## 5. Segurança contra ciclos
++
++`ScreenManager` recebe um limite máximo de transições. O valor padrão é alto o
++suficiente para uso interativo, mas impede que telas simuladas ou defeituosas
++mantenham um ciclo infinito silencioso.
++
++Ao exceder o limite, o gerenciador lança `InvalidOperationException` com uma
++mensagem que indica possível ciclo de navegação.
++
++## 6. Testabilidade
++
++Os testes substituem telas por implementações que registram a ordem de execução
++e retornam transições predeterminadas. Isso permite verificar:
++
++- transições válidas;
++- retorno ao menu;
++- encerramento em `Exit`;
++- limite contra ciclos;
++- armazenamento da configuração;
++- cancelamento da configuração;
++- delegação da partida;
++- armazenamento do último resultado.
++
++Nenhum desses testes depende do Console físico ou de interação humana.
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/ScreenManagerTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/ScreenManagerTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/ScreenManagerTests.cs
+@@ -0,0 +1,154 @@
++using TicTacToe.Presentation.Navigation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++/// <summary>
++/// Verifica execução, transições e limites do gerenciador de telas.
++/// </summary>
++public class ScreenManagerTests
++{
++    /// <summary>
++    /// Confirma uma sequência válida até a saída.
++    /// </summary>
++    [Fact]
++    public void run_should_follow_valid_transitions()
++    {
++        List<ScreenState> execution_order = [];
++
++        ScreenManager manager = new(
++            [
++                new StubScreen(
++                    ScreenState.Splash,
++                    ScreenState.MainMenu,
++                    execution_order),
++                new StubScreen(
++                    ScreenState.MainMenu,
++                    ScreenState.Exit,
++                    execution_order),
++                new StubScreen(
++                    ScreenState.Exit,
++                    ScreenState.Exit,
++                    execution_order)
++            ]);
++
++        ScreenState final_state = manager.run(
++            ScreenState.Splash,
++            new ScreenContext());
++
++        Assert.Equal(ScreenState.Exit, final_state);
++        Assert.Equal(
++            [
++                ScreenState.Splash,
++                ScreenState.MainMenu,
++                ScreenState.Exit
++            ],
++            execution_order);
++    }
++
++    /// <summary>
++    /// Confirma o retorno de uma tela funcional ao menu.
++    /// </summary>
++    [Fact]
++    public void run_should_allow_return_to_main_menu()
++    {
++        List<ScreenState> execution_order = [];
++
++        ScreenManager manager = new(
++            [
++                new StubScreen(
++                    ScreenState.MatchResult,
++                    ScreenState.MainMenu,
++                    execution_order),
++                new StubScreen(
++                    ScreenState.MainMenu,
++                    ScreenState.Exit,
++                    execution_order),
++                new StubScreen(
++                    ScreenState.Exit,
++                    ScreenState.Exit,
++                    execution_order)
++            ]);
++
++        manager.run(
++            ScreenState.MatchResult,
++            new ScreenContext());
++
++        Assert.Equal(
++            [
++                ScreenState.MatchResult,
++                ScreenState.MainMenu,
++                ScreenState.Exit
++            ],
++            execution_order);
++    }
++
++    /// <summary>
++    /// Confirma que a tela Exit encerra imediatamente.
++    /// </summary>
++    [Fact]
++    public void run_should_stop_after_exit_screen()
++    {
++        List<ScreenState> execution_order = [];
++
++        ScreenManager manager = new(
++            [
++                new StubScreen(
++                    ScreenState.Exit,
++                    ScreenState.MainMenu,
++                    execution_order)
++            ]);
++
++        ScreenState final_state = manager.run(
++            ScreenState.Exit,
++            new ScreenContext());
++
++        Assert.Equal(ScreenState.Exit, final_state);
++        Assert.Single(execution_order);
++    }
++
++    /// <summary>
++    /// Confirma a interrupção de ciclos simulados.
++    /// </summary>
++    [Fact]
++    public void run_should_reject_infinite_transition_loop()
++    {
++        ScreenManager manager = new(
++            [
++                new StubScreen(
++                    ScreenState.MainMenu,
++                    ScreenState.MainMenu,
++                    [])
++            ],
++            max_transitions: 3);
++
++        Assert.Throws<InvalidOperationException>(
++            () => manager.run(
++                ScreenState.MainMenu,
++                new ScreenContext()));
++    }
++
++    private sealed class StubScreen : IScreen
++    {
++        private readonly ScreenState target;
++        private readonly List<ScreenState> execution_order;
++
++        public StubScreen(
++            ScreenState state,
++            ScreenState target,
++            List<ScreenState> execution_order)
++        {
++            State = state;
++            this.target = target;
++            this.execution_order = execution_order;
++        }
++
++        public ScreenState State { get; }
++
++        public ScreenTransition show(ScreenContext context)
++        {
++            execution_order.Add(State);
++            return new ScreenTransition(target);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/MatchSetupScreenTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/MatchSetupScreenTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/MatchSetupScreenTests.cs
+@@ -0,0 +1,64 @@
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++/// <summary>
++/// Verifica a coleta da configuração de partida.
++/// </summary>
++public class MatchSetupScreenTests
++{
++    /// <summary>
++    /// Confirma nome e Strategy escolhidos.
++    /// </summary>
++    [Fact]
++    public void show_should_store_match_configuration()
++    {
++        StringReader reader = new(
++            "Ana" + Environment.NewLine +
++            "2" + Environment.NewLine);
++        StringWriter writer = new();
++        MatchSetupScreen screen = new(
++            reader,
++            writer);
++        ScreenContext context = new();
++
++        ScreenTransition transition =
++            screen.show(context);
++
++        Assert.Equal(
++            ScreenState.Playing,
++            transition.Target);
++        Assert.NotNull(context.MatchConfiguration);
++        Assert.Equal(
++            "Ana",
++            context.MatchConfiguration.PlayerName);
++        Assert.Equal(
++            StrategyKind.Heuristic,
++            context.MatchConfiguration.OpponentStrategy);
++    }
++
++    /// <summary>
++    /// Confirma o retorno ao menu sem configuração.
++    /// </summary>
++    [Fact]
++    public void show_should_return_to_menu_when_cancelled()
++    {
++        StringReader reader = new(
++            Environment.NewLine +
++            "0" + Environment.NewLine);
++        MatchSetupScreen screen = new(
++            reader,
++            new StringWriter());
++        ScreenContext context = new();
++
++        ScreenTransition transition =
++            screen.show(context);
++
++        Assert.Equal(
++            ScreenState.MainMenu,
++            transition.Target);
++        Assert.Null(context.MatchConfiguration);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/PlayingScreenTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/PlayingScreenTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/PlayingScreenTests.cs
+@@ -0,0 +1,59 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++/// <summary>
++/// Verifica a delegação da tela de partida.
++/// </summary>
++public class PlayingScreenTests
++{
++    /// <summary>
++    /// Confirma a execução e o armazenamento da partida resultante.
++    /// </summary>
++    [Fact]
++    public void show_should_delegate_match_session()
++    {
++        Match match = new(
++            new HumanPlayer("Ana", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++        RecordingRunner runner = new(match);
++        PlayingScreen screen = new(runner);
++        ScreenContext context = new();
++        MatchConfiguration configuration = new(
++            "Ana",
++            StrategyKind.Minimax);
++        context.set_match_configuration(configuration);
++
++        ScreenTransition transition =
++            screen.show(context);
++
++        Assert.Equal(
++            ScreenState.MatchResult,
++            transition.Target);
++        Assert.Equal(
++            configuration,
++            runner.ReceivedConfiguration);
++        Assert.Same(match, context.LastMatch);
++    }
++
++    private sealed class RecordingRunner : IMatchSessionRunner
++    {
++        private readonly Match match;
++
++        public RecordingRunner(Match match)
++        {
++            this.match = match;
++        }
++
++        public MatchConfiguration? ReceivedConfiguration { get; private set; }
++
++        public Match play(MatchConfiguration configuration)
++        {
++            ReceivedConfiguration = configuration;
++            return match;
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -1,7 +1,6 @@
+-using TicTacToe.AI;
+-using TicTacToe.Application;
+-using TicTacToe.Domain;
+ using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
+ 
+ namespace TicTacToe;
+ 
+@@ -11,7 +10,7 @@
+ public static class Program
+ {
+     /// <summary>
+-    /// Inicia uma partida mínima entre pessoa e agente Minimax.
++    /// Inicia a máquina de estados da apresentação.
+     /// </summary>
+     /// <param name="args">Argumentos recebidos pela linha de comando.</param>
+     public static void Main(string[] args)
+@@ -21,30 +20,34 @@
+ 
+         ConsoleBoardRenderer board_renderer = new(writer);
+         ConsoleGameInput game_input = new(reader, writer);
+-        ConsoleGameOutput game_output = new(writer, board_renderer);
++        ConsoleGameOutput game_output = new(
++            writer,
++            board_renderer);
+ 
+-        IComputerMoveStrategyResolver strategy_resolver =
+-            new ConfiguredComputerMoveStrategyResolver(
+-                new Dictionary<Symbol, IMoveStrategy>
+-                {
+-                    [Symbol.O] = new MinimaxMoveStrategy()
+-                });
++        IMatchSessionRunner match_session_runner =
++            new ConsoleMatchSessionRunner(
++                game_input,
++                game_output);
+ 
+-        IMoveSelector move_selector = new DefaultMoveSelector(
+-            game_input,
+-            strategy_resolver);
++        IScreen[] screens =
++        [
++            new SplashScreen(reader, writer),
++            new MainMenuScreen(reader, writer),
++            new MatchSetupScreen(reader, writer),
++            new PlayingScreen(match_session_runner),
++            new MatchResultScreen(reader, writer),
++            new StatisticsScreen(reader, writer),
++            new ExperimentSetupScreen(reader, writer),
++            new SettingsScreen(reader, writer),
++            new HelpScreen(reader, writer),
++            new ExitScreen(writer)
++        ];
+ 
+-        MatchController controller = new(
+-            move_selector,
+-            game_output);
++        ScreenManager screen_manager = new(screens);
++        ScreenContext context = new();
+ 
+-        Match match = new(
+-            new HumanPlayer("Pessoa", Symbol.X),
+-            new ComputerPlayer("Minimax", Symbol.O));
+-
+-        writer.WriteLine("Tic-Tac-Toe Console AI");
+-        writer.WriteLine("Pessoa: X | Minimax: O");
+-
+-        controller.run(match);
++        screen_manager.run(
++            ScreenState.Splash,
++            context);
+     }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
+@@ -0,0 +1,18 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Identifica os estados disponíveis na navegação da aplicação.
++/// </summary>
++public enum ScreenState
++{
++    Splash,
++    MainMenu,
++    MatchSetup,
++    Playing,
++    MatchResult,
++    Statistics,
++    ExperimentSetup,
++    Settings,
++    Help,
++    Exit
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenTransition.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenTransition.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenTransition.cs
+@@ -0,0 +1,7 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Representa a transição solicitada por uma tela.
++/// </summary>
++/// <param name="Target">Próximo estado de navegação.</param>
++public readonly record struct ScreenTransition(ScreenState Target);
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/IScreen.cs b/src/TicTacToe.Console/Presentation/Navigation/IScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/IScreen.cs
+@@ -0,0 +1,19 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Define uma tela executável pela máquina de estados de apresentação.
++/// </summary>
++public interface IScreen
++{
++    /// <summary>
++    /// Obtém o estado representado pela tela.
++    /// </summary>
++    ScreenState State { get; }
++
++    /// <summary>
++    /// Executa a tela e retorna a próxima transição.
++    /// </summary>
++    /// <param name="context">Estado compartilhado da navegação.</param>
++    /// <returns>Próximo estado solicitado.</returns>
++    ScreenTransition show(ScreenContext context);
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/StrategyKind.cs b/src/TicTacToe.Console/Presentation/Navigation/StrategyKind.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/StrategyKind.cs
+@@ -0,0 +1,11 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Identifica as estratégias disponíveis na configuração de uma partida.
++/// </summary>
++public enum StrategyKind
++{
++    Random,
++    Heuristic,
++    Minimax
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs b/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
+@@ -0,0 +1,10 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Contém as opções coletadas para iniciar uma partida.
++/// </summary>
++/// <param name="PlayerName">Nome da pessoa participante.</param>
++/// <param name="OpponentStrategy">Estratégia do participante computacional.</param>
++public sealed record MatchConfiguration(
++    string PlayerName,
++    StrategyKind OpponentStrategy);
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
+@@ -0,0 +1,40 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Mantém dados compartilhados entre telas sem armazenar regras de domínio.
++/// </summary>
++public sealed class ScreenContext
++{
++    /// <summary>
++    /// Obtém a configuração selecionada para a próxima partida.
++    /// </summary>
++    public MatchConfiguration? MatchConfiguration { get; private set; }
++
++    /// <summary>
++    /// Obtém a última partida executada.
++    /// </summary>
++    public Match? LastMatch { get; private set; }
++
++    /// <summary>
++    /// Atualiza a configuração da próxima partida.
++    /// </summary>
++    /// <param name="configuration">Configuração validada pela apresentação.</param>
++    public void set_match_configuration(
++        MatchConfiguration configuration)
++    {
++        ArgumentNullException.ThrowIfNull(configuration);
++        MatchConfiguration = configuration;
++    }
++
++    /// <summary>
++    /// Registra a última partida executada.
++    /// </summary>
++    /// <param name="match">Partida concluída ou em andamento.</param>
++    public void set_last_match(Match match)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++        LastMatch = match;
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenManager.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenManager.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenManager.cs
+@@ -0,0 +1,99 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Centraliza a execução e as transições da máquina de estados de apresentação.
++/// </summary>
++public sealed class ScreenManager
++{
++    private readonly IReadOnlyDictionary<ScreenState, IScreen> screens;
++    private readonly int max_transitions;
++
++    /// <summary>
++    /// Inicializa o gerenciador com as telas disponíveis.
++    /// </summary>
++    /// <param name="screens">Telas indexadas por seus próprios estados.</param>
++    /// <param name="max_transitions">
++    /// Limite de segurança para detectar ciclos indevidos.
++    /// </param>
++    public ScreenManager(
++        IEnumerable<IScreen> screens,
++        int max_transitions = 1000)
++    {
++        ArgumentNullException.ThrowIfNull(screens);
++
++        if (max_transitions <= 0)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(max_transitions),
++                max_transitions,
++                "O limite de transições deve ser maior que zero.");
++        }
++
++        Dictionary<ScreenState, IScreen> screen_map = [];
++
++        foreach (IScreen screen in screens)
++        {
++            ArgumentNullException.ThrowIfNull(screen);
++
++            if (!screen_map.TryAdd(screen.State, screen))
++            {
++                throw new ArgumentException(
++                    $"O estado {screen.State} possui mais de uma tela.",
++                    nameof(screens));
++            }
++        }
++
++        this.screens = screen_map;
++        this.max_transitions = max_transitions;
++    }
++
++    /// <summary>
++    /// Executa a máquina de estados até a tela de saída.
++    /// </summary>
++    /// <param name="initial_state">Estado inicial.</param>
++    /// <param name="context">Contexto compartilhado.</param>
++    /// <returns>Estado final, sempre <see cref="ScreenState.Exit"/>.</returns>
++    public ScreenState run(
++        ScreenState initial_state,
++        ScreenContext context)
++    {
++        ArgumentNullException.ThrowIfNull(context);
++
++        ScreenState current_state = initial_state;
++        int transition_count = 0;
++
++        while (true)
++        {
++            IScreen screen = get_screen(current_state);
++            ScreenTransition transition = screen.show(context);
++
++            if (current_state == ScreenState.Exit)
++            {
++                return ScreenState.Exit;
++            }
++
++            transition_count++;
++
++            if (transition_count > max_transitions)
++            {
++                throw new InvalidOperationException(
++                    "O limite de transições foi excedido. " +
++                    "A navegação pode conter um ciclo indevido.");
++            }
++
++            get_screen(transition.Target);
++            current_state = transition.Target;
++        }
++    }
++
++    private IScreen get_screen(ScreenState state)
++    {
++        if (!screens.TryGetValue(state, out IScreen? screen))
++        {
++            throw new InvalidOperationException(
++                $"Não existe tela registrada para o estado {state}.");
++        }
++
++        return screen;
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/IMatchSessionRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/IMatchSessionRunner.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/IMatchSessionRunner.cs
+@@ -0,0 +1,16 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Define a execução de uma sessão de partida solicitada pela apresentação.
++/// </summary>
++public interface IMatchSessionRunner
++{
++    /// <summary>
++    /// Executa uma partida conforme a configuração selecionada.
++    /// </summary>
++    /// <param name="configuration">Configuração da sessão.</param>
++    /// <returns>Partida resultante.</returns>
++    Match play(MatchConfiguration configuration);
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+@@ -0,0 +1,79 @@
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Compõe e executa uma partida usando os adaptadores textuais existentes.
++/// </summary>
++public sealed class ConsoleMatchSessionRunner : IMatchSessionRunner
++{
++    private readonly IGameInput game_input;
++    private readonly IGameOutput game_output;
++
++    /// <summary>
++    /// Inicializa o executor de sessões.
++    /// </summary>
++    /// <param name="game_input">Entrada utilizada nos turnos humanos.</param>
++    /// <param name="game_output">Saída utilizada durante a partida.</param>
++    public ConsoleMatchSessionRunner(
++        IGameInput game_input,
++        IGameOutput game_output)
++    {
++        ArgumentNullException.ThrowIfNull(game_input);
++        ArgumentNullException.ThrowIfNull(game_output);
++
++        this.game_input = game_input;
++        this.game_output = game_output;
++    }
++
++    /// <inheritdoc />
++    public Match play(MatchConfiguration configuration)
++    {
++        ArgumentNullException.ThrowIfNull(configuration);
++
++        IMoveStrategy strategy =
++            create_strategy(configuration.OpponentStrategy);
++
++        IComputerMoveStrategyResolver strategy_resolver =
++            new ConfiguredComputerMoveStrategyResolver(
++                new Dictionary<Symbol, IMoveStrategy>
++                {
++                    [Symbol.O] = strategy
++                });
++
++        IMoveSelector move_selector = new DefaultMoveSelector(
++            game_input,
++            strategy_resolver);
++
++        MatchController controller = new(
++            move_selector,
++            game_output);
++
++        Match match = new(
++            new HumanPlayer(
++                configuration.PlayerName,
++                Symbol.X),
++            new ComputerPlayer(
++                configuration.OpponentStrategy.ToString(),
++                Symbol.O));
++
++        return controller.run(match);
++    }
++
++    private static IMoveStrategy create_strategy(
++        StrategyKind strategy_kind)
++    {
++        return strategy_kind switch
++        {
++            StrategyKind.Random => new RandomMoveStrategy(),
++            StrategyKind.Heuristic => new HeuristicMoveStrategy(),
++            StrategyKind.Minimax => new MinimaxMoveStrategy(),
++            _ => throw new ArgumentOutOfRangeException(
++                nameof(strategy_kind),
++                strategy_kind,
++                "A estratégia selecionada não é suportada.")
++        };
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+@@ -0,0 +1,34 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta a identificação inicial da aplicação.
++/// </summary>
++public sealed class SplashScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public SplashScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.Splash;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine("Tic-Tac-Toe Console AI");
++        writer.WriteLine("Pressione Enter para continuar.");
++        reader.ReadLine();
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs b/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
+@@ -0,0 +1,61 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta as opções principais de navegação.
++/// </summary>
++public sealed class MainMenuScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public MainMenuScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.MainMenu;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        while (true)
++        {
++            writer.WriteLine();
++            writer.WriteLine("Menu principal");
++            writer.WriteLine("1 - Jogar");
++            writer.WriteLine("2 - Estatísticas");
++            writer.WriteLine("3 - Experimentos");
++            writer.WriteLine("4 - Configurações");
++            writer.WriteLine("5 - Ajuda");
++            writer.WriteLine("0 - Sair");
++            writer.Write("Opção: ");
++
++            string? option = reader.ReadLine();
++
++            ScreenState? target = option?.Trim() switch
++            {
++                "1" => ScreenState.MatchSetup,
++                "2" => ScreenState.Statistics,
++                "3" => ScreenState.ExperimentSetup,
++                "4" => ScreenState.Settings,
++                "5" => ScreenState.Help,
++                "0" => ScreenState.Exit,
++                _ => null
++            };
++
++            if (target.HasValue)
++            {
++                return new ScreenTransition(target.Value);
++            }
++
++            writer.WriteLine("Opção inválida.");
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/MatchSetupScreen.cs b/src/TicTacToe.Console/Presentation/Screens/MatchSetupScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/MatchSetupScreen.cs
+@@ -0,0 +1,74 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Coleta a configuração mínima de uma partida.
++/// </summary>
++public sealed class MatchSetupScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public MatchSetupScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.MatchSetup;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine();
++        writer.Write("Nome da pessoa [Pessoa]: ");
++
++        string? name_input = reader.ReadLine();
++        string player_name = string.IsNullOrWhiteSpace(name_input)
++            ? "Pessoa"
++            : name_input.Trim();
++
++        while (true)
++        {
++            writer.WriteLine("Estratégia adversária:");
++            writer.WriteLine("1 - Aleatória");
++            writer.WriteLine("2 - Heurística");
++            writer.WriteLine("3 - Minimax");
++            writer.WriteLine("0 - Voltar");
++            writer.Write("Opção: ");
++
++            string? option = reader.ReadLine();
++
++            if (option?.Trim() == "0")
++            {
++                return new ScreenTransition(ScreenState.MainMenu);
++            }
++
++            StrategyKind? strategy_kind = option?.Trim() switch
++            {
++                "1" => StrategyKind.Random,
++                "2" => StrategyKind.Heuristic,
++                "3" => StrategyKind.Minimax,
++                _ => null
++            };
++
++            if (!strategy_kind.HasValue)
++            {
++                writer.WriteLine("Estratégia inválida.");
++                continue;
++            }
++
++            context.set_match_configuration(
++                new MatchConfiguration(
++                    player_name,
++                    strategy_kind.Value));
++
++            return new ScreenTransition(ScreenState.Playing);
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/PlayingScreen.cs b/src/TicTacToe.Console/Presentation/Screens/PlayingScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/PlayingScreen.cs
+@@ -0,0 +1,39 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Coordena a execução da partida por meio de um serviço de sessão.
++/// </summary>
++public sealed class PlayingScreen : IScreen
++{
++    private readonly IMatchSessionRunner match_session_runner;
++
++    public PlayingScreen(
++        IMatchSessionRunner match_session_runner)
++    {
++        ArgumentNullException.ThrowIfNull(match_session_runner);
++        this.match_session_runner = match_session_runner;
++    }
++
++    public ScreenState State => ScreenState.Playing;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        MatchConfiguration? configuration =
++            context.MatchConfiguration;
++
++        if (configuration is null)
++        {
++            return new ScreenTransition(ScreenState.MatchSetup);
++        }
++
++        Match match =
++            match_session_runner.play(configuration);
++
++        context.set_last_match(match);
++
++        return new ScreenTransition(ScreenState.MatchResult);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/MatchResultScreen.cs b/src/TicTacToe.Console/Presentation/Screens/MatchResultScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/MatchResultScreen.cs
+@@ -0,0 +1,45 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta um resumo da última partida e retorna ao menu.
++/// </summary>
++public sealed class MatchResultScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public MatchResultScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.MatchResult;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        Match? match = context.LastMatch;
++
++        if (match is null)
++        {
++            return new ScreenTransition(ScreenState.MainMenu);
++        }
++
++        writer.WriteLine();
++        writer.WriteLine($"Partida encerrada: {match.Result}");
++        writer.WriteLine(
++            $"Quantidade de jogadas: {match.Moves.Count}");
++        writer.WriteLine("Pressione Enter para voltar ao menu.");
++        reader.ReadLine();
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/StatisticsScreen.cs b/src/TicTacToe.Console/Presentation/Screens/StatisticsScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/StatisticsScreen.cs
+@@ -0,0 +1,35 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta a área reservada para estatísticas.
++/// </summary>
++public sealed class StatisticsScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public StatisticsScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.Statistics;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine();
++        writer.WriteLine("Estatísticas ainda não disponíveis.");
++        writer.WriteLine("Pressione Enter para voltar ao menu.");
++        reader.ReadLine();
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/ExperimentSetupScreen.cs b/src/TicTacToe.Console/Presentation/Screens/ExperimentSetupScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/ExperimentSetupScreen.cs
+@@ -0,0 +1,35 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta a configuração futura de experimentos.
++/// </summary>
++public sealed class ExperimentSetupScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public ExperimentSetupScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.ExperimentSetup;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine();
++        writer.WriteLine("Modo experimental ainda não disponível.");
++        writer.WriteLine("Pressione Enter para voltar ao menu.");
++        reader.ReadLine();
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+@@ -0,0 +1,35 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta a área reservada para configurações.
++/// </summary>
++public sealed class SettingsScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public SettingsScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.Settings;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine();
++        writer.WriteLine("Configurações persistentes ainda não disponíveis.");
++        writer.WriteLine("Pressione Enter para voltar ao menu.");
++        reader.ReadLine();
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/HelpScreen.cs b/src/TicTacToe.Console/Presentation/Screens/HelpScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/HelpScreen.cs
+@@ -0,0 +1,35 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Apresenta orientações básicas de uso.
++/// </summary>
++public sealed class HelpScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public HelpScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.Help;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine();
++        writer.WriteLine("Informe linha e coluna de 1 a 3 durante uma partida.");
++        writer.WriteLine("Pressione Enter para voltar ao menu.");
++        reader.ReadLine();
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/ExitScreen.cs b/src/TicTacToe.Console/Presentation/Screens/ExitScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/ExitScreen.cs
+@@ -0,0 +1,25 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Finaliza a navegação da aplicação.
++/// </summary>
++public sealed class ExitScreen : IScreen
++{
++    private readonly TextWriter writer;
++
++    public ExitScreen(TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.Exit;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        writer.WriteLine("Aplicação encerrada.");
++        return new ScreenTransition(ScreenState.Exit);
++    }
++}

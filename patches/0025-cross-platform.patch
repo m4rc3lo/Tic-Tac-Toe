@@ -1,0 +1,1032 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,22 @@
+ 
+ ### Added
+ 
++- Detecção separada de plataforma e capacidades do terminal.
++- Modo de compatibilidade para preferências efetivas da sessão.
++- Verificação de `CITATION.cff` no diretório publicado.
++- Testes com detectores de ambiente injetáveis.
++- `docs/14-limitacoes.md` com matriz Windows e Unix-like.
++
++### Changed
++
++- Áudio passou a considerar capacidade real, não apenas plataforma.
++- Pausa e cancelamento deixaram de consultar teclas em entrada redirecionada.
++- Recursos visuais são reduzidos automaticamente em saída redirecionada.
++- Documentação XML de `MatchConfiguration.RandomSeed` foi corrigida.
++
++
++### Added
++
+ - Quarentena de arquivos JSON inválidos antes da recuperação.
+ - Exceções de infraestrutura com identificador diagnóstico seguro.
+ - Recuperação das estatísticas a partir do histórico.
+diff --git a/docs/14-limitacoes.md b/docs/14-limitacoes.md
+new file mode 100644
+--- /dev/null
++++ b/docs/14-limitacoes.md
+@@ -0,0 +1,160 @@
++
++# Compatibilidade e limitações multiplataforma
++
++## 1. Escopo
++
++A aplicação tem como alvos principais Windows e sistemas Unix-like suportados
++pelo .NET 9. O comportamento do terminal não é inferido apenas pelo sistema
++operacional: plataforma e capacidade são detectadas separadamente.
++
++`SystemPlatformDetector` identifica a família do sistema.
++`SystemConsoleCapabilityDetector` observa redirecionamento, codificação,
++variáveis de ambiente e interatividade.
++
++## 2. Modo de compatibilidade
++
++O modo de compatibilidade recebe preferências solicitadas e produz preferências
++efetivas apenas para a sessão atual.
++
++```mermaid
++flowchart LR
++    A[ApplicationSettings] --> B[Preferências solicitadas]
++    C[Plataforma] --> D[Detecção de capacidades]
++    E[Terminal e redirecionamento] --> D
++    B --> F[CompatibilityMode]
++    D --> F
++    F --> G[Preferências efetivas da sessão]
++```
++
++As configurações persistidas não são sobrescritas. Assim, um recurso
++temporariamente indisponível em uma execução redirecionada pode voltar a ser
++usado em um terminal compatível.
++
++## 3. Recursos adaptados
++
++| Recurso | Condição para permanecer ativo |
++|---|---|
++| Unicode | codificação de saída compatível com Unicode |
++| ANSI | saída interativa, terminal não `dumb` e ausência de `NO_COLOR` |
++| limpeza de tela | saída interativa com capacidade terminal |
++| efeitos visuais | saída não redirecionada |
++| atraso | efeitos visuais efetivamente ativos |
++| `Console.Beep` | Windows e saída interativa |
++| terminal bell | Unix-like ou plataforma desconhecida com saída interativa |
++| pausa e cancelamento | entrada interativa |
++
++Quando a saída é redirecionada, artes progressivas, cores, limpeza e áudio são
++desativados. O conteúdo textual essencial continua sendo escrito.
++
++## 4. Plataforma e capacidade
++
++O diagrama separa decisões que não devem ser confundidas.
++
++```mermaid
++flowchart TD
++    A[Detectar plataforma] --> B{Windows?}
++    A --> C{Linux ou macOS?}
++    D[Detectar capacidades] --> E{Saída redirecionada?}
++    D --> F{Entrada redirecionada?}
++    D --> G{UTF e terminal capazes?}
++    B --> H[Beep apenas se capacidade permitir]
++    C --> I[BEL apenas se capacidade permitir]
++    E --> J[Desativar recursos de terminal]
++    F --> K[Desativar pausa e cancelamento por tecla]
++    G --> L[Ativar Unicode e ANSI conforme suporte]
++```
++
++Estar no Windows não garante `Console.Beep`, assim como estar em Unix-like não
++garante que BEL, ANSI ou limpeza de tela produzam efeito observável.
++
++## 5. Redirecionamento e execução não interativa
++
++Com entrada redirecionada, `ConsoleAutomaticModeControl` não consulta
++`Console.KeyAvailable` e não chama `Console.ReadKey`. A demonstração continua
++sem pausa ou cancelamento por tecla.
++
++Com saída redirecionada:
++
++- o texto permanece disponível;
++- Unicode depende da codificação;
++- ANSI é desativado;
++- limpeza é desativada;
++- animações e atrasos são desativados;
++- áudio é silencioso.
++
++## 6. Caminhos e permissões
++
++Caminhos são construídos com `Path.Combine`. Os diretórios configurados devem
++ser relativos, conforme `SettingsValidator`.
++
++Falhas de permissão são convertidas em `InfrastructureOperationException` e
++apresentadas com identificador diagnóstico. JSON inválido é colocado em
++quarentena antes da recuperação.
++
++## 7. UTF-8 e separadores
++
++JSON e CSV são gravados em UTF-8 sem BOM. CSV usa ponto e vírgula,
++independentemente da cultura do sistema.
++
++Separadores de diretório não são concatenados manualmente. Os nomes de arquivos
++persistidos permanecem estáveis entre Windows e Unix-like.
++
++## 8. CITATION.cff e publicação
++
++O projeto copia `CITATION.cff` para o diretório de saída. A validação pode ser
++executada após build ou publish:
++
++```powershell
++Test-Path .\src\TicTacToe.Console\bin\Release\net9.0\CITATION.cff
++```
++
++Em Unix-like:
++
++```bash
++test -f src/TicTacToe.Console/bin/Release/net9.0/CITATION.cff
++```
++
++`RuntimeArtifactVerifier` também permite validar esse requisito em testes.
++
++## 9. Publicação autocontida
++
++A configuração formal de perfis de publicação pertence ao Prompt 26. Nesta
++etapa, a compatibilidade deve ser validada com comandos diretos:
++
++```powershell
++dotnet publish .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    -c Release -r win-x64 --self-contained true `
++    -o .\artifacts\publish\win-x64-self-contained
++```
++
++```bash
++dotnet publish src/TicTacToe.Console/TicTacToe.Console.csproj     -c Release -r linux-x64 --self-contained true     -o artifacts/publish/linux-x64-self-contained
++```
++
++Os diretórios de publicação permanecem ignorados pelo Git.
++
++## 10. Matriz de validação
++
++| Verificação | Windows | Unix-like |
++|---|---|---|
++| build Release | obrigatório | obrigatório |
++| testes | obrigatório | obrigatório |
++| Unicode | terminal UTF | terminal UTF |
++| ANSI | conforme capacidade | conforme capacidade |
++| áudio | beep ou silencioso | BEL ou silencioso |
++| redirecionamento | validar arquivo de saída | validar arquivo de saída |
++| permissões | diretório somente leitura | diretório sem escrita |
++| cancelamento | Esc em terminal interativo | Esc em terminal interativo |
++| publicação autocontida | `win-x64` | `linux-x64` |
++| `CITATION.cff` | presente | presente |
++
++## 11. Limitações conhecidas
++
++- a detecção de ANSI é conservadora e não consulta bancos externos de terminais;
++- `NO_COLOR` desativa cores, mas não Unicode;
++- em entrada redirecionada não há cancelamento por tecla;
++- sinais sonoros podem ser ignorados pelo emulador de terminal;
++- permissões e políticas corporativas podem impedir escrita;
++- publicação autocontida aumenta significativamente o tamanho;
++- validação real em dois sistemas continua necessária, pois testes simulados
++  não substituem execução no ambiente final.
+diff --git a/src/TicTacToe.Console/Audio/AudioServiceSelector.cs b/src/TicTacToe.Console/Audio/AudioServiceSelector.cs
+--- a/src/TicTacToe.Console/Audio/AudioServiceSelector.cs
++++ b/src/TicTacToe.Console/Audio/AudioServiceSelector.cs
+@@ -1,7 +1,10 @@
++
++using TicTacToe.Compatibility;
++
+ namespace TicTacToe.Audio;
+ 
+ /// <summary>
+-/// Seleciona uma implementação de áudio conforme configuração e plataforma.
++/// Seleciona áudio conforme configuração, plataforma e capacidade.
+ /// </summary>
+ public sealed class AudioServiceSelector
+ {
+@@ -10,10 +13,6 @@
+     private readonly Func<IAudioService> terminal_factory;
+     private readonly Func<IAudioService> silent_factory;
+ 
+-    /// <summary>
+-    /// Inicializa o seletor para uso na aplicação.
+-    /// </summary>
+-    /// <param name="terminal_writer">Fluxo usado pelo terminal bell.</param>
+     public AudioServiceSelector(TextWriter terminal_writer)
+         : this(
+             OperatingSystem.IsWindows,
+@@ -24,9 +23,6 @@
+         ArgumentNullException.ThrowIfNull(terminal_writer);
+     }
+ 
+-    /// <summary>
+-    /// Inicializa o seletor com fábricas injetáveis para testes.
+-    /// </summary>
+     public AudioServiceSelector(
+         Func<bool> is_windows,
+         Func<IAudioService> windows_factory,
+@@ -44,11 +40,6 @@
+         this.silent_factory = silent_factory;
+     }
+ 
+-    /// <summary>
+-    /// Seleciona um serviço protegido por fallback silencioso.
+-    /// </summary>
+-    /// <param name="audio_enabled">Indica se o áudio está habilitado.</param>
+-    /// <returns>Serviço apropriado à configuração.</returns>
+     public IAudioService select(bool audio_enabled)
+     {
+         IAudioService silent_service = silent_factory();
+@@ -66,4 +57,39 @@
+             primary_service,
+             silent_service);
+     }
++
++    public IAudioService select(
++        bool audio_enabled,
++        RuntimePlatform platform,
++        ConsoleCapabilities capabilities)
++    {
++        ArgumentNullException.ThrowIfNull(capabilities);
++
++        IAudioService silent_service = silent_factory();
++
++        if (!audio_enabled)
++        {
++            return silent_service;
++        }
++
++        IAudioService? primary_service = platform switch
++        {
++            RuntimePlatform.Windows
++                when capabilities.SupportsConsoleBeep =>
++                    windows_factory(),
++            RuntimePlatform.Linux or RuntimePlatform.MacOS
++                when capabilities.SupportsTerminalBell =>
++                    terminal_factory(),
++            RuntimePlatform.Other
++                when capabilities.SupportsTerminalBell =>
++                    terminal_factory(),
++            _ => null
++        };
++
++        return primary_service is null
++            ? silent_service
++            : new FallbackAudioService(
++                primary_service,
++                silent_service);
++    }
+ }
+diff --git a/src/TicTacToe.Console/Compatibility/CompatibilityMode.cs b/src/TicTacToe.Console/Compatibility/CompatibilityMode.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/CompatibilityMode.cs
+@@ -0,0 +1,42 @@
++
++using TicTacToe.Presentation;
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Adapta preferências efetivas às capacidades do ambiente atual.
++/// </summary>
++public sealed class CompatibilityMode
++{
++    public PresentationPreferences apply(
++        PresentationPreferences requested,
++        ConsoleCapabilities capabilities)
++    {
++        ArgumentNullException.ThrowIfNull(requested);
++        ArgumentNullException.ThrowIfNull(capabilities);
++
++        bool visual_effects =
++            requested.VisualEffects &&
++            !capabilities.IsOutputRedirected;
++
++        return new PresentationPreferences(
++            use_ansi_colors:
++                requested.UseAnsiColors &&
++                capabilities.SupportsAnsi,
++            use_unicode:
++                requested.UseUnicode &&
++                capabilities.SupportsUnicode,
++            clear_screen:
++                requested.ClearScreen &&
++                capabilities.SupportsClearScreen,
++            visual_effects: visual_effects,
++            audio_enabled:
++                requested.AudioEnabled &&
++                (capabilities.SupportsConsoleBeep ||
++                 capabilities.SupportsTerminalBell),
++            animation_delay_milliseconds:
++                visual_effects
++                    ? requested.AnimationDelayMilliseconds
++                    : 0);
++    }
++}
+diff --git a/src/TicTacToe.Console/Compatibility/ConsoleCapabilities.cs b/src/TicTacToe.Console/Compatibility/ConsoleCapabilities.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/ConsoleCapabilities.cs
+@@ -0,0 +1,15 @@
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Descreve capacidades observadas no ambiente Console atual.
++/// </summary>
++public sealed record ConsoleCapabilities(
++    bool IsInputRedirected,
++    bool IsOutputRedirected,
++    bool SupportsInteractiveInput,
++    bool SupportsUnicode,
++    bool SupportsAnsi,
++    bool SupportsClearScreen,
++    bool SupportsConsoleBeep,
++    bool SupportsTerminalBell);
+diff --git a/src/TicTacToe.Console/Compatibility/IConsoleCapabilityDetector.cs b/src/TicTacToe.Console/Compatibility/IConsoleCapabilityDetector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/IConsoleCapabilityDetector.cs
+@@ -0,0 +1,11 @@
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Detecta capacidades reais do terminal e dos fluxos atuais.
++/// </summary>
++public interface IConsoleCapabilityDetector
++{
++    ConsoleCapabilities detect(
++        RuntimePlatform platform);
++}
+diff --git a/src/TicTacToe.Console/Compatibility/IPlatformDetector.cs b/src/TicTacToe.Console/Compatibility/IPlatformDetector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/IPlatformDetector.cs
+@@ -0,0 +1,10 @@
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Detecta somente a plataforma, sem inferir capacidades do terminal.
++/// </summary>
++public interface IPlatformDetector
++{
++    RuntimePlatform detect();
++}
+diff --git a/src/TicTacToe.Console/Compatibility/RuntimeArtifactVerifier.cs b/src/TicTacToe.Console/Compatibility/RuntimeArtifactVerifier.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/RuntimeArtifactVerifier.cs
+@@ -0,0 +1,24 @@
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Verifica arquivos obrigatórios no diretório de execução publicado.
++/// </summary>
++public sealed class RuntimeArtifactVerifier
++{
++    public IReadOnlyList<string> find_missing(
++        string base_directory)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(base_directory);
++
++        List<string> missing = [];
++
++        if (!File.Exists(
++                Path.Combine(base_directory, "CITATION.cff")))
++        {
++            missing.Add("CITATION.cff");
++        }
++
++        return missing.AsReadOnly();
++    }
++}
+diff --git a/src/TicTacToe.Console/Compatibility/RuntimePlatform.cs b/src/TicTacToe.Console/Compatibility/RuntimePlatform.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/RuntimePlatform.cs
+@@ -0,0 +1,13 @@
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Identifica a família de plataforma em execução.
++/// </summary>
++public enum RuntimePlatform
++{
++    Windows,
++    Linux,
++    MacOS,
++    Other
++}
+diff --git a/src/TicTacToe.Console/Compatibility/SystemConsoleCapabilityDetector.cs b/src/TicTacToe.Console/Compatibility/SystemConsoleCapabilityDetector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/SystemConsoleCapabilityDetector.cs
+@@ -0,0 +1,101 @@
++
++using System.Text;
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Detecta capacidades do Console sem presumir suporte pela plataforma.
++/// </summary>
++public sealed class SystemConsoleCapabilityDetector
++    : IConsoleCapabilityDetector
++{
++    private readonly Func<bool> is_input_redirected;
++    private readonly Func<bool> is_output_redirected;
++    private readonly Func<string?> get_term;
++    private readonly Func<string?> get_no_color;
++    private readonly Func<Encoding> get_output_encoding;
++
++    public SystemConsoleCapabilityDetector()
++        : this(
++            () => global::System.Console.IsInputRedirected,
++            () => global::System.Console.IsOutputRedirected,
++            () => Environment.GetEnvironmentVariable("TERM"),
++            () => Environment.GetEnvironmentVariable("NO_COLOR"),
++            () => global::System.Console.OutputEncoding)
++    {
++    }
++
++    public SystemConsoleCapabilityDetector(
++        Func<bool> is_input_redirected,
++        Func<bool> is_output_redirected,
++        Func<string?> get_term,
++        Func<string?> get_no_color,
++        Func<Encoding> get_output_encoding)
++    {
++        ArgumentNullException.ThrowIfNull(is_input_redirected);
++        ArgumentNullException.ThrowIfNull(is_output_redirected);
++        ArgumentNullException.ThrowIfNull(get_term);
++        ArgumentNullException.ThrowIfNull(get_no_color);
++        ArgumentNullException.ThrowIfNull(get_output_encoding);
++
++        this.is_input_redirected = is_input_redirected;
++        this.is_output_redirected = is_output_redirected;
++        this.get_term = get_term;
++        this.get_no_color = get_no_color;
++        this.get_output_encoding = get_output_encoding;
++    }
++
++    public ConsoleCapabilities detect(
++        RuntimePlatform platform)
++    {
++        bool input_redirected = is_input_redirected();
++        bool output_redirected = is_output_redirected();
++        string term = get_term() ?? string.Empty;
++        bool terminal_declares_no_capability =
++            string.Equals(
++                term,
++                "dumb",
++                StringComparison.OrdinalIgnoreCase);
++        bool no_color =
++            !string.IsNullOrWhiteSpace(get_no_color());
++        Encoding encoding = get_output_encoding();
++
++        bool interactive_input = !input_redirected;
++        bool interactive_output =
++            !output_redirected &&
++            !terminal_declares_no_capability;
++        bool unicode =
++            supports_unicode_encoding(encoding);
++        bool ansi =
++            interactive_output &&
++            !no_color &&
++            (platform != RuntimePlatform.Windows ||
++             !string.IsNullOrWhiteSpace(term) ||
++             !output_redirected);
++        bool console_beep =
++            platform == RuntimePlatform.Windows &&
++            interactive_output;
++        bool terminal_bell =
++            platform != RuntimePlatform.Windows &&
++            interactive_output;
++
++        return new ConsoleCapabilities(
++            input_redirected,
++            output_redirected,
++            interactive_input,
++            unicode,
++            ansi,
++            interactive_output,
++            console_beep,
++            terminal_bell);
++    }
++
++    private static bool supports_unicode_encoding(
++        Encoding encoding)
++    {
++        return encoding.CodePage is 65001 or 1200 or 1201
++            || encoding.WebName.Contains(
++                "utf",
++                StringComparison.OrdinalIgnoreCase);
++    }
++}
+diff --git a/src/TicTacToe.Console/Compatibility/SystemPlatformDetector.cs b/src/TicTacToe.Console/Compatibility/SystemPlatformDetector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/SystemPlatformDetector.cs
+@@ -0,0 +1,28 @@
++
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Detecta a plataforma por APIs do runtime .NET.
++/// </summary>
++public sealed class SystemPlatformDetector : IPlatformDetector
++{
++    public RuntimePlatform detect()
++    {
++        if (OperatingSystem.IsWindows())
++        {
++            return RuntimePlatform.Windows;
++        }
++
++        if (OperatingSystem.IsLinux())
++        {
++            return RuntimePlatform.Linux;
++        }
++
++        if (OperatingSystem.IsMacOS())
++        {
++            return RuntimePlatform.MacOS;
++        }
++
++        return RuntimePlatform.Other;
++    }
++}
+diff --git a/src/TicTacToe.Console/ConsoleApplication.cs b/src/TicTacToe.Console/ConsoleApplication.cs
+--- a/src/TicTacToe.Console/ConsoleApplication.cs
++++ b/src/TicTacToe.Console/ConsoleApplication.cs
+@@ -1,5 +1,6 @@
+ using TicTacToe.Application;
+ using TicTacToe.Audio;
++using TicTacToe.Compatibility;
+ using TicTacToe.Persistence;
+ using TicTacToe.Presentation;
+ using TicTacToe.Presentation.Navigation;
+@@ -36,8 +37,16 @@
+                 settings_path,
+                 new SettingsValidator());
+         ApplicationSettings settings = settings_repository.load();
++        RuntimePlatform platform =
++            new SystemPlatformDetector().detect();
++        ConsoleCapabilities capabilities =
++            new SystemConsoleCapabilityDetector().detect(platform);
++        PresentationPreferences requested_preferences =
++            PresentationPreferences.from_settings(settings);
+         PresentationPreferences preferences =
+-            PresentationPreferences.from_settings(settings);
++            new CompatibilityMode().apply(
++                requested_preferences,
++                capabilities);
+         ConsoleTheme theme = new(preferences);
+         AsciiArtCatalog art_catalog = new();
+         IDelayService delay_service = new ThreadDelayService();
+@@ -52,7 +61,9 @@
+             new VisualFeedbackService(board_renderer);
+         IAudioService enabled_audio =
+             new AudioServiceSelector(writer).select(
+-                audio_enabled: true);
++                audio_enabled: true,
++                platform,
++                capabilities);
+         IAudioService audio_service =
+             new PreferenceAwareAudioService(
+                 preferences,
+@@ -95,7 +106,10 @@
+         IAutomaticModeControl mode_control =
+             new ConsoleAutomaticModeControl(
+                 writer,
+-                delay_service);
++                delay_service,
++                () => global::System.Console.KeyAvailable,
++                () => global::System.Console.ReadKey(intercept: true),
++                capabilities.SupportsInteractiveInput);
+         IAutomaticMatchRunner automatic_runner =
+             new AutomaticMatchRunner(
+                 writer,
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleAutomaticModeControl.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleAutomaticModeControl.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ConsoleAutomaticModeControl.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleAutomaticModeControl.cs
+@@ -1,7 +1,8 @@
++
+ namespace TicTacToe.Presentation.Navigation;
+ 
+ /// <summary>
+-/// Implementa pausa e cancelamento por teclado no terminal.
++/// Implementa pausa e cancelamento por teclado no terminal interativo.
+ /// </summary>
+ public sealed class ConsoleAutomaticModeControl
+     : IAutomaticModeControl
+@@ -10,6 +11,7 @@
+     private readonly Func<bool> key_available;
+     private readonly Func<ConsoleKeyInfo> read_key;
+     private readonly IDelayService delay_service;
++    private readonly bool supports_interactive_input;
+ 
+     public ConsoleAutomaticModeControl(
+         TextWriter writer,
+@@ -18,7 +20,9 @@
+             writer,
+             delay_service,
+             () => global::System.Console.KeyAvailable,
+-            () => global::System.Console.ReadKey(intercept: true))
++            () => global::System.Console.ReadKey(intercept: true),
++            supports_interactive_input:
++                !global::System.Console.IsInputRedirected)
+     {
+     }
+ 
+@@ -26,7 +30,8 @@
+         TextWriter writer,
+         IDelayService delay_service,
+         Func<bool> key_available,
+-        Func<ConsoleKeyInfo> read_key)
++        Func<ConsoleKeyInfo> read_key,
++        bool supports_interactive_input = true)
+     {
+         ArgumentNullException.ThrowIfNull(writer);
+         ArgumentNullException.ThrowIfNull(delay_service);
+@@ -37,11 +42,33 @@
+         this.delay_service = delay_service;
+         this.key_available = key_available;
+         this.read_key = read_key;
++        this.supports_interactive_input =
++            supports_interactive_input;
+     }
+ 
+     public AutomaticControlDecision wait_for_turn()
+     {
+-        if (!key_available())
++        if (!supports_interactive_input)
++        {
++            return AutomaticControlDecision.Continue;
++        }
++
++        bool has_key;
++
++        try
++        {
++            has_key = key_available();
++        }
++        catch (InvalidOperationException)
++        {
++            return AutomaticControlDecision.Continue;
++        }
++        catch (IOException)
++        {
++            return AutomaticControlDecision.Continue;
++        }
++
++        if (!has_key)
+         {
+             return AutomaticControlDecision.Continue;
+         }
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs b/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/MatchConfiguration.cs
+@@ -5,6 +5,7 @@
+ /// </summary>
+ /// <param name="PlayerName">Nome da pessoa participante.</param>
+ /// <param name="OpponentStrategy">Estratégia do participante computacional.</param>
++/// <param name="RandomSeed">Semente pseudoaleatória opcional.</param>
+ public sealed record MatchConfiguration(
+     string PlayerName,
+     StrategyKind OpponentStrategy,
+diff --git a/tests/TicTacToe.Tests/Audio/AudioServiceSelectorTests.cs b/tests/TicTacToe.Tests/Audio/AudioServiceSelectorTests.cs
+--- a/tests/TicTacToe.Tests/Audio/AudioServiceSelectorTests.cs
++++ b/tests/TicTacToe.Tests/Audio/AudioServiceSelectorTests.cs
+@@ -1,4 +1,5 @@
+ using TicTacToe.Audio;
++using TicTacToe.Compatibility;
+ using Xunit;
+ 
+ namespace TicTacToe.Tests.Audio;
+@@ -62,6 +63,65 @@
+         Assert.Equal([AudioCue.Move], terminal.Cues);
+     }
+ 
++
++    [Fact]
++    public void select_should_use_silent_service_when_platform_lacks_audio_capability()
++    {
++        RecordingAudioService windows = new();
++        RecordingAudioService terminal = new();
++        SilentAudioService silent = new();
++        AudioServiceSelector selector = new(
++            () => true,
++            () => windows,
++            () => terminal,
++            () => silent);
++        ConsoleCapabilities capabilities = new(
++            false,
++            true,
++            true,
++            true,
++            false,
++            false,
++            false,
++            false);
++
++        IAudioService selected = selector.select(
++            audio_enabled: true,
++            RuntimePlatform.Windows,
++            capabilities);
++
++        Assert.Same(silent, selected);
++    }
++
++    [Fact]
++    public void select_should_use_terminal_bell_by_capability_on_other_platform()
++    {
++        RecordingAudioService terminal = new();
++        AudioServiceSelector selector = new(
++            () => false,
++            () => new RecordingAudioService(),
++            () => terminal,
++            () => new SilentAudioService());
++        ConsoleCapabilities capabilities = new(
++            false,
++            false,
++            true,
++            true,
++            true,
++            true,
++            false,
++            true);
++
++        IAudioService selected = selector.select(
++            audio_enabled: true,
++            RuntimePlatform.Other,
++            capabilities);
++
++        selected.play(AudioCue.Move);
++
++        Assert.Equal([AudioCue.Move], terminal.Cues);
++    }
++
+     private sealed class RecordingAudioService : IAudioService
+     {
+         public List<AudioCue> Cues { get; } = [];
+diff --git a/tests/TicTacToe.Tests/Compatibility/CompatibilityModeTests.cs b/tests/TicTacToe.Tests/Compatibility/CompatibilityModeTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Compatibility/CompatibilityModeTests.cs
+@@ -0,0 +1,75 @@
++
++using TicTacToe.Compatibility;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Compatibility;
++
++public class CompatibilityModeTests
++{
++    [Fact]
++    public void apply_should_disable_terminal_features_when_output_is_redirected()
++    {
++        PresentationPreferences requested = new(
++            use_ansi_colors: true,
++            use_unicode: true,
++            clear_screen: true,
++            visual_effects: true,
++            audio_enabled: true,
++            animation_delay_milliseconds: 40);
++        ConsoleCapabilities capabilities = new(
++            IsInputRedirected: false,
++            IsOutputRedirected: true,
++            SupportsInteractiveInput: true,
++            SupportsUnicode: true,
++            SupportsAnsi: false,
++            SupportsClearScreen: false,
++            SupportsConsoleBeep: false,
++            SupportsTerminalBell: false);
++
++        PresentationPreferences effective =
++            new CompatibilityMode().apply(
++                requested,
++                capabilities);
++
++        Assert.False(effective.UseAnsiColors);
++        Assert.True(effective.UseUnicode);
++        Assert.False(effective.ClearScreen);
++        Assert.False(effective.VisualEffects);
++        Assert.False(effective.AudioEnabled);
++        Assert.Equal(0, effective.AnimationDelayMilliseconds);
++    }
++
++    [Fact]
++    public void apply_should_preserve_supported_requested_features()
++    {
++        PresentationPreferences requested = new(
++            use_ansi_colors: true,
++            use_unicode: true,
++            clear_screen: true,
++            visual_effects: true,
++            audio_enabled: true,
++            animation_delay_milliseconds: 25);
++        ConsoleCapabilities capabilities = new(
++            false,
++            false,
++            true,
++            true,
++            true,
++            true,
++            true,
++            false);
++
++        PresentationPreferences effective =
++            new CompatibilityMode().apply(
++                requested,
++                capabilities);
++
++        Assert.True(effective.UseAnsiColors);
++        Assert.True(effective.UseUnicode);
++        Assert.True(effective.ClearScreen);
++        Assert.True(effective.VisualEffects);
++        Assert.True(effective.AudioEnabled);
++        Assert.Equal(25, effective.AnimationDelayMilliseconds);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Compatibility/RuntimeArtifactVerifierTests.cs b/tests/TicTacToe.Tests/Compatibility/RuntimeArtifactVerifierTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Compatibility/RuntimeArtifactVerifierTests.cs
+@@ -0,0 +1,47 @@
++
++using TicTacToe.Compatibility;
++using Xunit;
++
++namespace TicTacToe.Tests.Compatibility;
++
++public sealed class RuntimeArtifactVerifierTests : IDisposable
++{
++    private readonly string directory = Path.Combine(
++        Path.GetTempPath(),
++        $"tictactoe-artifacts-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void find_missing_should_require_citation_file()
++    {
++        Directory.CreateDirectory(directory);
++
++        IReadOnlyList<string> missing =
++            new RuntimeArtifactVerifier()
++                .find_missing(directory);
++
++        Assert.Equal(["CITATION.cff"], missing);
++    }
++
++    [Fact]
++    public void find_missing_should_accept_citation_file()
++    {
++        Directory.CreateDirectory(directory);
++        File.WriteAllText(
++            Path.Combine(directory, "CITATION.cff"),
++            "cff-version: 1.2.0");
++
++        IReadOnlyList<string> missing =
++            new RuntimeArtifactVerifier()
++                .find_missing(directory);
++
++        Assert.Empty(missing);
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(directory, recursive: true);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Compatibility/SystemConsoleCapabilityDetectorTests.cs b/tests/TicTacToe.Tests/Compatibility/SystemConsoleCapabilityDetectorTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Compatibility/SystemConsoleCapabilityDetectorTests.cs
+@@ -0,0 +1,66 @@
++
++using System.Text;
++using TicTacToe.Compatibility;
++using Xunit;
++
++namespace TicTacToe.Tests.Compatibility;
++
++public class SystemConsoleCapabilityDetectorTests
++{
++    [Fact]
++    public void detect_should_separate_platform_from_terminal_capabilities()
++    {
++        SystemConsoleCapabilityDetector detector = new(
++            () => false,
++            () => false,
++            () => "xterm-256color",
++            () => null,
++            () => new UTF8Encoding(false));
++
++        ConsoleCapabilities capabilities =
++            detector.detect(RuntimePlatform.Linux);
++
++        Assert.True(capabilities.SupportsInteractiveInput);
++        Assert.True(capabilities.SupportsUnicode);
++        Assert.True(capabilities.SupportsAnsi);
++        Assert.True(capabilities.SupportsTerminalBell);
++        Assert.False(capabilities.SupportsConsoleBeep);
++    }
++
++    [Fact]
++    public void detect_should_disable_terminal_features_for_dumb_terminal()
++    {
++        SystemConsoleCapabilityDetector detector = new(
++            () => true,
++            () => false,
++            () => "dumb",
++            () => null,
++            () => Encoding.ASCII);
++
++        ConsoleCapabilities capabilities =
++            detector.detect(RuntimePlatform.Windows);
++
++        Assert.False(capabilities.SupportsInteractiveInput);
++        Assert.False(capabilities.SupportsUnicode);
++        Assert.False(capabilities.SupportsAnsi);
++        Assert.False(capabilities.SupportsClearScreen);
++        Assert.False(capabilities.SupportsConsoleBeep);
++    }
++
++    [Fact]
++    public void detect_should_honor_no_color()
++    {
++        SystemConsoleCapabilityDetector detector = new(
++            () => false,
++            () => false,
++            () => "xterm",
++            () => "1",
++            () => new UTF8Encoding(false));
++
++        ConsoleCapabilities capabilities =
++            detector.detect(RuntimePlatform.Linux);
++
++        Assert.False(capabilities.SupportsAnsi);
++        Assert.True(capabilities.SupportsUnicode);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/ConsoleAutomaticModeControlTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/ConsoleAutomaticModeControlTests.cs
+--- a/tests/TicTacToe.Tests/Presentation/Navigation/ConsoleAutomaticModeControlTests.cs
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/ConsoleAutomaticModeControlTests.cs
+@@ -51,6 +51,48 @@
+             decision);
+     }
+ 
++
++    [Fact]
++    public void wait_for_turn_should_not_read_keys_when_input_is_not_interactive()
++    {
++        bool key_available_called = false;
++        ConsoleAutomaticModeControl control = new(
++            new StringWriter(),
++            new ImmediateDelayService(),
++            () =>
++            {
++                key_available_called = true;
++                return true;
++            },
++            () => throw new InvalidOperationException(),
++            supports_interactive_input: false);
++
++        AutomaticControlDecision decision =
++            control.wait_for_turn();
++
++        Assert.Equal(
++            AutomaticControlDecision.Continue,
++            decision);
++        Assert.False(key_available_called);
++    }
++
++    [Fact]
++    public void wait_for_turn_should_fallback_when_key_query_is_unavailable()
++    {
++        ConsoleAutomaticModeControl control = new(
++            new StringWriter(),
++            new ImmediateDelayService(),
++            () => throw new InvalidOperationException(),
++            () => throw new InvalidOperationException());
++
++        AutomaticControlDecision decision =
++            control.wait_for_turn();
++
++        Assert.Equal(
++            AutomaticControlDecision.Continue,
++            decision);
++    }
++
+     private static ConsoleKeyInfo create_key(
+         ConsoleKey key,
+         char character)

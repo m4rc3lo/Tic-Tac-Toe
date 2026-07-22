@@ -1,0 +1,560 @@
+diff --git a/LICENSE b/LICENSE
+--- a/LICENSE
++++ b/LICENSE
+@@ -1,21 +1,201 @@
+-MIT License
+-
+-Copyright (c) 2020 Marcelo Dornbusch Lopes
+-
+-Permission is hereby granted, free of charge, to any person obtaining a copy
+-of this software and associated documentation files (the "Software"), to deal
+-in the Software without restriction, including without limitation the rights
+-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-copies of the Software, and to permit persons to whom the Software is
+-furnished to do so, subject to the following conditions:
+-
+-The above copyright notice and this permission notice shall be included in all
+-copies or substantial portions of the Software.
+-
+-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+-SOFTWARE.
++                                 Apache License
++                           Version 2.0, January 2004
++                        http://www.apache.org/licenses/
++
++   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
++
++   1. Definitions.
++
++      "License" shall mean the terms and conditions for use, reproduction,
++      and distribution as defined by Sections 1 through 9 of this document.
++
++      "Licensor" shall mean the copyright owner or entity authorized by
++      the copyright owner that is granting the License.
++
++      "Legal Entity" shall mean the union of the acting entity and all
++      other entities that control, are controlled by, or are under common
++      control with that entity. For the purposes of this definition,
++      "control" means (i) the power, direct or indirect, to cause the
++      direction or management of such entity, whether by contract or
++      otherwise, or (ii) ownership of fifty percent (50%) or more of the
++      outstanding shares, or (iii) beneficial ownership of such entity.
++
++      "You" (or "Your") shall mean an individual or Legal Entity
++      exercising permissions granted by this License.
++
++      "Source" form shall mean the preferred form for making modifications,
++      including but not limited to software source code, documentation
++      source, and configuration files.
++
++      "Object" form shall mean any form resulting from mechanical
++      transformation or translation of a Source form, including but
++      not limited to compiled object code, generated documentation,
++      and conversions to other media types.
++
++      "Work" shall mean the work of authorship, whether in Source or
++      Object form, made available under the License, as indicated by a
++      copyright notice that is included in or attached to the work
++      (an example is provided in the Appendix below).
++
++      "Derivative Works" shall mean any work, whether in Source or Object
++      form, that is based on (or derived from) the Work and for which the
++      editorial revisions, annotations, elaborations, or other modifications
++      represent, as a whole, an original work of authorship. For the purposes
++      of this License, Derivative Works shall not include works that remain
++      separable from, or merely link (or bind by name) to the interfaces of,
++      the Work and Derivative Works thereof.
++
++      "Contribution" shall mean any work of authorship, including
++      the original version of the Work and any modifications or additions
++      to that Work or Derivative Works thereof, that is intentionally
++      submitted to Licensor for inclusion in the Work by the copyright owner
++      or by an individual or Legal Entity authorized to submit on behalf of
++      the copyright owner. For the purposes of this definition, "submitted"
++      means any form of electronic, verbal, or written communication sent
++      to the Licensor or its representatives, including but not limited to
++      communication on electronic mailing lists, source code control systems,
++      and issue tracking systems that are managed by, or on behalf of, the
++      Licensor for the purpose of discussing and improving the Work, but
++      excluding communication that is conspicuously marked or otherwise
++      designated in writing by the copyright owner as "Not a Contribution."
++
++      "Contributor" shall mean Licensor and any individual or Legal Entity
++      on behalf of whom a Contribution has been received by Licensor and
++      subsequently incorporated within the Work.
++
++   2. Grant of Copyright License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      copyright license to reproduce, prepare Derivative Works of,
++      publicly display, publicly perform, sublicense, and distribute the
++      Work and such Derivative Works in Source or Object form.
++
++   3. Grant of Patent License. Subject to the terms and conditions of
++      this License, each Contributor hereby grants to You a perpetual,
++      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
++      (except as stated in this section) patent license to make, have made,
++      use, offer to sell, sell, import, and otherwise transfer the Work,
++      where such license applies only to those patent claims licensable
++      by such Contributor that are necessarily infringed by their
++      Contribution(s) alone or by combination of their Contribution(s)
++      with the Work to which such Contribution(s) was submitted. If You
++      institute patent litigation against any entity (including a
++      cross-claim or counterclaim in a lawsuit) alleging that the Work
++      or a Contribution incorporated within the Work constitutes direct
++      or contributory patent infringement, then any patent licenses
++      granted to You under this License for that Work shall terminate
++      as of the date such litigation is filed.
++
++   4. Redistribution. You may reproduce and distribute copies of the
++      Work or Derivative Works thereof in any medium, with or without
++      modifications, and in Source or Object form, provided that You
++      meet the following conditions:
++
++      (a) You must give any other recipients of the Work or
++          Derivative Works a copy of this License; and
++
++      (b) You must cause any modified files to carry prominent notices
++          stating that You changed the files; and
++
++      (c) You must retain, in the Source form of any Derivative Works
++          that You distribute, all copyright, patent, trademark, and
++          attribution notices from the Source form of the Work,
++          excluding those notices that do not pertain to any part of
++          the Derivative Works; and
++
++      (d) If the Work includes a "NOTICE" text file as part of its
++          distribution, then any Derivative Works that You distribute must
++          include a readable copy of the attribution notices contained
++          within such NOTICE file, excluding those notices that do not
++          pertain to any part of the Derivative Works, in at least one
++          of the following places: within a NOTICE text file distributed
++          as part of the Derivative Works; within the Source form or
++          documentation, if provided along with the Derivative Works; or,
++          within a display generated by the Derivative Works, if and
++          wherever such third-party notices normally appear. The contents
++          of the NOTICE file are for informational purposes only and
++          do not modify the License. You may add Your own attribution
++          notices within Derivative Works that You distribute, alongside
++          or as an addendum to the NOTICE text from the Work, provided
++          that such additional attribution notices cannot be construed
++          as modifying the License.
++
++      You may add Your own copyright statement to Your modifications and
++      may provide additional or different license terms and conditions
++      for use, reproduction, or distribution of Your modifications, or
++      for any such Derivative Works as a whole, provided Your use,
++      reproduction, and distribution of the Work otherwise complies with
++      the conditions stated in this License.
++
++   5. Submission of Contributions. Unless You explicitly state otherwise,
++      any Contribution intentionally submitted for inclusion in the Work
++      by You to the Licensor shall be under the terms and conditions of
++      this License, without any additional terms or conditions.
++      Notwithstanding the above, nothing herein shall supersede or modify
++      the terms of any separate license agreement you may have executed
++      with Licensor regarding such Contributions.
++
++   6. Trademarks. This License does not grant permission to use the trade
++      names, trademarks, service marks, or product names of the Licensor,
++      except as required for reasonable and customary use in describing the
++      origin of the Work and reproducing the content of the NOTICE file.
++
++   7. Disclaimer of Warranty. Unless required by applicable law or
++      agreed to in writing, Licensor provides the Work (and each
++      Contributor provides its Contributions) on an "AS IS" BASIS,
++      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
++      implied, including, without limitation, any warranties or conditions
++      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
++      PARTICULAR PURPOSE. You are solely responsible for determining the
++      appropriateness of using or redistributing the Work and assume any
++      risks associated with Your exercise of permissions under this License.
++
++   8. Limitation of Liability. In no event and under no legal theory,
++      whether in tort (including negligence), contract, or otherwise,
++      unless required by applicable law (such as deliberate and grossly
++      negligent acts) or agreed to in writing, shall any Contributor be
++      liable to You for damages, including any direct, indirect, special,
++      incidental, or consequential damages of any character arising as a
++      result of this License or out of the use or inability to use the
++      Work (including but not limited to damages for loss of goodwill,
++      work stoppage, computer failure or malfunction, or any and all
++      other commercial damages or losses), even if such Contributor
++      has been advised of the possibility of such damages.
++
++   9. Accepting Warranty or Additional Liability. While redistributing
++      the Work or Derivative Works thereof, You may choose to offer,
++      and charge a fee for, acceptance of support, warranty, indemnity,
++      or other liability obligations and/or rights consistent with this
++      License. However, in accepting such obligations, You may act only
++      on Your own behalf and on Your sole responsibility, not on behalf
++      of any other Contributor, and only if You agree to indemnify,
++      defend, and hold each Contributor harmless for any liability
++      incurred by, or claims asserted against, such Contributor by reason
++      of your accepting any such warranty or additional liability.
++
++   END OF TERMS AND CONDITIONS
++
++   APPENDIX: How to apply the Apache License to your work.
++
++      To apply the Apache License to your work, attach the following
++      boilerplate notice, with the fields enclosed by brackets "[]"
++      replaced with your own identifying information. (Don't include
++      the brackets!)  The text should be enclosed in the appropriate
++      comment syntax for the file format. We also recommend that a
++      file or class name and description of purpose be included on the
++      same "printed page" as the copyright notice for easier
++      identification within third-party archives.
++
++   Copyright [yyyy] [name of copyright owner]
++
++   Licensed under the Apache License, Version 2.0 (the "License");
++   you may not use this file except in compliance with the License.
++   You may obtain a copy of the License at
++
++       http://www.apache.org/licenses/LICENSE-2.0
++
++   Unless required by applicable law or agreed to in writing, software
++   distributed under the License is distributed on an "AS IS" BASIS,
++   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++   See the License for the specific language governing permissions and
++   limitations under the License.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -33,6 +33,19 @@
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- `LICENSE.md` com síntese acessível das condições de licenciamento.
++- `NOTICE` com origem, atribuições e observações sobre o legado.
++- `CITATION.cff` com metadados para citação acadêmica do software.
++- `docs/00-decisoes-e-escopo.md` com convenções, política de idioma, documentação XML, fluxo Git, dependências e versionamento.
++
++### Changed
++
++- Licença da linha de refatoração alterada de MIT para Apache License 2.0.
++- Timeline do projeto consolidada entre `v1.0.0` e `v2.0.0`.
++- Política de dependências definida para privilegiar a biblioteca padrão do .NET.
++
+ ## [1.1.0] - 2026-07-15
+ 
+ ### Added
+diff --git a/LICENSE.md b/LICENSE.md
+new file mode 100644
+--- /dev/null
++++ b/LICENSE.md
+@@ -0,0 +1,27 @@
++# Licenciamento
++
++O **Tic-Tac-Toe Console AI**, a partir da linha de desenvolvimento posterior à versão legada `v1.0.0`, é disponibilizado sob a **Apache License 2.0**.
++
++O texto juridicamente aplicável está no arquivo [`LICENSE`](LICENSE). Este documento oferece apenas uma explicação resumida e não substitui os termos integrais da licença.
++
++## Condições gerais
++
++A Apache License 2.0 permite, entre outras possibilidades:
++
++- usar o software para fins acadêmicos, pessoais ou comerciais;
++- estudar e modificar o código-fonte;
++- redistribuir cópias do código ou de versões modificadas;
++- incorporar o código em outros projetos, observadas as condições da licença.
++
++Ao redistribuir o projeto ou uma obra derivada, é necessário:
++
++- fornecer uma cópia da Apache License 2.0;
++- preservar avisos pertinentes de copyright, patente, marca e atribuição;
++- identificar de modo claro os arquivos modificados;
++- preservar as atribuições aplicáveis registradas no arquivo [`NOTICE`](NOTICE).
++
++A licença não oferece garantia e não transfere direitos sobre marcas além do uso necessário para descrever a origem do software.
++
++## Estado legado
++
++A tag `v1.0.0` preserva o estado histórico do projeto originalmente publicado sob a licença MIT. Os arquivos mantidos em `legacy/` documentam essa origem. O desenvolvimento da refatoração e os novos artefatos, a partir da série `1.x`, adotam a Apache License 2.0, conforme autorizado pelo titular dos direitos autorais.
+diff --git a/NOTICE b/NOTICE
+new file mode 100644
+--- /dev/null
++++ b/NOTICE
+@@ -0,0 +1,23 @@
++Tic-Tac-Toe Console AI
++Copyright 2020-2026 Marcelo Dornbusch Lopes
++
++Este produto inclui uma refatoração e ampliação de uma implementação anterior
++do jogo da velha, criada pelo mesmo autor e preservada na tag v1.0.0.
++
++O estado legado foi originalmente distribuído sob a licença MIT. A partir da
++linha de refatoração posterior à versão v1.0.0, o projeto passa a ser
++licenciado sob a Apache License 2.0.
++
++Os arquivos mantidos no diretório legacy/ possuem finalidade histórica,
++didática e comparativa. Eles não integram a compilação da nova solução.
++
++Até a versão 1.1.0, não foram incorporados recursos artísticos, fontes,
++trechos de código ou bibliotecas de terceiros que exijam atribuições
++adicionais neste arquivo.
++
++O projeto utiliza componentes do ecossistema .NET e, exclusivamente no
++projeto de testes, o framework xUnit. As licenças desses componentes permanecem
++sob responsabilidade de seus respectivos titulares.
++
++Este arquivo NOTICE possui caráter informativo e não modifica os termos da
++Apache License 2.0.
+diff --git a/CITATION.cff b/CITATION.cff
+new file mode 100644
+--- /dev/null
++++ b/CITATION.cff
+@@ -0,0 +1,22 @@
++cff-version: 1.2.0
++message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
++title: "Tic-Tac-Toe Console AI"
++type: software
++version: "1.1.0"
++date-released: "2026-07-15"
++license: Apache-2.0
++repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
++authors:
++  - family-names: "Lopes"
++    given-names: "Marcelo Dornbusch"
++keywords:
++  - tic-tac-toe
++  - artificial-intelligence
++  - console-application
++  - software-architecture
++  - refactoring
++  - dotnet
++abstract: >-
++  Aplicação Console didática em C# e .NET 9 para estudo de refatoração de
++  software legado, arquitetura modular, estratégias de inteligência artificial,
++  persistência, testes automatizados e experimentação reprodutível.
+diff --git a/docs/00-decisoes-e-escopo.md b/docs/00-decisoes-e-escopo.md
+new file mode 100644
+--- /dev/null
++++ b/docs/00-decisoes-e-escopo.md
+@@ -0,0 +1,219 @@
++# Decisões e escopo da refatoração
++
++## 1. Finalidade
++
++Este documento registra as decisões de governança técnica e documental da refatoração do **Tic-Tac-Toe Console AI**. Ele complementa o inventário do projeto legado e deve orientar todas as etapas de desenvolvimento entre `v1.0.0` e `v2.0.0`.
++
++A finalidade didática do projeto exige que decisões arquiteturais, convenções e alterações permaneçam explícitas, justificadas e rastreáveis no repositório.
++
++## 2. Escopo
++
++A refatoração produzirá uma aplicação Console em C# e .NET 9 com:
++
++- arquitetura modular;
++- modo pessoa contra inteligência artificial;
++- estratégias aleatória, heurística e Minimax;
++- modo demonstrativo entre agentes;
++- persistência em JSON;
++- exportação experimental em CSV;
++- interface com ASCII art, cores e animações configuráveis;
++- feedback sonoro com fallback silencioso;
++- testes automatizados;
++- documentação acadêmica e técnica em Markdown.
++
++O aprendizado de máquina, bancos de dados relacionais, serviços externos, contêineres de injeção de dependência e frameworks de interface gráfica permanecem fora do escopo inicial.
++
++## 3. Dependências
++
++A implementação deverá privilegiar os recursos da biblioteca padrão do .NET. Bibliotecas externas somente poderão ser introduzidas quando houver justificativa técnica e didática clara, acompanhada de registro no `CHANGELOG.md`, no `NOTICE` quando aplicável e na documentação arquitetural.
++
++O xUnit permanece restrito ao projeto de testes. A aplicação de produção não deverá depender do framework de testes.
++
++## 4. Convenções de código
++
++As convenções adotadas são:
++
++- classes, interfaces, enumerações, registros e namespaces em inglês;
++- classes, interfaces, enumerações e registros em `CamelCase`;
++- métodos, variáveis, parâmetros e campos em `snake_case`;
++- nomes de arquivos de código em inglês e correspondentes ao tipo principal;
++- uma classe pública principal por arquivo;
++- indentação com quatro espaços;
++- proibição de tabulações nos arquivos novos;
++- codificação UTF-8;
++- finais de linha LF, conforme `.editorconfig`;
++- dependências fornecidas por construtores;
++- ausência de acesso direto ao Console ou ao sistema de arquivos no domínio.
++
++## 5. Política de idioma
++
++| Elemento | Idioma |
++|---|---|
++| Identificadores do código | Inglês |
++| Namespaces e arquivos de código | Inglês |
++| Comentários XML `///` | Português do Brasil |
++| Comentários internos `//` | Português do Brasil |
++| Mensagens da aplicação | Português do Brasil |
++| Documentação Markdown | Português do Brasil |
++| Descrições de commits | Português do Brasil |
++| Nomes de branches | Inglês técnico |
++| Nomes oficiais de tecnologias | Forma oficial |
++
++Os prefixos técnicos de commits, como `feat`, `fix`, `docs`, `test`, `refactor` e `chore`, poderão permanecer em inglês. A descrição posterior deverá ser escrita em português do Brasil.
++
++## 6. Documentação XML
++
++Classes, interfaces, enumerações, registros, propriedades, construtores e métodos relevantes deverão utilizar comentários XML com `///`.
++
++A documentação deverá explicar:
++
++- responsabilidade do elemento;
++- camada arquitetural;
++- parâmetros e valores de retorno;
++- pré-condições e pós-condições;
++- efeitos colaterais;
++- invariantes;
++- exceções intencionais;
++- padrões de projeto envolvidos;
++- limitações relevantes.
++
++Comentários internos não devem repetir o código. Eles devem explicar intenção, motivação, restrição ou decisão não evidente.
++
++```csharp
++/// <summary>
++/// Define o contrato para algoritmos responsáveis pela escolha de uma jogada.
++/// </summary>
++/// <remarks>
++/// O contrato aplica o padrão Strategy e permite substituir o algoritmo sem
++/// modificar o fluxo principal da partida.
++/// </remarks>
++public interface IMoveStrategy
++{
++    /// <summary>
++    /// Seleciona uma jogada válida para o estado atual do tabuleiro.
++    /// </summary>
++    /// <param name="board">Estado atual do tabuleiro.</param>
++    /// <returns>Jogada escolhida pela estratégia.</returns>
++    Move choose_move(Board board);
++}
++```
++
++O exemplo mostra que a documentação descreve a intenção arquitetural e o contrato, sem reproduzir mecanicamente a assinatura.
++
++## 7. Documentação Markdown e Mermaid
++
++Toda documentação técnica será produzida em Markdown e em português do Brasil.
++
++Todo diagrama Mermaid deverá possuir:
++
++1. pelo menos um parágrafo anterior, explicando objetivo, escopo e elementos observados;
++2. o bloco Mermaid;
++3. pelo menos um parágrafo posterior, interpretando relações, decisões, fluxos ou limitações.
++
++Diagramas isolados não serão aceitos como documentação suficiente.
++
++## 8. Fluxo Git
++
++O branch `main` deverá representar sempre um estado funcional, compilável e testado. Cada alteração será desenvolvida em uma branch curta.
++
++O diagrama representa o fluxo mínimo adotado para cada prompt de implementação.
++
++```mermaid
++flowchart LR
++    main[main estável]
++    branch[branch de trabalho]
++    patch[aplicação do patch]
++    validation[compilação e testes]
++    commit[commit]
++    merge[merge sem fast-forward]
++    changelog[registro documental]
++
++    main --> branch
++    branch --> patch
++    patch --> validation
++    validation --> commit
++    commit --> merge
++    merge --> changelog
++    changelog --> main
++```
++
++Cada branch nasce do `main` atualizado. O merge será realizado somente depois da validação e utilizará `--no-ff` para preservar o histórico didático da etapa.
++
++Fluxo de referência:
++
++```bash
++git switch main
++git pull
++git switch -c tipo/nome-da-etapa
++
++git apply --check patches/arquivo.patch
++git apply patches/arquivo.patch
++
++dotnet restore TicTacToe.sln
++dotnet build TicTacToe.sln --configuration Release
++dotnet test TicTacToe.sln --configuration Release
++
++git add .
++git commit -m "tipo(escopo): descrição em português"
++
++git switch main
++git merge --no-ff tipo/nome-da-etapa
++git branch -d tipo/nome-da-etapa
++```
++
++## 9. Versionamento
++
++O projeto utiliza versionamento semântico:
++
++- `MAJOR`: nova geração arquitetural ou alteração incompatível;
++- `MINOR`: etapa funcional relevante e compatível dentro da série;
++- `PATCH`: correção ou melhoria localizada e compatível.
++
++A versão `v1.0.0` preserva o legado. A série `1.x` registra a refatoração incremental. A versão `v2.0.0` indicará a consolidação da nova arquitetura.
++
++O diagrama apresenta os marcos planejados. Versões intermediárias podem ser ajustadas, mas os extremos são fixos.
++
++```mermaid
++timeline
++    title Evolução planejada do Tic-Tac-Toe Console AI
++    v1.0.0 : Estado legado preservado
++    v1.1.0 : Estrutura .NET 9 e governança
++    v1.2.0 : Domínio e regras
++    v1.3.0 : Aplicação e estratégia aleatória
++    v1.4.0 : Estratégia heurística
++    v1.5.0 : Estratégia Minimax
++    v1.6.0 : Apresentação e estados
++    v1.7.0 : Recursos audiovisuais
++    v1.8.0 : Persistência e exportação
++    v1.9.0 : Experimentação e consolidação
++    v2.0.0 : Refatoração completa
++```
++
++O `CHANGELOG.md`, o `CITATION.cff`, a versão da aplicação e as tags Git deverão permanecer coerentes entre si.
++
++## 10. Licenciamento e atribuições
++
++A tag `v1.0.0` preserva o projeto legado originalmente distribuído sob a licença MIT. A linha de refatoração adota a Apache License 2.0.
++
++Os arquivos obrigatórios são:
++
++- `LICENSE`: texto integral da Apache License 2.0;
++- `LICENSE.md`: explicação resumida em português do Brasil;
++- `NOTICE`: origem, atribuições e observações aplicáveis;
++- `CITATION.cff`: metadados para citação acadêmica;
++- `CHANGELOG.md`: histórico de versões e alterações.
++
++Novas dependências ou recursos de terceiros deverão ter licença verificada antes da incorporação.
++
++## 11. Critério de integração
++
++Uma etapa somente poderá ser integrada ao `main` quando:
++
++- o patch for aplicado sem erros;
++- não houver tabulações nos arquivos novos;
++- `dotnet restore` concluir com sucesso;
++- `dotnet build --configuration Release` concluir sem erros;
++- `dotnet test --configuration Release` concluir sem falhas;
++- a documentação afetada estiver atualizada;
++- o `CHANGELOG.md` estiver coerente;
++- não houver binários, dados locais, segredos ou arquivos temporários versionados.

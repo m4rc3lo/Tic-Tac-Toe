@@ -1,0 +1,1114 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,22 @@
+ 
+ ### Added
+ 
++- `IDelayService` com implementações real e imediata.
++- `IAnimationService` e `AnimationService` para texto progressivo, indicador e barra de progresso.
++- `IVisualFeedbackService` e `VisualFeedbackService` para última jogada e sequência vencedora.
++- `AnimatedMoveSelector` para feedback antes de decisões computacionais.
++- Testes de animação e feedback sem espera real.
++- `docs/19-feedback-visual-e-animacoes.md`.
++
++### Changed
++
++- Splash passou a utilizar texto progressivo.
++- Saída de partida passou a destacar última jogada e sequência vencedora.
++- Executor de partidas passou a decorar a seleção de jogadas computacionais.
++
++
++### Added
++
+ - `AsciiArtCatalog` com logotipo e artes de vitória, derrota e empate.
+ - `ConsoleTheme` e `PresentationPreferences` para capacidades visuais configuráveis.
+ - Renderização Unicode e fallback ASCII do tabuleiro.
+diff --git a/docs/18-temas-e-creditos.md b/docs/18-temas-e-creditos.md
+--- a/docs/18-temas-e-creditos.md
++++ b/docs/18-temas-e-creditos.md
+@@ -115,3 +115,12 @@
+ O fallback recomendado é desativar Unicode, cores, limpeza e efeitos visuais.
+ Nesse modo, a aplicação permanece funcional com texto e caracteres ASCII
+ básicos.
++
++## 7. Integração com feedback visual
++
++A partir do Prompt 16, `ConsoleTheme` também é utilizado por
++`AnimationService` e `VisualFeedbackService`. As mesmas preferências controlam
++texto progressivo, indicador de análise, artes e realces do tabuleiro.
++
++Os detalhes temporais e os testes sem espera real estão documentados em
++`docs/19-feedback-visual-e-animacoes.md`.
+diff --git a/docs/19-feedback-visual-e-animacoes.md b/docs/19-feedback-visual-e-animacoes.md
+new file mode 100644
+--- /dev/null
++++ b/docs/19-feedback-visual-e-animacoes.md
+@@ -0,0 +1,125 @@
++# Feedback visual e animações
++
++## 1. Finalidade
++
++Esta etapa adiciona animações e realces exclusivamente à camada de
++apresentação. Nenhum atraso foi introduzido em `Domain`, `AI`,
++`Application.MatchController` ou nas estratégias.
++
++Todas as esperas são abstraídas por `IDelayService`, o que permite substituir
++atrasos reais por execução imediata nos testes.
++
++## 2. Serviços
++
++A arquitetura separa animação temporal de realce do tabuleiro.
++
++```mermaid
++classDiagram
++    class IDelayService {
++        <<interface>>
++        +wait(duration)
++    }
++
++    class ThreadDelayService
++    class ImmediateDelayService
++
++    class IAnimationService {
++        <<interface>>
++        +write_progressive(text, delay, append_line)
++        +show_analysis_indicator(message, frames, delay)
++        +show_progress_bar(current, total, width)
++    }
++
++    class AnimationService
++
++    class IVisualFeedbackService {
++        <<interface>>
++        +show_last_move(board, position)
++        +show_winning_sequence(board, positions)
++    }
++
++    class VisualFeedbackService
++    class ConsoleBoardRenderer
++
++    IDelayService <|.. ThreadDelayService
++    IDelayService <|.. ImmediateDelayService
++    IAnimationService <|.. AnimationService
++    AnimationService --> IDelayService
++    IVisualFeedbackService <|.. VisualFeedbackService
++    VisualFeedbackService --> ConsoleBoardRenderer
++```
++
++`ThreadDelayService` é usado na aplicação interativa.
++`ImmediateDelayService` e implementações simuladas eliminam esperas reais nos
++testes.
++
++## 3. Texto progressivo
++
++`AnimationService.write_progressive` escreve cada caractere e solicita um
++atraso após a escrita. Quando efeitos visuais estão desativados, o texto é
++escrito integralmente sem atraso.
++
++O Splash utiliza esse recurso para apresentar o logotipo sem adicionar lógica
++temporal à tela ou ao domínio.
++
++## 4. Indicador de análise
++
++A análise da IA é apresentada por um decorador de `IMoveSelector`.
++
++```mermaid
++sequenceDiagram
++    participant Controller as MatchController
++    participant Decorator as AnimatedMoveSelector
++    participant Animation as IAnimationService
++    participant Selector as DefaultMoveSelector
++    participant Strategy as IMoveStrategy
++
++    Controller->>Decorator: select_move(match, computer)
++    Decorator->>Animation: show_analysis_indicator(...)
++    Decorator->>Selector: select_move(match, computer)
++    Selector->>Strategy: choose_move(board, symbol)
++    Strategy-->>Selector: posição
++    Selector-->>Decorator: posição
++    Decorator-->>Controller: posição
++```
++
++O controlador continua conhecendo apenas `IMoveSelector`. A animação permanece
++fora da camada de aplicação.
++
++## 5. Realces do tabuleiro
++
++`VisualFeedbackService` reutiliza `ConsoleBoardRenderer` com parâmetros
++opcionais para:
++
++- última jogada;
++- sequência vencedora.
++
++Quando cores ANSI estão habilitadas, os símbolos recebem códigos de cor.
++Quando estão desabilitadas, o tabuleiro continua legível sem sequências de
++escape.
++
++## 6. Barra de progresso
++
++`show_progress_bar` recebe valor atual, total e largura. O preenchimento usa
++`#` e a parte pendente usa `-`, permitindo saída compatível com terminais
++ASCII.
++
++Exemplo:
++
++```text
++[######--] 75%
++```
++
++O recurso será reutilizado pelos modos automático e experimental.
++
++## 7. Testabilidade
++
++Os testes não utilizam `Thread.Sleep`. Eles injetam:
++
++- `ImmediateDelayService`;
++- serviços de atraso que apenas registram chamadas;
++- implementações simuladas de `IAnimationService`;
++- `StringWriter`.
++
++A suíte verifica texto progressivo, quantidade de quadros, indicador da IA,
++barra de progresso e realce da sequência vencedora sem modificar o tabuleiro.
+diff --git a/src/TicTacToe.Console/Presentation/AnimatedMoveSelector.cs b/src/TicTacToe.Console/Presentation/AnimatedMoveSelector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/AnimatedMoveSelector.cs
+@@ -0,0 +1,42 @@
++using TicTacToe.Application;
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Decora a seleção de jogadas com feedback antes de decisões computacionais.
++/// </summary>
++public sealed class AnimatedMoveSelector : IMoveSelector
++{
++    private readonly IMoveSelector inner_selector;
++    private readonly IAnimationService animation_service;
++
++    public AnimatedMoveSelector(
++        IMoveSelector inner_selector,
++        IAnimationService animation_service)
++    {
++        ArgumentNullException.ThrowIfNull(inner_selector);
++        ArgumentNullException.ThrowIfNull(animation_service);
++
++        this.inner_selector = inner_selector;
++        this.animation_service = animation_service;
++    }
++
++    public BoardPosition select_move(
++        Match match,
++        Player player)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++        ArgumentNullException.ThrowIfNull(player);
++
++        if (player is ComputerPlayer)
++        {
++            animation_service.show_analysis_indicator(
++                $"{player.Name} está analisando",
++                frame_count: 4,
++                frame_delay: TimeSpan.FromMilliseconds(80));
++        }
++
++        return inner_selector.select_move(match, player);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/AnimationService.cs b/src/TicTacToe.Console/Presentation/AnimationService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/AnimationService.cs
+@@ -0,0 +1,152 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Implementa animações textuais usando um atraso injetável.
++/// </summary>
++public sealed class AnimationService : IAnimationService
++{
++    private static readonly char[] analysis_frames =
++        ['|', '/', '-', '\\'];
++
++    private readonly TextWriter writer;
++    private readonly IDelayService delay_service;
++    private readonly PresentationPreferences preferences;
++
++    public AnimationService(
++        TextWriter writer,
++        IDelayService delay_service,
++        PresentationPreferences preferences)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        ArgumentNullException.ThrowIfNull(delay_service);
++        ArgumentNullException.ThrowIfNull(preferences);
++
++        this.writer = writer;
++        this.delay_service = delay_service;
++        this.preferences = preferences;
++    }
++
++    public void write_progressive(
++        string text,
++        TimeSpan character_delay,
++        bool append_line = true)
++    {
++        ArgumentNullException.ThrowIfNull(text);
++        validate_duration(character_delay);
++
++        if (!preferences.VisualEffects)
++        {
++            writer.Write(text);
++
++            if (append_line)
++            {
++                writer.WriteLine();
++            }
++
++            return;
++        }
++
++        foreach (char character in text)
++        {
++            writer.Write(character);
++            delay_service.wait(character_delay);
++        }
++
++        if (append_line)
++        {
++            writer.WriteLine();
++        }
++    }
++
++    public void show_analysis_indicator(
++        string message,
++        int frame_count,
++        TimeSpan frame_delay)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(message);
++        validate_duration(frame_delay);
++
++        if (frame_count < 0)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(frame_count),
++                frame_count,
++                "A quantidade de quadros não pode ser negativa.");
++        }
++
++        if (!preferences.VisualEffects || frame_count == 0)
++        {
++            writer.WriteLine(message);
++            return;
++        }
++
++        for (int frame_index = 0;
++             frame_index < frame_count;
++             frame_index++)
++        {
++            char frame =
++                analysis_frames[frame_index % analysis_frames.Length];
++
++            writer.Write($"\r{message} {frame}");
++            delay_service.wait(frame_delay);
++        }
++
++        writer.WriteLine();
++    }
++
++    public void show_progress_bar(
++        int current,
++        int total,
++        int width = 20)
++    {
++        if (total <= 0)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(total),
++                total,
++                "O total deve ser maior que zero.");
++        }
++
++        if (current < 0 || current > total)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(current),
++                current,
++                "O valor atual deve pertencer ao intervalo do progresso.");
++        }
++
++        if (width <= 0)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(width),
++                width,
++                "A largura deve ser maior que zero.");
++        }
++
++        int completed_width =
++            (int)Math.Round(
++                (double)current / total * width,
++                MidpointRounding.AwayFromZero);
++
++        string completed = new('#', completed_width);
++        string pending = new('-', width - completed_width);
++        int percentage =
++            (int)Math.Round(
++                (double)current / total * 100,
++                MidpointRounding.AwayFromZero);
++
++        writer.WriteLine(
++            $"[{completed}{pending}] {percentage}%");
++    }
++
++    private static void validate_duration(TimeSpan duration)
++    {
++        if (duration < TimeSpan.Zero)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(duration),
++                duration,
++                "A duração não pode ser negativa.");
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs b/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
+--- a/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
++++ b/src/TicTacToe.Console/Presentation/ConsoleBoardRenderer.cs
+@@ -33,7 +33,19 @@
+ 
+     public void render(IReadOnlyBoard board)
+     {
++        render(
++            board,
++            last_move: null,
++            Array.Empty<BoardPosition>());
++    }
++
++    public void render(
++        IReadOnlyBoard board,
++        BoardPosition? last_move,
++        IReadOnlyList<BoardPosition> winning_positions)
++    {
+         ArgumentNullException.ThrowIfNull(board);
++        ArgumentNullException.ThrowIfNull(winning_positions);
+ 
+         writer.WriteLine("    1   2   3");
+ 
+@@ -46,7 +58,15 @@
+                  column++)
+             {
+                 BoardPosition position = new(row, column);
+-                writer.Write(format_symbol(board.get_symbol(position)));
++                string symbol = format_symbol(
++                    board.get_symbol(position));
++
++                writer.Write(
++                    apply_highlight(
++                        symbol,
++                        position,
++                        last_move,
++                        winning_positions));
+ 
+                 if (column < BoardPosition.BoardSize - 1)
+                 {
+@@ -65,13 +85,42 @@
+         }
+     }
+ 
+-    private static char format_symbol(Symbol symbol)
++    private string apply_highlight(
++        string symbol,
++        BoardPosition position,
++        BoardPosition? last_move,
++        IReadOnlyList<BoardPosition> winning_positions)
++    {
++        if (!theme.Preferences.VisualEffects)
++        {
++            return symbol;
++        }
++
++        if (winning_positions.Contains(position))
++        {
++            return theme.Preferences.UseAnsiColors
++                ? theme.colorize_success(symbol)
++                : symbol == " " ? " " : $"*{symbol}*";
++        }
++
++        if (last_move.HasValue &&
++            last_move.Value == position)
++        {
++            return theme.Preferences.UseAnsiColors
++                ? theme.colorize_accent(symbol)
++                : symbol == " " ? " " : $"[{symbol}]";
++        }
++
++        return symbol;
++    }
++
++    private static string format_symbol(Symbol symbol)
+     {
+         return symbol switch
+         {
+-            Symbol.X => 'X',
+-            Symbol.O => 'O',
+-            _ => ' '
++            Symbol.X => "X",
++            Symbol.O => "O",
++            _ => " "
+         };
+     }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+--- a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
++++ b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+@@ -9,9 +9,9 @@
+ public sealed class ConsoleGameOutput : IGameOutput
+ {
+     private readonly TextWriter writer;
+-    private readonly ConsoleBoardRenderer board_renderer;
+     private readonly ConsoleTheme theme;
+     private readonly AsciiArtCatalog art_catalog;
++    private readonly IVisualFeedbackService visual_feedback;
+ 
+     public ConsoleGameOutput(
+         TextWriter writer,
+@@ -20,7 +20,8 @@
+             writer,
+             board_renderer,
+             new ConsoleTheme(new PresentationPreferences()),
+-            new AsciiArtCatalog())
++            new AsciiArtCatalog(),
++            new VisualFeedbackService(board_renderer))
+     {
+     }
+ 
+@@ -28,17 +29,19 @@
+         TextWriter writer,
+         ConsoleBoardRenderer board_renderer,
+         ConsoleTheme theme,
+-        AsciiArtCatalog art_catalog)
++        AsciiArtCatalog art_catalog,
++        IVisualFeedbackService visual_feedback)
+     {
+         ArgumentNullException.ThrowIfNull(writer);
+         ArgumentNullException.ThrowIfNull(board_renderer);
+         ArgumentNullException.ThrowIfNull(theme);
+         ArgumentNullException.ThrowIfNull(art_catalog);
++        ArgumentNullException.ThrowIfNull(visual_feedback);
+ 
+         this.writer = writer;
+-        this.board_renderer = board_renderer;
+         this.theme = theme;
+         this.art_catalog = art_catalog;
++        this.visual_feedback = visual_feedback;
+     }
+ 
+     public void show_match(Match match)
+@@ -46,7 +49,15 @@
+         ArgumentNullException.ThrowIfNull(match);
+ 
+         writer.WriteLine();
+-        board_renderer.render(match.Board);
++
++        BoardPosition? last_move =
++            match.Moves.Count == 0
++                ? null
++                : match.Moves[^1].Position;
++
++        visual_feedback.show_last_move(
++            match.Board,
++            last_move);
+ 
+         if (match.State == GameState.InProgress)
+         {
+@@ -77,6 +88,14 @@
+         ArgumentNullException.ThrowIfNull(match);
+ 
+         writer.WriteLine();
++
++        if (match.WinningPositions.Count > 0)
++        {
++            visual_feedback.show_winning_sequence(
++                match.Board,
++                match.WinningPositions);
++            writer.WriteLine();
++        }
+ 
+         switch (match.Result)
+         {
+diff --git a/src/TicTacToe.Console/Presentation/IAnimationService.cs b/src/TicTacToe.Console/Presentation/IAnimationService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/IAnimationService.cs
+@@ -0,0 +1,22 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Define animações textuais independentes do domínio e da aplicação.
++/// </summary>
++public interface IAnimationService
++{
++    void write_progressive(
++        string text,
++        TimeSpan character_delay,
++        bool append_line = true);
++
++    void show_analysis_indicator(
++        string message,
++        int frame_count,
++        TimeSpan frame_delay);
++
++    void show_progress_bar(
++        int current,
++        int total,
++        int width = 20);
++}
+diff --git a/src/TicTacToe.Console/Presentation/IDelayService.cs b/src/TicTacToe.Console/Presentation/IDelayService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/IDelayService.cs
+@@ -0,0 +1,12 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Abstrai a espera usada por animações da camada de apresentação.
++/// </summary>
++public interface IDelayService
++{
++    /// <summary>
++    /// Aguarda o intervalo informado.
++    /// </summary>
++    void wait(TimeSpan duration);
++}
+diff --git a/src/TicTacToe.Console/Presentation/IVisualFeedbackService.cs b/src/TicTacToe.Console/Presentation/IVisualFeedbackService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/IVisualFeedbackService.cs
+@@ -0,0 +1,17 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Define realces visuais para estados relevantes do tabuleiro.
++/// </summary>
++public interface IVisualFeedbackService
++{
++    void show_last_move(
++        IReadOnlyBoard board,
++        BoardPosition? last_move);
++
++    void show_winning_sequence(
++        IReadOnlyBoard board,
++        IReadOnlyList<BoardPosition> winning_positions);
++}
+diff --git a/src/TicTacToe.Console/Presentation/ImmediateDelayService.cs b/src/TicTacToe.Console/Presentation/ImmediateDelayService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/ImmediateDelayService.cs
+@@ -0,0 +1,18 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Ignora atrasos, permitindo testes e execução sem espera real.
++/// </summary>
++public sealed class ImmediateDelayService : IDelayService
++{
++    public void wait(TimeSpan duration)
++    {
++        if (duration < TimeSpan.Zero)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(duration),
++                duration,
++                "A duração não pode ser negativa.");
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+@@ -11,6 +11,7 @@
+ {
+     private readonly IGameInput game_input;
+     private readonly IGameOutput game_output;
++    private readonly IAnimationService animation_service;
+ 
+     /// <summary>
+     /// Inicializa o executor de sessões.
+@@ -20,12 +21,29 @@
+     public ConsoleMatchSessionRunner(
+         IGameInput game_input,
+         IGameOutput game_output)
++        : this(
++            game_input,
++            game_output,
++            new AnimationService(
++                TextWriter.Null,
++                new ImmediateDelayService(),
++                new PresentationPreferences(
++                    visual_effects: false)))
++    {
++    }
++
++    public ConsoleMatchSessionRunner(
++        IGameInput game_input,
++        IGameOutput game_output,
++        IAnimationService animation_service)
+     {
+         ArgumentNullException.ThrowIfNull(game_input);
+         ArgumentNullException.ThrowIfNull(game_output);
++        ArgumentNullException.ThrowIfNull(animation_service);
+ 
+         this.game_input = game_input;
+         this.game_output = game_output;
++        this.animation_service = animation_service;
+     }
+ 
+     /// <inheritdoc />
+@@ -43,9 +61,12 @@
+                     [Symbol.O] = strategy
+                 });
+ 
+-        IMoveSelector move_selector = new DefaultMoveSelector(
+-            game_input,
+-            strategy_resolver);
++        IMoveSelector move_selector =
++            new AnimatedMoveSelector(
++                new DefaultMoveSelector(
++                    game_input,
++                    strategy_resolver),
++                animation_service);
+ 
+         MatchController controller = new(
+             move_selector,
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+@@ -11,22 +11,26 @@
+     private readonly TextWriter writer;
+     private readonly ConsoleTheme theme;
+     private readonly AsciiArtCatalog art_catalog;
++    private readonly IAnimationService animation_service;
+ 
+     public SplashScreen(
+         TextReader reader,
+         TextWriter writer,
+         ConsoleTheme theme,
+-        AsciiArtCatalog art_catalog)
++        AsciiArtCatalog art_catalog,
++        IAnimationService animation_service)
+     {
+         ArgumentNullException.ThrowIfNull(reader);
+         ArgumentNullException.ThrowIfNull(writer);
+         ArgumentNullException.ThrowIfNull(theme);
+         ArgumentNullException.ThrowIfNull(art_catalog);
++        ArgumentNullException.ThrowIfNull(animation_service);
+ 
+         this.reader = reader;
+         this.writer = writer;
+         this.theme = theme;
+         this.art_catalog = art_catalog;
++        this.animation_service = animation_service;
+     }
+ 
+     public ScreenState State => ScreenState.Splash;
+@@ -40,8 +44,9 @@
+             foreach (string line in art_catalog.get_logo(
+                          theme.Preferences.UseUnicode))
+             {
+-                writer.WriteLine(
+-                    theme.colorize_accent(line));
++                animation_service.write_progressive(
++                    theme.colorize_accent(line),
++                    TimeSpan.FromMilliseconds(8));
+             }
+         }
+         else
+diff --git a/src/TicTacToe.Console/Presentation/ThreadDelayService.cs b/src/TicTacToe.Console/Presentation/ThreadDelayService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/ThreadDelayService.cs
+@@ -0,0 +1,23 @@
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Implementa atrasos reais usando a infraestrutura de execução do .NET.
++/// </summary>
++public sealed class ThreadDelayService : IDelayService
++{
++    public void wait(TimeSpan duration)
++    {
++        if (duration < TimeSpan.Zero)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(duration),
++                duration,
++                "A duração não pode ser negativa.");
++        }
++
++        if (duration > TimeSpan.Zero)
++        {
++            Thread.Sleep(duration);
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/VisualFeedbackService.cs b/src/TicTacToe.Console/Presentation/VisualFeedbackService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/VisualFeedbackService.cs
+@@ -0,0 +1,40 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Implementa realces por meio do renderizador de tabuleiro.
++/// </summary>
++public sealed class VisualFeedbackService : IVisualFeedbackService
++{
++    private readonly ConsoleBoardRenderer board_renderer;
++
++    public VisualFeedbackService(
++        ConsoleBoardRenderer board_renderer)
++    {
++        ArgumentNullException.ThrowIfNull(board_renderer);
++        this.board_renderer = board_renderer;
++    }
++
++    public void show_last_move(
++        IReadOnlyBoard board,
++        BoardPosition? last_move)
++    {
++        board_renderer.render(
++            board,
++            last_move,
++            Array.Empty<BoardPosition>());
++    }
++
++    public void show_winning_sequence(
++        IReadOnlyBoard board,
++        IReadOnlyList<BoardPosition> winning_positions)
++    {
++        ArgumentNullException.ThrowIfNull(winning_positions);
++
++        board_renderer.render(
++            board,
++            last_move: null,
++            winning_positions);
++    }
++}
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -17,21 +17,31 @@
+         PresentationPreferences preferences = new();
+         ConsoleTheme theme = new(preferences);
+         AsciiArtCatalog art_catalog = new();
++        IAnimationService animation_service =
++            new AnimationService(
++                writer,
++                new ThreadDelayService(),
++                preferences);
+ 
+         ConsoleBoardRenderer board_renderer = new(
+             writer,
+             theme);
+         ConsoleGameInput game_input = new(reader, writer);
++        IVisualFeedbackService visual_feedback =
++            new VisualFeedbackService(board_renderer);
++
+         ConsoleGameOutput game_output = new(
+             writer,
+             board_renderer,
+             theme,
+-            art_catalog);
++            art_catalog,
++            visual_feedback);
+ 
+         IMatchSessionRunner match_session_runner =
+             new ConsoleMatchSessionRunner(
+                 game_input,
+-                game_output);
++                game_output,
++                animation_service);
+ 
+         CitationMetadata citation_metadata =
+             new CitationMetadataLoader().load(
+@@ -45,7 +55,8 @@
+                 reader,
+                 writer,
+                 theme,
+-                art_catalog),
++                art_catalog,
++                animation_service),
+             new MainMenuScreen(reader, writer),
+             new MatchSetupScreen(reader, writer),
+             new PlayingScreen(match_session_runner),
+diff --git a/tests/TicTacToe.Tests/Presentation/AnimatedMoveSelectorTests.cs b/tests/TicTacToe.Tests/Presentation/AnimatedMoveSelectorTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/AnimatedMoveSelectorTests.cs
+@@ -0,0 +1,92 @@
++using TicTacToe.Application;
++using TicTacToe.Domain;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++public class AnimatedMoveSelectorTests
++{
++    [Fact]
++    public void select_move_should_show_indicator_for_computer()
++    {
++        RecordingAnimationService animation = new();
++        AnimatedMoveSelector selector = new(
++            new FixedMoveSelector(new BoardPosition(1, 1)),
++            animation);
++        Match match = new(
++            new HumanPlayer("Pessoa", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++
++        BoardPosition position =
++            selector.select_move(
++                match,
++                match.SecondPlayer);
++
++        Assert.Equal(new BoardPosition(1, 1), position);
++        Assert.Equal(1, animation.AnalysisCalls);
++    }
++
++    [Fact]
++    public void select_move_should_not_show_indicator_for_human()
++    {
++        RecordingAnimationService animation = new();
++        AnimatedMoveSelector selector = new(
++            new FixedMoveSelector(new BoardPosition(0, 0)),
++            animation);
++        Match match = new(
++            new HumanPlayer("Pessoa", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++
++        selector.select_move(
++            match,
++            match.FirstPlayer);
++
++        Assert.Equal(0, animation.AnalysisCalls);
++    }
++
++    private sealed class FixedMoveSelector : IMoveSelector
++    {
++        private readonly BoardPosition position;
++
++        public FixedMoveSelector(BoardPosition position)
++        {
++            this.position = position;
++        }
++
++        public BoardPosition select_move(
++            Match match,
++            Player player)
++        {
++            return position;
++        }
++    }
++
++    private sealed class RecordingAnimationService
++        : IAnimationService
++    {
++        public int AnalysisCalls { get; private set; }
++
++        public void write_progressive(
++            string text,
++            TimeSpan character_delay,
++            bool append_line = true)
++        {
++        }
++
++        public void show_analysis_indicator(
++            string message,
++            int frame_count,
++            TimeSpan frame_delay)
++        {
++            AnalysisCalls++;
++        }
++
++        public void show_progress_bar(
++            int current,
++            int total,
++            int width = 20)
++        {
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/AnimationServiceTests.cs b/tests/TicTacToe.Tests/Presentation/AnimationServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/AnimationServiceTests.cs
+@@ -0,0 +1,82 @@
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++public class AnimationServiceTests
++{
++    [Fact]
++    public void write_progressive_should_write_text_without_real_wait()
++    {
++        StringWriter writer = new();
++        RecordingDelayService delay = new();
++        AnimationService service = new(
++            writer,
++            delay,
++            new PresentationPreferences(
++                visual_effects: true));
++
++        service.write_progressive(
++            "ABC",
++            TimeSpan.FromMilliseconds(1));
++
++        Assert.Equal(
++            "ABC" + Environment.NewLine,
++            writer.ToString());
++        Assert.Equal(3, delay.Calls.Count);
++    }
++
++    [Fact]
++    public void show_analysis_indicator_should_write_requested_frames()
++    {
++        StringWriter writer = new();
++        RecordingDelayService delay = new();
++        AnimationService service = new(
++            writer,
++            delay,
++            new PresentationPreferences(
++                visual_effects: true));
++
++        service.show_analysis_indicator(
++            "Analisando",
++            frame_count: 4,
++            frame_delay: TimeSpan.FromMilliseconds(1));
++
++        string text = writer.ToString();
++
++        Assert.Contains("Analisando |", text);
++        Assert.Contains("Analisando /", text);
++        Assert.Contains("Analisando -", text);
++        Assert.Contains("Analisando \\", text);
++        Assert.Equal(4, delay.Calls.Count);
++    }
++
++    [Fact]
++    public void show_progress_bar_should_write_exact_progress()
++    {
++        StringWriter writer = new();
++        AnimationService service = new(
++            writer,
++            new ImmediateDelayService(),
++            new PresentationPreferences());
++
++        service.show_progress_bar(
++            current: 3,
++            total: 4,
++            width: 8);
++
++        Assert.Equal(
++            "[######--] 75%" + Environment.NewLine,
++            writer.ToString());
++    }
++
++    private sealed class RecordingDelayService : IDelayService
++    {
++        public List<TimeSpan> Calls { get; } = [];
++
++        public void wait(TimeSpan duration)
++        {
++            Calls.Add(duration);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/VisualFeedbackServiceTests.cs b/tests/TicTacToe.Tests/Presentation/VisualFeedbackServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/VisualFeedbackServiceTests.cs
+@@ -0,0 +1,75 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++public class VisualFeedbackServiceTests
++{
++    [Fact]
++    public void show_winning_sequence_should_render_without_changing_board()
++    {
++        Board board = new();
++        board.apply_move(
++            new Move(
++                new BoardPosition(0, 0),
++                Symbol.X,
++                1));
++        board.apply_move(
++            new Move(
++                new BoardPosition(0, 1),
++                Symbol.X,
++                2));
++        board.apply_move(
++            new Move(
++                new BoardPosition(0, 2),
++                Symbol.X,
++                3));
++
++        StringWriter writer = new();
++        ConsoleBoardRenderer renderer = new(
++            writer,
++            new ConsoleTheme(
++                new PresentationPreferences(
++                    use_ansi_colors: true,
++                    visual_effects: true)));
++        VisualFeedbackService service = new(renderer);
++
++        service.show_winning_sequence(
++            board,
++            [
++                new BoardPosition(0, 0),
++                new BoardPosition(0, 1),
++                new BoardPosition(0, 2)
++            ]);
++
++        Assert.Contains("\u001b[32mX\u001b[0m", writer.ToString());
++        Assert.Equal(3, board.OccupiedCount);
++    }
++    [Fact]
++    public void show_last_move_should_use_ascii_marker_without_colors()
++    {
++        Board board = new();
++        BoardPosition position = new(1, 1);
++        board.apply_move(
++            new Move(
++                position,
++                Symbol.O,
++                1));
++
++        StringWriter writer = new();
++        ConsoleBoardRenderer renderer = new(
++            writer,
++            new ConsoleTheme(
++                new PresentationPreferences(
++                    use_ansi_colors: false,
++                    use_unicode: false,
++                    visual_effects: true)));
++        VisualFeedbackService service = new(renderer);
++
++        service.show_last_move(board, position);
++
++        Assert.Contains("[O]", writer.ToString());
++    }
++
++}

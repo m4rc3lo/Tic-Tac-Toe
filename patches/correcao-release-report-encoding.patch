@@ -1,0 +1,52 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -46,7 +46,9 @@
+ - saída do checklist passou a configurar UTF-8 explicitamente no Windows;
+ - scripts PowerShell passaram a usar UTF-8 com BOM para compatibilidade com
+   Windows PowerShell 5.1;
+-- publicações passaram a executar restore específico para cada RID.
++- publicações passaram a executar restore específico para cada RID;
++- relatório da candidata passou a usar `File.WriteAllText` com UTF-8 sem BOM,
++  compatível com Windows PowerShell 5.1.
+ 
+ ## [1.9.0] - 2026-07-21
+ 
+diff --git a/docs/32-release-v1.9.0.md b/docs/32-release-v1.9.0.md
+--- a/docs/32-release-v1.9.0.md
++++ b/docs/32-release-v1.9.0.md
+@@ -144,6 +144,11 @@
+     -File .\scripts\validate-release-v1.9.0.ps1
+ ```
+ 
++
++O relatório `release-validation.json` é gravado por
++`System.IO.File.WriteAllText` com `UTF8Encoding(false)`. Essa abordagem evita o
++valor `utf8NoBOM`, que não existe em `Set-Content` no Windows PowerShell 5.1.
++
+ Cada perfil de publicação executa seu próprio restore implícito. Isso é
+ necessário porque `project.assets.json` precisa conter o alvo específico do
+ RID, como `net9.0/win-x64` ou `net9.0/linux-x64`.
+diff --git a/scripts/validate-release-v1.9.0.ps1 b/scripts/validate-release-v1.9.0.ps1
+--- a/scripts/validate-release-v1.9.0.ps1
++++ b/scripts/validate-release-v1.9.0.ps1
+@@ -428,11 +428,14 @@
+         ).ToUniversalTime().ToString("O")
+     }
+ 
+-    $report |
+-        ConvertTo-Json -Depth 8 |
+-        Set-Content `
+-            $reportPath `
+-            -Encoding utf8NoBOM
++    $reportJson = $report |
++        ConvertTo-Json -Depth 8
++
++    [IO.File]::WriteAllText(
++        $reportPath,
++        $reportJson,
++        $utf8_no_bom
++    )
+ 
+     Write-Host ""
+     Write-Host "Candidata v1.9.0 validada."

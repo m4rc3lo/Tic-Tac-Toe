@@ -1,0 +1,558 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,15 @@
+ 
+ ### Added
+ 
++- Orquestrador não interativo do experimento de referência.
++- Plano versionado com seis cenários e 600 execuções planejadas.
++- Manifesto de ambiente e hashes SHA-256 dos resultados.
++- Script de validação, agregação e geração de gráfico SVG.
++- `docs/13-resultados.md`.
++
++
++### Added
++
+ - Configuração Cobertura para `coverlet.collector`.
+ - Scripts PowerShell e Bash para execução e resumo de cobertura.
+ - Classificação estrutural dos testes em unitários, integração local e
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -139,6 +139,7 @@
+ | [`docs/10-inteligencia-artificial.md`](docs/10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
+ | [`docs/11-experimentacao.md`](docs/11-experimentacao.md) | Plano formal de experimentação. |
+ | [`docs/12-testes.md`](docs/12-testes.md) | Estratégia, classificação e cobertura dos testes. |
++| [`docs/13-resultados.md`](docs/13-resultados.md) | Protocolo, execução e análise do experimento de referência. |
+ | [`docs/14-limitacoes.md`](docs/14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
+ | [`docs/15-audio.md`](docs/15-audio.md) | Serviços de áudio e fallback. |
+ | [`docs/16-apresentacao-console.md`](docs/16-apresentacao-console.md) | Entrada, saída e renderização Console. |
+diff --git a/docs/13-resultados.md b/docs/13-resultados.md
+new file mode 100644
+--- /dev/null
++++ b/docs/13-resultados.md
+@@ -0,0 +1,126 @@
++# Experimento de referência
++
++## 1. Situação da execução
++
++O protocolo e a automação estão versionados, mas os resultados numéricos não
++foram fabricados neste documento. O ambiente de geração do patch não possui o
++SDK .NET; portanto, tabelas e gráficos observados devem ser atualizados após a
++execução local descrita na Seção 9.
++
++## 2. Protocolo
++
++São executados seis cenários não redundantes: Random × Random, Random ×
++Heuristic, Random × Minimax, Heuristic × Heuristic, Heuristic × Minimax e
++Minimax × Minimax. A alternância de símbolos cobre também as combinações
++ordenadas inversas.
++
++Cada cenário possui 100 execuções. Esse número equilibra variabilidade das
++Strategies pseudoaleatórias, paridade necessária às alternâncias e tamanho
++moderado de 600 observações no total.
++
++A semente base é `20260720`. A execução `n` usa:
++
++```text
++semente = 20260720 + n - 1
++```
++
++Símbolos e primeiro participante alternam nas execuções pares. O histórico
++normal permanece desativado.
++
++## 3. Fluxo executável
++
++O fluxo usa somente `ExperimentController`, sem apresentação, áudio, animação
++ou atraso.
++
++```mermaid
++flowchart LR
++    A[Plano de referência] --> B[6 cenários]
++    B --> C[ExperimentController]
++    C --> D[JSON por cenário]
++    C --> E[CSV por cenário]
++    D --> F[Manifesto e SHA-256]
++    E --> F
++    F --> G[Validação e análise]
++    G --> H[Resumo JSON e gráfico SVG]
++```
++
++A validação ocorre antes da análise: cabeçalho CSV, quantidade de linhas,
++resumo JSON e hashes precisam ser consistentes.
++
++## 4. Ambiente
++
++O arquivo `reference-manifest.json` registra versão da aplicação, commit ou
++tag, sistema operacional, runtime .NET, arquitetura, processador quando
++disponível, início, fim e duração total.
++
++## 5. Tabelas e gráficos
++
++Após a execução, `scripts/analyze-reference-experiment.py` gera:
++
++- `reference-summary.json`;
++- `reference-results.svg`.
++
++Os valores observados devem ser inseridos nesta seção na preparação da release.
++Até essa execução, qualquer valor numérico além do protocolo seria especulativo.
++
++## 6. Métricas
++
++Por partida são registrados Strategy de X e O, semente, resultado, jogadas,
++duração, estados avaliados quando disponíveis, falha, mensagem e versão.
++
++A análise agregada deve apresentar vitórias, derrotas e empates por Strategy,
++efeito de símbolo, efeito da iniciativa, jogadas, duração, estados avaliados e
++falhas.
++
++## 7. Limitações e ameaças à validade
++
++- o jogo da velha possui espaço de estados pequeno;
++- duração depende de hardware, runtime e carga do sistema;
++- a mesma semente é fornecida às duas Strategies;
++- estados avaliados não são comparáveis a Strategies que não oferecem métrica;
++- 100 repetições não constituem uma garantia estatística universal;
++- execução em uma única máquina limita validade externa.
++
++## 8. Política de versionamento dos resultados
++
++Pertencem ao repositório:
++
++- `experiments/reference/reference-plan.json`;
++- documentação;
++- scripts de execução e análise;
++- resumo JSON pequeno e gráfico SVG, depois de validados.
++
++Devem ser anexados à release:
++
++- todos os CSV completos;
++- todos os JSON completos por cenário;
++- `reference-manifest.json` com hashes;
++- pacote compactado dos resultados brutos.
++
++## 9. Reprodução
++
++```powershell
++$commit = git rev-parse HEAD
++
++dotnet run `
++    --project .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    --configuration Release `
++    -- `
++    --reference-experiment `
++    --commit $commit `
++    --output .\artifacts\experiments\reference
++
++python .\scripts\analyze-reference-experiment.py `
++    .\artifacts\experiments\reference
++```
++
++## 10. Identificação dos arquivos
++
++O manifesto contém SHA-256 de cada JSON e CSV. O próprio manifesto deve ter o
++hash calculado durante a preparação da release:
++
++```powershell
++Get-FileHash `
++    .\artifacts\experiments\reference\reference-manifest.json `
++    -Algorithm SHA256
++```
+diff --git a/docs/README.md b/docs/README.md
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -18,6 +18,7 @@
+ | [10-inteligencia-artificial.md](10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
+ | [11-experimentacao.md](11-experimentacao.md) | Plano formal de experimentação. |
+ | [12-testes.md](12-testes.md) | Estratégia, classificação e cobertura dos testes. |
++| [13-resultados.md](13-resultados.md) | Protocolo, execução e análise do experimento de referência. |
+ | [14-limitacoes.md](14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
+ | [15-audio.md](15-audio.md) | Serviços de áudio e fallback. |
+ | [16-apresentacao-console.md](16-apresentacao-console.md) | Entrada, saída e renderização Console. |
+diff --git a/experiments/reference/README.md b/experiments/reference/README.md
+new file mode 100644
+--- /dev/null
++++ b/experiments/reference/README.md
+@@ -0,0 +1,17 @@
++# Experimento de referência
++
++Este diretório versiona somente o protocolo pequeno e reproduzível. Os dados
++brutos completos, o manifesto com hashes e os gráficos gerados devem ser
++anexados à release correspondente.
++
++Execução:
++
++```powershell
++dotnet run --project .\src\TicTacToe.Console --configuration Release -- \
++  --reference-experiment \
++  --commit (git rev-parse HEAD) \
++  --output .\artifacts\experiments\reference
++```
++
++Depois, execute `scripts/analyze-reference-experiment.py` para validar os
++esquemas e gerar resumo, tabelas e gráficos SVG.
+diff --git a/experiments/reference/reference-plan.json b/experiments/reference/reference-plan.json
+new file mode 100644
+--- /dev/null
++++ b/experiments/reference/reference-plan.json
+@@ -0,0 +1,16 @@
++{
++  "repetitionsPerScenario": 100,
++  "baseSeed": 20260720,
++  "seedPolicy": "base_seed + run_number - 1",
++  "alternateSymbols": true,
++  "alternateFirstParticipant": true,
++  "persistMatchesToHistory": false,
++  "scenarios": [
++    "random-random",
++    "random-heuristic",
++    "random-minimax",
++    "heuristic-heuristic",
++    "heuristic-minimax",
++    "minimax-minimax"
++  ]
++}
+diff --git a/scripts/analyze-reference-experiment.py b/scripts/analyze-reference-experiment.py
+new file mode 100755
+--- /dev/null
++++ b/scripts/analyze-reference-experiment.py
+@@ -0,0 +1,40 @@
++#!/usr/bin/env python3
++import csv, hashlib, json, pathlib, statistics, sys
++
++root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "artifacts/experiments/reference")
++manifest_path = root / "reference-manifest.json"
++manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
++required = ["experiment_id","run_number","x_strategy","o_strategy","seed","result","move_count","duration_ms","evaluated_states","failed","failure_message","application_version"]
++rows=[]
++for scenario in manifest["scenarios"]:
++    folder=root/scenario["directory"]
++    csv_path=folder/scenario["csvFile"]
++    json_path=folder/scenario["jsonFile"]
++    assert hashlib.sha256(csv_path.read_bytes()).hexdigest()==scenario["csvSha256"]
++    assert hashlib.sha256(json_path.read_bytes()).hexdigest()==scenario["jsonSha256"]
++    data=json.loads(json_path.read_text(encoding="utf-8"))
++    with csv_path.open(encoding="utf-8", newline="") as f:
++        reader=csv.DictReader(f, delimiter=";")
++        assert reader.fieldnames==required
++        scenario_rows=list(reader)
++    assert len(scenario_rows)==data["summary"]["totalRuns"]
++    for row in scenario_rows: row["scenario_id"]=scenario["scenarioId"]
++    rows.extend(scenario_rows)
++
++summary={"totalRuns":len(rows),"failedRuns":sum(r["failed"]=="true" for r in rows),"results":{}}
++for result in ("XWins","OWins","Draw","Failed"):
++    summary["results"][result]=sum(r["result"]==result for r in rows)
++summary["averageMoves"]=statistics.fmean(int(r["move_count"]) for r in rows if r["failed"]=="false")
++summary["averageDurationMs"]=statistics.fmean(int(r["duration_ms"]) for r in rows if r["failed"]=="false")
++(root/"reference-summary.json").write_text(json.dumps(summary,indent=2),encoding="utf-8")
++
++counts=summary["results"]
++width,height=700,360
++maxv=max(counts.values()) or 1
++bars=[]
++for i,(label,value) in enumerate(counts.items()):
++    x=90+i*145; h=220*value/maxv; y=290-h
++    bars.append(f'<rect x="{x}" y="{y:.1f}" width="80" height="{h:.1f}" fill="#0786b4"/><text x="{x+40}" y="315" text-anchor="middle">{label}</text><text x="{x+40}" y="{y-8:.1f}" text-anchor="middle">{value}</text>')
++svg=f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"><rect width="100%" height="100%" fill="white"/><text x="350" y="30" text-anchor="middle" font-size="20">Resultados do experimento de referência</text><line x1="60" y1="290" x2="660" y2="290" stroke="black"/>{"".join(bars)}</svg>'
++(root/"reference-results.svg").write_text(svg,encoding="utf-8")
++print(json.dumps(summary,indent=2))
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -1,3 +1,5 @@
++using TicTacToe.ReferenceExperiment;
++
+ namespace TicTacToe;
+ 
+ /// <summary>
+@@ -7,6 +9,13 @@
+ {
+     public static void Main(string[] args)
+     {
++        if (ReferenceExperimentCommand.try_run(
++                args,
++                global::System.Console.Out))
++        {
++            return;
++        }
++
+         new ConsoleApplication(
+             global::System.Console.In,
+             global::System.Console.Out).run();
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceEnvironmentRecord.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceEnvironmentRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceEnvironmentRecord.cs
+@@ -0,0 +1,15 @@
++namespace TicTacToe.ReferenceExperiment;
++
++/// <summary>
++/// Registra o ambiente em que o experimento foi executado.
++/// </summary>
++public sealed record ReferenceEnvironmentRecord(
++    string ApplicationVersion,
++    string Commit,
++    string OperatingSystem,
++    string Runtime,
++    string Architecture,
++    string Processor,
++    DateTimeOffset StartedAt,
++    DateTimeOffset FinishedAt,
++    long DurationMilliseconds);
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentCommand.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentCommand.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentCommand.cs
+@@ -0,0 +1,40 @@
++namespace TicTacToe.ReferenceExperiment;
++
++/// <summary>
++/// Interpreta o comando não interativo do experimento de referência.
++/// </summary>
++public static class ReferenceExperimentCommand
++{
++    public static bool try_run(string[] args, TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(args);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        if (!args.Contains("--reference-experiment", StringComparer.OrdinalIgnoreCase))
++        {
++            return false;
++        }
++
++        string output_directory = get_value(args, "--output") ??
++            Path.Combine("artifacts", "experiments", "reference");
++        string commit = get_value(args, "--commit") ?? "unrecorded";
++        ReferenceExperimentPlan plan =
++            ReferenceExperimentPlan.create_default(output_directory);
++        ReferenceExperimentManifest manifest =
++            new ReferenceExperimentRunner().run(plan, commit);
++
++        writer.WriteLine($"Experimento concluído: {manifest.Scenarios.Count} cenários.");
++        writer.WriteLine($"Manifesto: {Path.Combine(output_directory, "reference-manifest.json")}");
++        return true;
++    }
++
++    private static string? get_value(string[] args, string option)
++    {
++        int index = Array.FindIndex(
++            args,
++            item => string.Equals(item, option, StringComparison.OrdinalIgnoreCase));
++        return index >= 0 && index + 1 < args.Length
++            ? args[index + 1]
++            : null;
++    }
++}
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentManifest.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentManifest.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentManifest.cs
+@@ -0,0 +1,20 @@
++namespace TicTacToe.ReferenceExperiment;
++
++/// <summary>
++/// Consolida protocolo, ambiente e artefatos do experimento de referência.
++/// </summary>
++public sealed record ReferenceExperimentManifest(
++    ReferenceExperimentPlan Plan,
++    ReferenceEnvironmentRecord Environment,
++    IReadOnlyList<ReferenceScenarioArtifact> Scenarios);
++
++/// <summary>
++/// Identifica os arquivos e hashes produzidos por um cenário.
++/// </summary>
++public sealed record ReferenceScenarioArtifact(
++    string ScenarioId,
++    string Directory,
++    string JsonFile,
++    string JsonSha256,
++    string CsvFile,
++    string CsvSha256);
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentPlan.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentPlan.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentPlan.cs
+@@ -0,0 +1,45 @@
++using TicTacToe.Application;
++
++namespace TicTacToe.ReferenceExperiment;
++
++/// <summary>
++/// Define o protocolo versionado do experimento de referência.
++/// </summary>
++public sealed record ReferenceExperimentPlan(
++    int RepetitionsPerScenario,
++    int BaseSeed,
++    bool AlternateSymbols,
++    bool AlternateFirstParticipant,
++    string OutputDirectory)
++{
++    public static ReferenceExperimentPlan create_default(string output_directory)
++    {
++        return new ReferenceExperimentPlan(
++            100,
++            20260720,
++            true,
++            true,
++            output_directory);
++    }
++
++    public IReadOnlyList<ReferenceExperimentScenario> get_scenarios()
++    {
++        return Array.AsReadOnly(
++        [
++            new("random-random", ExperimentStrategy.Random, ExperimentStrategy.Random),
++            new("random-heuristic", ExperimentStrategy.Random, ExperimentStrategy.Heuristic),
++            new("random-minimax", ExperimentStrategy.Random, ExperimentStrategy.Minimax),
++            new("heuristic-heuristic", ExperimentStrategy.Heuristic, ExperimentStrategy.Heuristic),
++            new("heuristic-minimax", ExperimentStrategy.Heuristic, ExperimentStrategy.Minimax),
++            new("minimax-minimax", ExperimentStrategy.Minimax, ExperimentStrategy.Minimax)
++        ]);
++    }
++}
++
++/// <summary>
++/// Identifica um cenário não redundante do experimento de referência.
++/// </summary>
++public sealed record ReferenceExperimentScenario(
++    string Id,
++    ExperimentStrategy XStrategy,
++    ExperimentStrategy OStrategy);
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
+@@ -0,0 +1,106 @@
++using System.Diagnostics;
++using System.Reflection;
++using System.Runtime.InteropServices;
++using System.Security.Cryptography;
++using System.Text.Json;
++using TicTacToe.Application;
++using TicTacToe.Persistence;
++using TicTacToe.Persistence.Csv;
++
++namespace TicTacToe.ReferenceExperiment;
++
++/// <summary>
++/// Executa todos os cenários do experimento de referência sem apresentação.
++/// </summary>
++public sealed class ReferenceExperimentRunner
++{
++    public ReferenceExperimentManifest run(
++        ReferenceExperimentPlan plan,
++        string commit)
++    {
++        ArgumentNullException.ThrowIfNull(plan);
++        ArgumentException.ThrowIfNullOrWhiteSpace(commit);
++
++        string version = Assembly.GetExecutingAssembly()
++            .GetName().Version?.ToString() ?? "unknown";
++        DateTimeOffset started_at = DateTimeOffset.UtcNow;
++        Stopwatch stopwatch = Stopwatch.StartNew();
++        List<ReferenceScenarioArtifact> artifacts = [];
++
++        foreach (ReferenceExperimentScenario scenario in plan.get_scenarios())
++        {
++            string scenario_directory = Path.Combine(
++                plan.OutputDirectory,
++                scenario.Id);
++            ExperimentController controller = new(
++                new ExperimentStrategyFactory(),
++                new SequentialSeedSequence(),
++                new StopwatchExperimentTimerFactory(),
++                [
++                    new JsonExperimentResultRepository(),
++                    new CsvExperimentResultRepository(new CsvWriter())
++                ]);
++            controller.run(new ExperimentConfiguration(
++                scenario.XStrategy,
++                scenario.OStrategy,
++                plan.RepetitionsPerScenario,
++                plan.AlternateSymbols,
++                plan.AlternateFirstParticipant,
++                plan.BaseSeed,
++                version,
++                scenario_directory,
++                ContinueOnFailure: true,
++                PersistMatchesToHistory: false));
++
++            string json_path = Path.Combine(
++                scenario_directory,
++                "experiment-result.json");
++            string csv_path = Path.Combine(
++                scenario_directory,
++                "experiment-metrics.csv");
++            artifacts.Add(new ReferenceScenarioArtifact(
++                scenario.Id,
++                Path.GetRelativePath(plan.OutputDirectory, scenario_directory),
++                Path.GetFileName(json_path),
++                calculate_sha256(json_path),
++                Path.GetFileName(csv_path),
++                calculate_sha256(csv_path)));
++        }
++
++        stopwatch.Stop();
++        ReferenceEnvironmentRecord environment = new(
++            version,
++            commit,
++            RuntimeInformation.OSDescription,
++            RuntimeInformation.FrameworkDescription,
++            RuntimeInformation.ProcessArchitecture.ToString(),
++            Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ??
++                Environment.GetEnvironmentVariable("HOSTTYPE") ??
++                "unavailable",
++            started_at,
++            started_at + stopwatch.Elapsed,
++            stopwatch.ElapsedMilliseconds);
++        ReferenceExperimentManifest manifest = new(
++            plan,
++            environment,
++            Array.AsReadOnly(artifacts.ToArray()));
++
++        Directory.CreateDirectory(plan.OutputDirectory);
++        File.WriteAllText(
++            Path.Combine(plan.OutputDirectory, "reference-manifest.json"),
++            JsonSerializer.Serialize(
++                manifest,
++                new JsonSerializerOptions
++                {
++                    PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
++                    WriteIndented = true
++                }));
++        return manifest;
++    }
++
++    private static string calculate_sha256(string path)
++    {
++        using FileStream stream = File.OpenRead(path);
++        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
++    }
++}
+diff --git a/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentPlanTests.cs b/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentPlanTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentPlanTests.cs
+@@ -0,0 +1,19 @@
++using TicTacToe.ReferenceExperiment;
++using Xunit;
++
++namespace TicTacToe.Tests.ReferenceExperiment;
++
++public class ReferenceExperimentPlanTests
++{
++    [Fact]
++    public void default_plan_should_cover_all_strategy_pairs_with_symbol_alternation()
++    {
++        ReferenceExperimentPlan plan = ReferenceExperimentPlan.create_default("out");
++
++        Assert.Equal(100, plan.RepetitionsPerScenario);
++        Assert.True(plan.AlternateSymbols);
++        Assert.True(plan.AlternateFirstParticipant);
++        Assert.Equal(6, plan.get_scenarios().Count);
++        Assert.Equal(600, plan.RepetitionsPerScenario * plan.get_scenarios().Count);
++    }
++}

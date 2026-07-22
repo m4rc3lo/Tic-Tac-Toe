@@ -1,0 +1,1370 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,22 @@
+ 
+ ### Added
+ 
++- Namespace `Composition` com módulos explícitos para configuração, persistência,
++  apresentação e telas.
++- Testes arquiteturais para fronteiras públicas do domínio.
++- Testes de cópia defensiva dos registros persistentes.
++- `docs/29-revisao-arquitetural-final.md`.
++
++### Changed
++
++- `ConsoleApplication` passou a delegar a composição ao
++  `ConsoleApplicationComposer`.
++- Records com coleções passaram a realizar cópias defensivas.
++- Diagramas arquiteturais foram atualizados para o código real.
++
++
++### Added
++
+ - Quatro perfis MSBuild para publicação Windows e Linux.
+ - Arquivos mínimos de distribuição e configuração de exemplo.
+ - Validador e scripts para inspeção e medição dos pacotes.
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -153,6 +153,7 @@
+ | [`docs/26-publicacao.md`](docs/26-publicacao.md) | Perfis e validação de publicação. |
+ | [`docs/27-glossario.md`](docs/27-glossario.md) | Vocabulário geral, técnico e de domínio. |
+ | [`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
++| [`docs/29-revisao-arquitetural-final.md`](docs/29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
+ 
+ Também há um índice dedicado em [`docs/README.md`](docs/README.md).
+ 
+diff --git a/docs/03-arquitetura.md b/docs/03-arquitetura.md
+--- a/docs/03-arquitetura.md
++++ b/docs/03-arquitetura.md
+@@ -508,3 +508,25 @@
+ 
+ Os detalhes e diagramas desta correção estão registrados em
+ `docs/09-correcao-fronteiras-arquiteturais.md`.
++
++
++## Estado consolidado após a revisão final
++
++A composição concreta foi extraída de `ConsoleApplication` para o namespace
++`TicTacToe.Composition`.
++
++```mermaid
++flowchart TD
++    Program --> ConsoleApplication
++    ConsoleApplication --> ConsoleApplicationComposer
++    ConsoleApplicationComposer --> SettingsComposition
++    ConsoleApplicationComposer --> CompatibilityComposition
++    ConsoleApplicationComposer --> PersistenceComposition
++    ConsoleApplicationComposer --> PresentationComposition
++    ConsoleApplicationComposer --> ScreenComposition
++    ConsoleApplicationComposer --> ConsoleApplicationRuntime
++```
++
++`ConsoleApplicationComposer` permanece o composition root único. Os módulos
++auxiliares apenas agrupam construções relacionadas e não atuam como
++localizadores globais de serviço.
+diff --git a/docs/29-revisao-arquitetural-final.md b/docs/29-revisao-arquitetural-final.md
+new file mode 100644
+--- /dev/null
++++ b/docs/29-revisao-arquitetural-final.md
+@@ -0,0 +1,152 @@
++
++# Revisão arquitetural final
++
++## 1. Escopo
++
++Esta revisão confronta a arquitetura documentada com o código consolidado após
++os modos automático e experimental, robustez de fronteiras, compatibilidade e
++publicação.
++
++Foram verificadas direção das dependências, exposição de estado mutável,
++responsabilidades, composição, persistência, métricas e navegação.
++
++## 2. Direção das dependências
++
++A direção esperada permanece centrada no domínio.
++
++```mermaid
++flowchart LR
++    Domain[Domain]
++    AI[AI]
++    Application[Application]
++    Persistence[Persistence]
++    Presentation[Presentation]
++    Audio[Audio]
++    Compatibility[Compatibility]
++    Composition[Composition]
++
++    AI --> Domain
++    Application --> Domain
++    Application --> AI
++    Application --> Persistence
++    Persistence --> Domain
++    Presentation --> Domain
++    Presentation --> Application
++    Presentation --> Persistence
++    Presentation --> Audio
++    Compatibility --> Presentation
++    Composition --> Application
++    Composition --> Persistence
++    Composition --> Presentation
++    Composition --> Audio
++    Composition --> Compatibility
++```
++
++`Domain` não referencia nenhum módulo externo. `Composition` é o único módulo
++autorizado a conhecer todas as implementações concretas necessárias ao
++executável.
++
++## 3. Composition root
++
++`Program.Main` permanece mínimo. `ConsoleApplication` também foi reduzido para
++solicitar uma composição e executar o runtime.
++
++```mermaid
++sequenceDiagram
++    participant Program
++    participant Application as ConsoleApplication
++    participant Composer as ConsoleApplicationComposer
++    participant Modules as Módulos de composição
++    participant Runtime as ConsoleApplicationRuntime
++    participant Screens as ScreenManager
++
++    Program->>Application: run()
++    Application->>Composer: compose()
++    Composer->>Modules: configurações, compatibilidade, persistência e apresentação
++    Modules-->>Composer: componentes concretos
++    Composer-->>Application: runtime
++    Application->>Runtime: run()
++    Runtime->>Screens: run(Splash, context)
++```
++
++A composição continua explícita e sem contêiner externo de injeção de
++dependência.
++
++## 4. Estado mutável
++
++`Match` mantém o `Board` concreto privado e expõe apenas `IReadOnlyBoard`.
++Strategies recebem `IReadOnlyBoard` e criam representações internas para
++simulação.
++
++Registros com coleções agora realizam cópias defensivas:
++
++- `MatchRecord`;
++- `MatchStatisticsRecord`;
++- `ExperimentResult`;
++- `SettingsValidationResult`;
++- `PublishPackageValidationResult`.
++
++Isso impede que uma lista mutável fornecida ao construtor altere o registro
++depois de criado.
++
++## 5. Persistência
++
++Entidades do domínio não conhecem JSON ou CSV. `MatchRecordMapper` converte
++`Match` em registros persistentes fora do domínio.
++
++```mermaid
++flowchart LR
++    A[Match] --> B[MatchRecordMapper]
++    B --> C[MatchRecord]
++    C --> D[Repositório JSON]
++    C --> E[Exportadores CSV]
++    D --> F[Histórico]
++    D --> G[Estatísticas]
++```
++
++O histórico permanece a fonte autoritativa para recuperação de estatísticas.
++
++## 6. Métricas experimentais
++
++`ExperimentController` depende de contratos e não de
++`MinimaxMoveStrategy`. Métricas de busca são obtidas por
++`ISearchMetricsProvider`.
++
++O resultado experimental realiza cópia defensiva das métricas acumuladas antes
++de expô-las.
++
++## 7. Navegação
++
++Telas implementam `IScreen`, recebem dependências no construtor e retornam
++`ScreenTransition`. Elas não instanciam nem chamam outras telas.
++
++`ScreenManager` resolve estados e mantém a transição centralizada. Detectores de
++ciclo são opcionais e usados principalmente em testes.
++
++## 8. Atrasos e recursos externos
++
++Atrasos permanecem na apresentação. Não há `Thread.Sleep`, `Task.Delay` ou
++serviço de áudio em `Domain`, `AI` ou `MatchController`.
++
++Console, arquivos, JSON, CSV, áudio e detecção do ambiente permanecem em
++adaptadores externos.
++
++## 9. Testes arquiteturais
++
++Foram adicionados testes para:
++
++- API pública do domínio sem exposição de módulos externos;
++- `Match.Board` somente como `IReadOnlyBoard`;
++- Strategies recebendo `IReadOnlyBoard`;
++- cópia defensiva dos registros com coleções.
++
++Esses testes complementam os testes funcionais que já verificam preservação do
++tabuleiro original pelas Strategies.
++
++## 10. Conclusão
++
++A arquitetura mantém domínio independente, aplicação coordenadora, adaptadores
++externos separados e composição explícita.
++
++Os principais ajustes desta revisão foram a decomposição do composition root e
++a substituição de imutabilidade superficial por cópias defensivas.
+diff --git a/docs/README.md b/docs/README.md
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -32,6 +32,7 @@
+ | [26-publicacao.md](26-publicacao.md) | Perfis e validação de publicação. |
+ | [27-glossario.md](27-glossario.md) | Vocabulário geral, técnico e de domínio. |
+ | [28-uso-ia-generativa.md](28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
++| [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
+ 
+ A ordem numérica registra a evolução temática, mas alguns números foram
+ reservados ou ocupados por revisões intermediárias.
+diff --git a/src/TicTacToe.Console/Application/ExperimentResult.cs b/src/TicTacToe.Console/Application/ExperimentResult.cs
+--- a/src/TicTacToe.Console/Application/ExperimentResult.cs
++++ b/src/TicTacToe.Console/Application/ExperimentResult.cs
+@@ -1,3 +1,4 @@
++
+ using TicTacToe.Persistence;
+ 
+ namespace TicTacToe.Application;
+@@ -5,8 +6,39 @@
+ /// <summary>
+ /// Contém métricas individuais e agregadas de um experimento.
+ /// </summary>
+-public sealed record ExperimentResult(
+-    Guid ExperimentId,
+-    ExperimentConfiguration Configuration,
+-    IReadOnlyList<ExperimentMetricRecord> Metrics,
+-    ExperimentSummary Summary);
++public sealed record ExperimentResult
++{
++    private IReadOnlyList<ExperimentMetricRecord> metrics =
++        Array.Empty<ExperimentMetricRecord>();
++
++    public ExperimentResult()
++    {
++    }
++
++    public ExperimentResult(
++        Guid experiment_id,
++        ExperimentConfiguration configuration,
++        IEnumerable<ExperimentMetricRecord> metrics,
++        ExperimentSummary summary)
++    {
++        ExperimentId = experiment_id;
++        Configuration = configuration;
++        Metrics = metrics.ToArray();
++        Summary = summary;
++    }
++
++    public Guid ExperimentId { get; init; }
++    public ExperimentConfiguration Configuration { get; init; } = null!;
++
++    public IReadOnlyList<ExperimentMetricRecord> Metrics
++    {
++        get => metrics;
++        init
++        {
++            ArgumentNullException.ThrowIfNull(value);
++            metrics = Array.AsReadOnly(value.ToArray());
++        }
++    }
++
++    public ExperimentSummary Summary { get; init; } = null!;
++}
+diff --git a/src/TicTacToe.Console/Compatibility/PublishPackageValidationResult.cs b/src/TicTacToe.Console/Compatibility/PublishPackageValidationResult.cs
+--- a/src/TicTacToe.Console/Compatibility/PublishPackageValidationResult.cs
++++ b/src/TicTacToe.Console/Compatibility/PublishPackageValidationResult.cs
+@@ -1,12 +1,27 @@
++
+ namespace TicTacToe.Compatibility;
+ 
+ /// <summary>
+ /// Contém o resultado da inspeção de um diretório publicado.
+ /// </summary>
+-public sealed record PublishPackageValidationResult(
+-    IReadOnlyList<string> MissingFiles,
+-    IReadOnlyList<string> ForbiddenEntries)
++public sealed record PublishPackageValidationResult
+ {
++    public PublishPackageValidationResult(
++        IEnumerable<string> missing_files,
++        IEnumerable<string> forbidden_entries)
++    {
++        ArgumentNullException.ThrowIfNull(missing_files);
++        ArgumentNullException.ThrowIfNull(forbidden_entries);
++
++        MissingFiles = Array.AsReadOnly(
++            missing_files.ToArray());
++        ForbiddenEntries = Array.AsReadOnly(
++            forbidden_entries.ToArray());
++    }
++
++    public IReadOnlyList<string> MissingFiles { get; }
++    public IReadOnlyList<string> ForbiddenEntries { get; }
++
+     public bool IsValid =>
+         MissingFiles.Count == 0 &&
+         ForbiddenEntries.Count == 0;
+diff --git a/src/TicTacToe.Console/Composition/CompatibilityComposition.cs b/src/TicTacToe.Console/Composition/CompatibilityComposition.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Composition/CompatibilityComposition.cs
+@@ -0,0 +1,35 @@
++
++using TicTacToe.Compatibility;
++using TicTacToe.Persistence;
++using TicTacToe.Presentation;
++
++namespace TicTacToe.Composition;
++
++internal static class CompatibilityComposition
++{
++    public static CompatibilityComponents create(
++        ApplicationSettings settings)
++    {
++        ArgumentNullException.ThrowIfNull(settings);
++
++        RuntimePlatform platform =
++            new SystemPlatformDetector().detect();
++        ConsoleCapabilities capabilities =
++            new SystemConsoleCapabilityDetector()
++                .detect(platform);
++        PresentationPreferences effective =
++            new CompatibilityMode().apply(
++                PresentationPreferences.from_settings(settings),
++                capabilities);
++
++        return new CompatibilityComponents(
++            platform,
++            capabilities,
++            effective);
++    }
++}
++
++internal sealed record CompatibilityComponents(
++    RuntimePlatform Platform,
++    ConsoleCapabilities Capabilities,
++    PresentationPreferences Preferences);
+diff --git a/src/TicTacToe.Console/Composition/ConsoleApplicationComposer.cs b/src/TicTacToe.Console/Composition/ConsoleApplicationComposer.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Composition/ConsoleApplicationComposer.cs
+@@ -0,0 +1,79 @@
++
++using TicTacToe.Persistence;
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Composition;
++
++/// <summary>
++/// Atua como composition root único da aplicação Console.
++/// </summary>
++public sealed class ConsoleApplicationComposer
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public ConsoleApplicationComposer(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ConsoleApplicationRuntime compose()
++    {
++        SettingsComponents settings =
++            SettingsComposition.create();
++        CompatibilityComponents compatibility =
++            CompatibilityComposition.create(
++                settings.Settings);
++        MatchPersistenceComponents persistence =
++            PersistenceComposition.create(
++                settings.Settings);
++        PresentationComponents presentation =
++            PresentationComposition.create(
++                reader,
++                writer,
++                compatibility.Platform,
++                compatibility.Capabilities,
++                compatibility.Preferences,
++                persistence.PersistenceService);
++
++        recover_statistics(
++            persistence,
++            presentation.FailureReporter);
++
++        IScreen[] screens =
++            ScreenComposition.create(
++                reader,
++                writer,
++                presentation);
++        ScreenContext context = new(
++            compatibility.Preferences,
++            settings.Settings,
++            settings.Repository);
++
++        return new ConsoleApplicationRuntime(
++            new ScreenManager(screens),
++            context);
++    }
++
++    private static void recover_statistics(
++        MatchPersistenceComponents persistence,
++        IExternalFailureReporter failure_reporter)
++    {
++        try
++        {
++            persistence.RecoveryService.recover();
++        }
++        catch (InfrastructureOperationException exception)
++        {
++            failure_reporter.report(
++                "As estatísticas não puderam ser recuperadas.",
++                exception);
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Composition/ConsoleApplicationRuntime.cs b/src/TicTacToe.Console/Composition/ConsoleApplicationRuntime.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Composition/ConsoleApplicationRuntime.cs
+@@ -0,0 +1,31 @@
++
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Composition;
++
++/// <summary>
++/// Contém os componentes necessários para executar a navegação.
++/// </summary>
++public sealed class ConsoleApplicationRuntime
++{
++    private readonly ScreenManager screen_manager;
++    private readonly ScreenContext screen_context;
++
++    public ConsoleApplicationRuntime(
++        ScreenManager screen_manager,
++        ScreenContext screen_context)
++    {
++        ArgumentNullException.ThrowIfNull(screen_manager);
++        ArgumentNullException.ThrowIfNull(screen_context);
++
++        this.screen_manager = screen_manager;
++        this.screen_context = screen_context;
++    }
++
++    public void run()
++    {
++        screen_manager.run(
++            ScreenState.Splash,
++            screen_context);
++    }
++}
+diff --git a/src/TicTacToe.Console/Composition/PersistenceComposition.cs b/src/TicTacToe.Console/Composition/PersistenceComposition.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Composition/PersistenceComposition.cs
+@@ -0,0 +1,39 @@
++
++using TicTacToe.Persistence;
++
++namespace TicTacToe.Composition;
++
++internal static class PersistenceComposition
++{
++    public static MatchPersistenceComponents create(
++        ApplicationSettings settings)
++    {
++        ArgumentNullException.ThrowIfNull(settings);
++
++        string data_directory = Path.Combine(
++            AppContext.BaseDirectory,
++            settings.Directories.Data);
++        IMatchHistoryRepository history_repository =
++            new JsonMatchHistoryRepository(
++                Path.Combine(data_directory, "matches.json"));
++        IMatchStatisticsRepository statistics_repository =
++            new JsonMatchStatisticsRepository(
++                Path.Combine(data_directory, "statistics.json"));
++        MatchStatisticsCalculator calculator = new();
++
++        return new MatchPersistenceComponents(
++            new MatchPersistenceService(
++                history_repository,
++                statistics_repository,
++                new MatchRecordMapper(),
++                calculator),
++            new MatchPersistenceRecoveryService(
++                history_repository,
++                statistics_repository,
++                calculator));
++    }
++}
++
++internal sealed record MatchPersistenceComponents(
++    IMatchPersistenceService PersistenceService,
++    IMatchPersistenceRecoveryService RecoveryService);
+diff --git a/src/TicTacToe.Console/Composition/PresentationComposition.cs b/src/TicTacToe.Console/Composition/PresentationComposition.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Composition/PresentationComposition.cs
+@@ -0,0 +1,97 @@
++
++using TicTacToe.Audio;
++using TicTacToe.Compatibility;
++using TicTacToe.Persistence;
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Composition;
++
++internal static class PresentationComposition
++{
++    public static PresentationComponents create(
++        TextReader reader,
++        TextWriter writer,
++        RuntimePlatform platform,
++        ConsoleCapabilities capabilities,
++        PresentationPreferences preferences,
++        IMatchPersistenceService persistence_service)
++    {
++        ConsoleTheme theme = new(preferences);
++        AsciiArtCatalog art_catalog = new();
++        IDelayService delay_service = new ThreadDelayService();
++        IAnimationService animation_service =
++            new AnimationService(
++                writer,
++                delay_service,
++                preferences);
++        ConsoleBoardRenderer board_renderer =
++            new(writer, theme);
++        ConsoleGameInput game_input =
++            new(reader, writer);
++        IVisualFeedbackService visual_feedback =
++            new VisualFeedbackService(board_renderer);
++        IAudioService enabled_audio =
++            new AudioServiceSelector(writer).select(
++                audio_enabled: true,
++                platform,
++                capabilities);
++        IAudioService audio_service =
++            new PreferenceAwareAudioService(
++                preferences,
++                enabled_audio);
++        ConsoleGameOutput game_output = new(
++            writer,
++            board_renderer,
++            theme,
++            art_catalog,
++            visual_feedback,
++            audio_service);
++        IExternalFailureReporter failure_reporter =
++            new TextExternalFailureReporter(writer);
++        IMoveStrategyFactory strategy_factory =
++            new MoveStrategyFactory();
++        IMatchSessionRunner match_runner =
++            new ConsoleMatchSessionRunner(
++                game_input,
++                game_output,
++                animation_service,
++                preferences,
++                persistence_service,
++                strategy_factory,
++                failure_reporter);
++        IAutomaticModeControl mode_control =
++            new ConsoleAutomaticModeControl(
++                writer,
++                delay_service,
++                () => global::System.Console.KeyAvailable,
++                () => global::System.Console.ReadKey(intercept: true),
++                capabilities.SupportsInteractiveInput);
++        IAutomaticMatchRunner automatic_runner =
++            new AutomaticMatchRunner(
++                writer,
++                game_output,
++                delay_service,
++                preferences,
++                strategy_factory,
++                mode_control,
++                persistence_service,
++                failure_reporter);
++
++        return new PresentationComponents(
++            theme,
++            art_catalog,
++            animation_service,
++            match_runner,
++            automatic_runner,
++            failure_reporter);
++    }
++}
++
++internal sealed record PresentationComponents(
++    ConsoleTheme Theme,
++    AsciiArtCatalog ArtCatalog,
++    IAnimationService AnimationService,
++    IMatchSessionRunner MatchRunner,
++    IAutomaticMatchRunner AutomaticRunner,
++    IExternalFailureReporter FailureReporter);
+diff --git a/src/TicTacToe.Console/Composition/ScreenComposition.cs b/src/TicTacToe.Console/Composition/ScreenComposition.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Composition/ScreenComposition.cs
+@@ -0,0 +1,47 @@
++
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++
++namespace TicTacToe.Composition;
++
++internal static class ScreenComposition
++{
++    public static IScreen[] create(
++        TextReader reader,
++        TextWriter writer,
++        PresentationComponents presentation)
++    {
++        CitationMetadata citation_metadata =
++            new CitationMetadataLoader().load(
++                Path.Combine(
++                    AppContext.BaseDirectory,
++                    "CITATION.cff"));
++
++        return
++        [
++            new SplashScreen(
++                reader,
++                writer,
++                presentation.Theme,
++                presentation.ArtCatalog,
++                presentation.AnimationService),
++            new MainMenuScreen(reader, writer),
++            new MatchSetupScreen(reader, writer),
++            new PlayingScreen(presentation.MatchRunner),
++            new MatchResultScreen(reader, writer),
++            new AutomaticSetupScreen(reader, writer),
++            new AutomaticPlayingScreen(
++                presentation.AutomaticRunner),
++            new StatisticsScreen(reader, writer),
++            new ExperimentSetupScreen(reader, writer),
++            new SettingsScreen(reader, writer),
++            new HelpScreen(reader, writer),
++            new CreditsScreen(
++                reader,
++                writer,
++                citation_metadata),
++            new ExitScreen(writer)
++        ];
++    }
++}
+diff --git a/src/TicTacToe.Console/Composition/SettingsComposition.cs b/src/TicTacToe.Console/Composition/SettingsComposition.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Composition/SettingsComposition.cs
+@@ -0,0 +1,27 @@
++
++using TicTacToe.Persistence;
++
++namespace TicTacToe.Composition;
++
++internal static class SettingsComposition
++{
++    public static SettingsComponents create()
++    {
++        string settings_path = Path.Combine(
++            AppContext.BaseDirectory,
++            "data",
++            "settings.json");
++        ISettingsRepository repository =
++            new JsonSettingsRepository(
++                settings_path,
++                new SettingsValidator());
++
++        return new SettingsComponents(
++            repository.load(),
++            repository);
++    }
++}
++
++internal sealed record SettingsComponents(
++    ApplicationSettings Settings,
++    ISettingsRepository Repository);
+diff --git a/src/TicTacToe.Console/ConsoleApplication.cs b/src/TicTacToe.Console/ConsoleApplication.cs
+--- a/src/TicTacToe.Console/ConsoleApplication.cs
++++ b/src/TicTacToe.Console/ConsoleApplication.cs
+@@ -1,15 +1,10 @@
+-using TicTacToe.Application;
+-using TicTacToe.Audio;
+-using TicTacToe.Compatibility;
+-using TicTacToe.Persistence;
+-using TicTacToe.Presentation;
+-using TicTacToe.Presentation.Navigation;
+-using TicTacToe.Presentation.Screens;
++
++using TicTacToe.Composition;
+ 
+ namespace TicTacToe;
+ 
+ /// <summary>
+-/// Compõe e executa a aplicação Console.
++/// Executa a aplicação Console a partir do composition root.
+ /// </summary>
+ public sealed class ConsoleApplication
+ {
+@@ -22,169 +17,19 @@
+     {
+         ArgumentNullException.ThrowIfNull(reader);
+         ArgumentNullException.ThrowIfNull(writer);
++
+         this.reader = reader;
+         this.writer = writer;
+     }
+ 
+     public void run()
+     {
+-        string settings_path = Path.Combine(
+-            AppContext.BaseDirectory,
+-            "data",
+-            "settings.json");
+-        ISettingsRepository settings_repository =
+-            new JsonSettingsRepository(
+-                settings_path,
+-                new SettingsValidator());
+-        ApplicationSettings settings = settings_repository.load();
+-        RuntimePlatform platform =
+-            new SystemPlatformDetector().detect();
+-        ConsoleCapabilities capabilities =
+-            new SystemConsoleCapabilityDetector().detect(platform);
+-        PresentationPreferences requested_preferences =
+-            PresentationPreferences.from_settings(settings);
+-        PresentationPreferences preferences =
+-            new CompatibilityMode().apply(
+-                requested_preferences,
+-                capabilities);
+-        ConsoleTheme theme = new(preferences);
+-        AsciiArtCatalog art_catalog = new();
+-        IDelayService delay_service = new ThreadDelayService();
+-        IAnimationService animation_service =
+-            new AnimationService(
+-                writer,
+-                delay_service,
+-                preferences);
+-        ConsoleBoardRenderer board_renderer = new(writer, theme);
+-        ConsoleGameInput game_input = new(reader, writer);
+-        IVisualFeedbackService visual_feedback =
+-            new VisualFeedbackService(board_renderer);
+-        IAudioService enabled_audio =
+-            new AudioServiceSelector(writer).select(
+-                audio_enabled: true,
+-                platform,
+-                capabilities);
+-        IAudioService audio_service =
+-            new PreferenceAwareAudioService(
+-                preferences,
+-                enabled_audio);
+-        ConsoleGameOutput game_output = new(
+-            writer,
+-            board_renderer,
+-            theme,
+-            art_catalog,
+-            visual_feedback,
+-            audio_service);
+-        MatchPersistenceComponents persistence_components =
+-            create_match_persistence(settings);
+-        IMatchPersistenceService persistence_service =
+-            persistence_components.PersistenceService;
+-        IExternalFailureReporter failure_reporter =
+-            new TextExternalFailureReporter(writer);
++        ConsoleApplicationRuntime runtime =
++            new ConsoleApplicationComposer(
++                reader,
++                writer)
++            .compose();
+ 
+-        try
+-        {
+-            persistence_components.RecoveryService.recover();
+-        }
+-        catch (InfrastructureOperationException exception)
+-        {
+-            failure_reporter.report(
+-                "As estatísticas não puderam ser recuperadas.",
+-                exception);
+-        }
+-        IMoveStrategyFactory strategy_factory =
+-            new MoveStrategyFactory();
+-        IMatchSessionRunner match_runner =
+-            new ConsoleMatchSessionRunner(
+-                game_input,
+-                game_output,
+-                animation_service,
+-                preferences,
+-                persistence_service,
+-                strategy_factory,
+-                failure_reporter);
+-        IAutomaticModeControl mode_control =
+-            new ConsoleAutomaticModeControl(
+-                writer,
+-                delay_service,
+-                () => global::System.Console.KeyAvailable,
+-                () => global::System.Console.ReadKey(intercept: true),
+-                capabilities.SupportsInteractiveInput);
+-        IAutomaticMatchRunner automatic_runner =
+-            new AutomaticMatchRunner(
+-                writer,
+-                game_output,
+-                delay_service,
+-                preferences,
+-                strategy_factory,
+-                mode_control,
+-                persistence_service,
+-                failure_reporter);
+-        CitationMetadata citation_metadata =
+-            new CitationMetadataLoader().load(
+-                Path.Combine(
+-                    AppContext.BaseDirectory,
+-                    "CITATION.cff"));
+-
+-        IScreen[] screens =
+-        [
+-            new SplashScreen(
+-                reader,
+-                writer,
+-                theme,
+-                art_catalog,
+-                animation_service),
+-            new MainMenuScreen(reader, writer),
+-            new MatchSetupScreen(reader, writer),
+-            new PlayingScreen(match_runner),
+-            new MatchResultScreen(reader, writer),
+-            new AutomaticSetupScreen(reader, writer),
+-            new AutomaticPlayingScreen(automatic_runner),
+-            new StatisticsScreen(reader, writer),
+-            new ExperimentSetupScreen(reader, writer),
+-            new SettingsScreen(reader, writer),
+-            new HelpScreen(reader, writer),
+-            new CreditsScreen(reader, writer, citation_metadata),
+-            new ExitScreen(writer)
+-        ];
+-
+-        ScreenContext context = new(
+-            preferences,
+-            settings,
+-            settings_repository);
+-
+-        new ScreenManager(screens).run(
+-            ScreenState.Splash,
+-            context);
++        runtime.run();
+     }
+-
+-    private static MatchPersistenceComponents create_match_persistence(
+-        ApplicationSettings settings)
+-    {
+-        string data_directory = Path.Combine(
+-            AppContext.BaseDirectory,
+-            settings.Directories.Data);
+-        IMatchHistoryRepository history_repository =
+-            new JsonMatchHistoryRepository(
+-                Path.Combine(data_directory, "matches.json"));
+-        IMatchStatisticsRepository statistics_repository =
+-            new JsonMatchStatisticsRepository(
+-                Path.Combine(data_directory, "statistics.json"));
+-        MatchStatisticsCalculator calculator = new();
+-
+-        return new MatchPersistenceComponents(
+-            new MatchPersistenceService(
+-                history_repository,
+-                statistics_repository,
+-                new MatchRecordMapper(),
+-                calculator),
+-            new MatchPersistenceRecoveryService(
+-                history_repository,
+-                statistics_repository,
+-                calculator));
+-    }
+-
+-    private sealed record MatchPersistenceComponents(
+-        IMatchPersistenceService PersistenceService,
+-        IMatchPersistenceRecoveryService RecoveryService);
+ }
+diff --git a/src/TicTacToe.Console/Persistence/MatchRecord.cs b/src/TicTacToe.Console/Persistence/MatchRecord.cs
+--- a/src/TicTacToe.Console/Persistence/MatchRecord.cs
++++ b/src/TicTacToe.Console/Persistence/MatchRecord.cs
+@@ -1,17 +1,75 @@
++
+ namespace TicTacToe.Persistence;
+ 
+ /// <summary>
+ /// Representa uma partida concluída em formato independente do domínio.
+ /// </summary>
+-public sealed record MatchRecord(
+-    Guid Id,
+-    DateTimeOffset StartedAt,
+-    DateTimeOffset FinishedAt,
+-    long DurationMilliseconds,
+-    MatchParticipantRecord FirstParticipant,
+-    MatchParticipantRecord SecondParticipant,
+-    IReadOnlyList<MatchMoveRecord> Moves,
+-    string Result,
+-    IReadOnlyList<BoardPositionRecord> WinningSequence,
+-    int? RandomSeed,
+-    string ApplicationVersion);
++public sealed record MatchRecord
++{
++    private IReadOnlyList<MatchMoveRecord> moves =
++        Array.Empty<MatchMoveRecord>();
++    private IReadOnlyList<BoardPositionRecord> winning_sequence =
++        Array.Empty<BoardPositionRecord>();
++
++    public MatchRecord()
++    {
++    }
++
++    public MatchRecord(
++        Guid id,
++        DateTimeOffset started_at,
++        DateTimeOffset finished_at,
++        long duration_milliseconds,
++        MatchParticipantRecord first_participant,
++        MatchParticipantRecord second_participant,
++        IEnumerable<MatchMoveRecord> moves,
++        string result,
++        IEnumerable<BoardPositionRecord> winning_sequence,
++        int? random_seed,
++        string application_version)
++    {
++        Id = id;
++        StartedAt = started_at;
++        FinishedAt = finished_at;
++        DurationMilliseconds = duration_milliseconds;
++        FirstParticipant = first_participant;
++        SecondParticipant = second_participant;
++        Moves = moves.ToArray();
++        Result = result;
++        WinningSequence = winning_sequence.ToArray();
++        RandomSeed = random_seed;
++        ApplicationVersion = application_version;
++    }
++
++    public Guid Id { get; init; }
++    public DateTimeOffset StartedAt { get; init; }
++    public DateTimeOffset FinishedAt { get; init; }
++    public long DurationMilliseconds { get; init; }
++    public MatchParticipantRecord FirstParticipant { get; init; } = null!;
++    public MatchParticipantRecord SecondParticipant { get; init; } = null!;
++
++    public IReadOnlyList<MatchMoveRecord> Moves
++    {
++        get => moves;
++        init
++        {
++            ArgumentNullException.ThrowIfNull(value);
++            moves = Array.AsReadOnly(value.ToArray());
++        }
++    }
++
++    public string Result { get; init; } = string.Empty;
++
++    public IReadOnlyList<BoardPositionRecord> WinningSequence
++    {
++        get => winning_sequence;
++        init
++        {
++            ArgumentNullException.ThrowIfNull(value);
++            winning_sequence = Array.AsReadOnly(value.ToArray());
++        }
++    }
++
++    public int? RandomSeed { get; init; }
++    public string ApplicationVersion { get; init; } = string.Empty;
++}
+diff --git a/src/TicTacToe.Console/Persistence/MatchStatisticsRecord.cs b/src/TicTacToe.Console/Persistence/MatchStatisticsRecord.cs
+--- a/src/TicTacToe.Console/Persistence/MatchStatisticsRecord.cs
++++ b/src/TicTacToe.Console/Persistence/MatchStatisticsRecord.cs
+@@ -1,31 +1,58 @@
++
+ namespace TicTacToe.Persistence;
+ 
+ /// <summary>
+ /// Consolida estatísticas de todas as partidas persistidas.
+ /// </summary>
+-public sealed record MatchStatisticsRecord(
+-    int TotalMatches,
+-    int XWins,
+-    int OWins,
+-    int Draws,
+-    int TotalMoves,
+-    double AverageMoves,
+-    double AverageDurationMilliseconds,
+-    IReadOnlyList<StrategyStatisticsRecord> Strategies)
++public sealed record MatchStatisticsRecord
+ {
+-    /// <summary>
+-    /// Cria estatísticas vazias.
+-    /// </summary>
++    private IReadOnlyList<StrategyStatisticsRecord> strategies =
++        Array.Empty<StrategyStatisticsRecord>();
++
++    public MatchStatisticsRecord()
++    {
++    }
++
++    public MatchStatisticsRecord(
++        int total_matches,
++        int x_wins,
++        int o_wins,
++        int draws,
++        int total_moves,
++        double average_moves,
++        double average_duration_milliseconds,
++        IEnumerable<StrategyStatisticsRecord> strategies)
++    {
++        TotalMatches = total_matches;
++        XWins = x_wins;
++        OWins = o_wins;
++        Draws = draws;
++        TotalMoves = total_moves;
++        AverageMoves = average_moves;
++        AverageDurationMilliseconds = average_duration_milliseconds;
++        Strategies = strategies.ToArray();
++    }
++
++    public int TotalMatches { get; init; }
++    public int XWins { get; init; }
++    public int OWins { get; init; }
++    public int Draws { get; init; }
++    public int TotalMoves { get; init; }
++    public double AverageMoves { get; init; }
++    public double AverageDurationMilliseconds { get; init; }
++
++    public IReadOnlyList<StrategyStatisticsRecord> Strategies
++    {
++        get => strategies;
++        init
++        {
++            ArgumentNullException.ThrowIfNull(value);
++            strategies = Array.AsReadOnly(value.ToArray());
++        }
++    }
++
+     public static MatchStatisticsRecord empty()
+     {
+-        return new MatchStatisticsRecord(
+-            0,
+-            0,
+-            0,
+-            0,
+-            0,
+-            0,
+-            0,
+-            Array.Empty<StrategyStatisticsRecord>());
++        return new MatchStatisticsRecord();
+     }
+ }
+diff --git a/src/TicTacToe.Console/Persistence/SettingsValidationResult.cs b/src/TicTacToe.Console/Persistence/SettingsValidationResult.cs
+--- a/src/TicTacToe.Console/Persistence/SettingsValidationResult.cs
++++ b/src/TicTacToe.Console/Persistence/SettingsValidationResult.cs
+@@ -1,10 +1,21 @@
++
+ namespace TicTacToe.Persistence;
+ 
+ /// <summary>
+ /// Representa o resultado imutável da validação de configurações.
+ /// </summary>
+-/// <param name="IsValid">Indica se todos os valores são válidos.</param>
+-/// <param name="Errors">Erros encontrados.</param>
+-public sealed record SettingsValidationResult(
+-    bool IsValid,
+-    IReadOnlyList<string> Errors);
++public sealed record SettingsValidationResult
++{
++    public SettingsValidationResult(
++        bool is_valid,
++        IEnumerable<string> errors)
++    {
++        ArgumentNullException.ThrowIfNull(errors);
++
++        IsValid = is_valid;
++        Errors = Array.AsReadOnly(errors.ToArray());
++    }
++
++    public bool IsValid { get; }
++    public IReadOnlyList<string> Errors { get; }
++}
+diff --git a/tests/TicTacToe.Tests/Architecture/ArchitectureBoundaryTests.cs b/tests/TicTacToe.Tests/Architecture/ArchitectureBoundaryTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Architecture/ArchitectureBoundaryTests.cs
+@@ -0,0 +1,121 @@
++
++using System.Reflection;
++using TicTacToe.AI;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Architecture;
++
++public class ArchitectureBoundaryTests
++{
++    private static readonly string[] forbidden_domain_namespaces =
++    [
++        "TicTacToe.AI",
++        "TicTacToe.Audio",
++        "TicTacToe.Compatibility",
++        "TicTacToe.Persistence",
++        "TicTacToe.Presentation"
++    ];
++
++    [Fact]
++    public void domain_public_api_should_not_expose_external_modules()
++    {
++        Type[] domain_types = typeof(Match).Assembly
++            .GetTypes()
++            .Where(type =>
++                type.Namespace == "TicTacToe.Domain")
++            .ToArray();
++
++        foreach (Type type in domain_types)
++        {
++            Assert.DoesNotContain(
++                get_exposed_types(type),
++                exposed => forbidden_domain_namespaces.Any(
++                    prefix =>
++                        exposed.Namespace?.StartsWith(
++                            prefix,
++                            StringComparison.Ordinal) == true));
++        }
++    }
++
++    [Fact]
++    public void match_should_expose_board_only_as_read_only_contract()
++    {
++        PropertyInfo property =
++            typeof(Match).GetProperty(
++                nameof(Match.Board))!;
++
++        Assert.Equal(
++            typeof(IReadOnlyBoard),
++            property.PropertyType);
++        Assert.False(property.CanWrite);
++    }
++
++    [Fact]
++    public void strategies_should_receive_read_only_board()
++    {
++        MethodInfo method =
++            typeof(IMoveStrategy).GetMethod(
++                nameof(IMoveStrategy.choose_move))!;
++
++        Assert.Equal(
++            typeof(IReadOnlyBoard),
++            method.GetParameters()[0].ParameterType);
++    }
++
++    private static IEnumerable<Type> get_exposed_types(
++        Type type)
++    {
++        foreach (ConstructorInfo constructor in
++                 type.GetConstructors())
++        {
++            foreach (ParameterInfo parameter in
++                     constructor.GetParameters())
++            {
++                yield return unwrap(parameter.ParameterType);
++            }
++        }
++
++        foreach (PropertyInfo property in
++                 type.GetProperties())
++        {
++            yield return unwrap(property.PropertyType);
++        }
++
++        foreach (MethodInfo method in
++                 type.GetMethods(
++                     BindingFlags.Instance |
++                     BindingFlags.Static |
++                     BindingFlags.Public |
++                     BindingFlags.DeclaredOnly))
++        {
++            yield return unwrap(method.ReturnType);
++
++            foreach (ParameterInfo parameter in
++                     method.GetParameters())
++            {
++                yield return unwrap(parameter.ParameterType);
++            }
++        }
++    }
++
++    private static Type unwrap(Type type)
++    {
++        if (type.IsArray)
++        {
++            return unwrap(type.GetElementType()!);
++        }
++
++        if (type.IsGenericType)
++        {
++            Type[] arguments = type.GetGenericArguments();
++
++            if (arguments.Length == 1)
++            {
++                return unwrap(arguments[0]);
++            }
++        }
++
++        return type;
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/PersistenceRecordImmutabilityTests.cs b/tests/TicTacToe.Tests/Persistence/PersistenceRecordImmutabilityTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/PersistenceRecordImmutabilityTests.cs
+@@ -0,0 +1,125 @@
++
++using TicTacToe.Application;
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public class PersistenceRecordImmutabilityTests
++{
++    [Fact]
++    public void match_record_should_copy_collection_inputs()
++    {
++        List<MatchMoveRecord> moves =
++        [
++            new MatchMoveRecord(1, 0, 0, "X")
++        ];
++        List<BoardPositionRecord> winning =
++        [
++            new BoardPositionRecord(0, 0)
++        ];
++
++        MatchRecord record = new(
++            Guid.NewGuid(),
++            DateTimeOffset.UtcNow,
++            DateTimeOffset.UtcNow,
++            1,
++            new MatchParticipantRecord(
++                "A",
++                "Computer",
++                "X",
++                "Minimax"),
++            new MatchParticipantRecord(
++                "B",
++                "Computer",
++                "O",
++                "Random"),
++            moves,
++            "XWins",
++            winning,
++            1,
++            "1.8.0");
++
++        moves.Clear();
++        winning.Clear();
++
++        Assert.Single(record.Moves);
++        Assert.Single(record.WinningSequence);
++    }
++
++    [Fact]
++    public void statistics_record_should_copy_strategy_input()
++    {
++        List<StrategyStatisticsRecord> strategies =
++        [
++            new StrategyStatisticsRecord(
++                "Minimax",
++                1,
++                1,
++                0,
++                0)
++        ];
++
++        MatchStatisticsRecord record = new(
++            1,
++            1,
++            0,
++            0,
++            5,
++            5,
++            1,
++            strategies);
++
++        strategies.Clear();
++
++        Assert.Single(record.Strategies);
++    }
++
++    [Fact]
++    public void experiment_result_should_copy_metrics_input()
++    {
++        List<ExperimentMetricRecord> metrics =
++        [
++            new ExperimentMetricRecord(
++                Guid.NewGuid(),
++                1,
++                "Random",
++                "Minimax",
++                10,
++                "Draw",
++                9,
++                1,
++                null,
++                false,
++                null,
++                "1.8.0")
++        ];
++        ExperimentConfiguration configuration = new(
++            ExperimentStrategy.Random,
++            ExperimentStrategy.Minimax,
++            1,
++            false,
++            false,
++            10,
++            "1.8.0",
++            "exports");
++
++        ExperimentResult result = new(
++            Guid.NewGuid(),
++            configuration,
++            metrics,
++            new ExperimentSummary(
++                1,
++                1,
++                0,
++                0,
++                0,
++                1,
++                9,
++                1));
++
++        metrics.Clear();
++
++        Assert.Single(result.Metrics);
++    }
++}

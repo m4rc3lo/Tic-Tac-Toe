@@ -1,0 +1,75 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -40,7 +40,10 @@
+ ### Fixed
+ 
+ - Auditoria de conteúdo sensível da candidata passou a usar expressões
+-  regulares do PowerShell, evitando incompatibilidade com `git grep -E`.
++  regulares do PowerShell, evitando incompatibilidade com `git grep -E`;
++- auditoria passou a distinguir identificadores públicos e caminhos fictícios
++  de caminhos pessoais reais da máquina;
++- saída do checklist passou a configurar UTF-8 explicitamente no Windows.
+ 
+ ## [1.9.0] - 2026-07-21
+ 
+diff --git a/scripts/validate-release-v1.9.0.ps1 b/scripts/validate-release-v1.9.0.ps1
+--- a/scripts/validate-release-v1.9.0.ps1
++++ b/scripts/validate-release-v1.9.0.ps1
+@@ -8,6 +8,14 @@
+ )
+ 
+ $ErrorActionPreference = "Stop"
++$utf8_no_bom = New-Object System.Text.UTF8Encoding($false)
++[Console]::InputEncoding = $utf8_no_bom
++[Console]::OutputEncoding = $utf8_no_bom
++$OutputEncoding = $utf8_no_bom
++
++if ($env:OS -eq "Windows_NT") {
++    & chcp.com 65001 > $null
++}
+ $projectRoot = (
+     Resolve-Path (
+         Join-Path $PSScriptRoot ".."
+@@ -62,6 +70,8 @@
+ }
+ 
+ function Assert-NoSensitiveContent {
++    # URLs públicas, autoria e caminhos fictícios de teste não são dados
++    # locais. A auditoria procura somente o perfil e a raiz reais desta máquina.
+     $excludedPaths = @(
+         "README.md",
+         "docs/13-resultados.md",
+@@ -86,25 +96,21 @@
+         ".gitignore",
+         ".gitattributes"
+     )
++    $userProfile = [Environment]::GetFolderPath(
++        [Environment+SpecialFolder]::UserProfile
++    )
+     $patterns = @(
+         [pscustomobject]@{
+-            Name = "nome de usuário local"
++            Name = "caminho pessoal real"
+             Regex = [regex]::new(
+-                [regex]::Escape("m4rc3lo"),
++                [regex]::Escape($userProfile),
+                 [Text.RegularExpressions.RegexOptions]::IgnoreCase
+             )
+         },
+         [pscustomobject]@{
+-            Name = "diretório pessoal do Dropbox"
++            Name = "caminho absoluto do repositório local"
+             Regex = [regex]::new(
+-                'Dropbox[\\/]+univali',
+-                [Text.RegularExpressions.RegexOptions]::IgnoreCase
+-            )
+-        },
+-        [pscustomobject]@{
+-            Name = "caminho absoluto de usuário Windows"
+-            Regex = [regex]::new(
+-                'C:\\Users\\[^\\/:*?"<>|\r\n]+',
++                [regex]::Escape($projectRoot),
+                 [Text.RegularExpressions.RegexOptions]::IgnoreCase
+             )
+         },

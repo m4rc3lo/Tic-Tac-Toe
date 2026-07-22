@@ -1,0 +1,698 @@
+diff --git a/src/TicTacToe.Console/Domain/Symbol.cs b/src/TicTacToe.Console/Domain/Symbol.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/Symbol.cs
+@@ -0,0 +1,22 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa os símbolos possíveis em uma casa do tabuleiro.
++/// </summary>
++public enum Symbol
++{
++    /// <summary>
++    /// Indica que a casa não contém uma jogada.
++    /// </summary>
++    Empty = 0,
++
++    /// <summary>
++    /// Representa o símbolo X.
++    /// </summary>
++    X = 1,
++
++    /// <summary>
++    /// Representa o símbolo O.
++    /// </summary>
++    O = 2
++}
+diff --git a/src/TicTacToe.Console/Domain/GameState.cs b/src/TicTacToe.Console/Domain/GameState.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/GameState.cs
+@@ -0,0 +1,22 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa o estado geral do ciclo de vida de uma partida.
++/// </summary>
++public enum GameState
++{
++    /// <summary>
++    /// Indica que a partida ainda não foi iniciada.
++    /// </summary>
++    NotStarted = 0,
++
++    /// <summary>
++    /// Indica que a partida está em andamento.
++    /// </summary>
++    InProgress = 1,
++
++    /// <summary>
++    /// Indica que a partida foi encerrada.
++    /// </summary>
++    Finished = 2
++}
+diff --git a/src/TicTacToe.Console/Domain/GameResult.cs b/src/TicTacToe.Console/Domain/GameResult.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/GameResult.cs
+@@ -0,0 +1,27 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa o resultado consolidado de uma partida.
++/// </summary>
++public enum GameResult
++{
++    /// <summary>
++    /// Indica que ainda não existe resultado.
++    /// </summary>
++    None = 0,
++
++    /// <summary>
++    /// Indica vitória do símbolo X.
++    /// </summary>
++    XWins = 1,
++
++    /// <summary>
++    /// Indica vitória do símbolo O.
++    /// </summary>
++    OWins = 2,
++
++    /// <summary>
++    /// Indica que a partida terminou empatada.
++    /// </summary>
++    Draw = 3
++}
+diff --git a/src/TicTacToe.Console/Domain/BoardPosition.cs b/src/TicTacToe.Console/Domain/BoardPosition.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/BoardPosition.cs
+@@ -0,0 +1,54 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa uma posição válida em um tabuleiro de jogo da velha 3 × 3.
++/// </summary>
++/// <remarks>
++/// As coordenadas utilizam índice iniciado em zero. Assim, linhas e colunas
++/// válidas pertencem ao intervalo de zero a dois.
++/// </remarks>
++public readonly record struct BoardPosition
++{
++    /// <summary>
++    /// Quantidade fixa de linhas e colunas do tabuleiro.
++    /// </summary>
++    public const int BoardSize = 3;
++
++    /// <summary>
++    /// Inicializa uma nova posição do tabuleiro.
++    /// </summary>
++    /// <param name="row">Índice da linha, entre zero e dois.</param>
++    /// <param name="column">Índice da coluna, entre zero e dois.</param>
++    /// <exception cref="ArgumentOutOfRangeException">
++    /// Lançada quando a linha ou a coluna está fora dos limites do tabuleiro.
++    /// </exception>
++    public BoardPosition(int row, int column)
++    {
++        validate_coordinate(row, nameof(row));
++        validate_coordinate(column, nameof(column));
++
++        Row = row;
++        Column = column;
++    }
++
++    /// <summary>
++    /// Obtém o índice da linha.
++    /// </summary>
++    public int Row { get; }
++
++    /// <summary>
++    /// Obtém o índice da coluna.
++    /// </summary>
++    public int Column { get; }
++
++    private static void validate_coordinate(int coordinate, string parameter_name)
++    {
++        if (coordinate < 0 || coordinate >= BoardSize)
++        {
++            throw new ArgumentOutOfRangeException(
++                parameter_name,
++                coordinate,
++                $"A coordenada deve estar entre 0 e {BoardSize - 1}.");
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Domain/Move.cs b/src/TicTacToe.Console/Domain/Move.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/Move.cs
+@@ -0,0 +1,59 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa uma jogada imutável realizada em uma partida.
++/// </summary>
++public readonly record struct Move
++{
++    /// <summary>
++    /// Inicializa uma nova jogada.
++    /// </summary>
++    /// <param name="position">Posição ocupada pela jogada.</param>
++    /// <param name="symbol">Símbolo aplicado à posição.</param>
++    /// <param name="turn_number">Número ordinal do turno, iniciado em um.</param>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando o símbolo informado representa uma casa vazia.
++    /// </exception>
++    /// <exception cref="ArgumentOutOfRangeException">
++    /// Lançada quando o número do turno é menor que um.
++    /// </exception>
++    public Move(
++        BoardPosition position,
++        Symbol symbol,
++        int turn_number)
++    {
++        if (symbol == Symbol.Empty)
++        {
++            throw new ArgumentException(
++                "Uma jogada deve utilizar X ou O.",
++                nameof(symbol));
++        }
++
++        if (turn_number < 1)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(turn_number),
++                turn_number,
++                "O número do turno deve ser maior ou igual a um.");
++        }
++
++        Position = position;
++        Symbol = symbol;
++        TurnNumber = turn_number;
++    }
++
++    /// <summary>
++    /// Obtém a posição ocupada pela jogada.
++    /// </summary>
++    public BoardPosition Position { get; }
++
++    /// <summary>
++    /// Obtém o símbolo utilizado.
++    /// </summary>
++    public Symbol Symbol { get; }
++
++    /// <summary>
++    /// Obtém o número ordinal do turno.
++    /// </summary>
++    public int TurnNumber { get; }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/BoardPositionTests.cs b/tests/TicTacToe.Tests/Domain/BoardPositionTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Domain/BoardPositionTests.cs
+@@ -0,0 +1,54 @@
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Domain;
++
++/// <summary>
++/// Verifica as invariantes do objeto de valor <see cref="BoardPosition"/>.
++/// </summary>
++public class BoardPositionTests
++{
++    /// <summary>
++    /// Confirma que coordenadas dentro do tabuleiro são preservadas.
++    /// </summary>
++    [Fact]
++    public void constructor_should_preserve_valid_coordinates()
++    {
++        BoardPosition position = new(1, 2);
++
++        Assert.Equal(1, position.Row);
++        Assert.Equal(2, position.Column);
++    }
++
++    /// <summary>
++    /// Confirma que uma linha negativa é rejeitada.
++    /// </summary>
++    [Fact]
++    public void constructor_should_reject_negative_row()
++    {
++        Assert.Throws<ArgumentOutOfRangeException>(
++            () => new BoardPosition(-1, 0));
++    }
++
++    /// <summary>
++    /// Confirma que uma coluna igual ao tamanho do tabuleiro é rejeitada.
++    /// </summary>
++    [Fact]
++    public void constructor_should_reject_column_outside_board()
++    {
++        Assert.Throws<ArgumentOutOfRangeException>(
++            () => new BoardPosition(0, BoardPosition.BoardSize));
++    }
++
++    /// <summary>
++    /// Confirma que posições com as mesmas coordenadas possuem igualdade por valor.
++    /// </summary>
++    [Fact]
++    public void positions_with_same_coordinates_should_be_equal()
++    {
++        BoardPosition first_position = new(2, 1);
++        BoardPosition second_position = new(2, 1);
++
++        Assert.Equal(first_position, second_position);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/MoveTests.cs b/tests/TicTacToe.Tests/Domain/MoveTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Domain/MoveTests.cs
+@@ -0,0 +1,61 @@
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Domain;
++
++/// <summary>
++/// Verifica as invariantes do objeto de valor <see cref="Move"/>.
++/// </summary>
++public class MoveTests
++{
++    /// <summary>
++    /// Confirma que uma jogada válida preserva seus valores.
++    /// </summary>
++    [Fact]
++    public void constructor_should_preserve_valid_move()
++    {
++        BoardPosition position = new(0, 1);
++
++        Move move = new(position, Symbol.X, 1);
++
++        Assert.Equal(position, move.Position);
++        Assert.Equal(Symbol.X, move.Symbol);
++        Assert.Equal(1, move.TurnNumber);
++    }
++
++    /// <summary>
++    /// Confirma que uma jogada não pode utilizar o símbolo vazio.
++    /// </summary>
++    [Fact]
++    public void constructor_should_reject_empty_symbol()
++    {
++        BoardPosition position = new(0, 0);
++
++        Assert.Throws<ArgumentException>(
++            () => new Move(position, Symbol.Empty, 1));
++    }
++
++    /// <summary>
++    /// Confirma que a numeração dos turnos deve começar em um.
++    /// </summary>
++    [Fact]
++    public void constructor_should_reject_zero_turn_number()
++    {
++        BoardPosition position = new(0, 0);
++
++        Assert.Throws<ArgumentOutOfRangeException>(
++            () => new Move(position, Symbol.O, 0));
++    }
++
++    /// <summary>
++    /// Confirma que jogadas equivalentes possuem igualdade por valor.
++    /// </summary>
++    [Fact]
++    public void moves_with_same_values_should_be_equal()
++    {
++        Move first_move = new(new BoardPosition(2, 2), Symbol.O, 3);
++        Move second_move = new(new BoardPosition(2, 2), Symbol.O, 3);
++
++        Assert.Equal(first_move, second_move);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/DomainEnumerationTests.cs b/tests/TicTacToe.Tests/Domain/DomainEnumerationTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Domain/DomainEnumerationTests.cs
+@@ -0,0 +1,43 @@
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Domain;
++
++/// <summary>
++/// Verifica os valores fundamentais das enumerações do domínio.
++/// </summary>
++public class DomainEnumerationTests
++{
++    /// <summary>
++    /// Confirma que o valor padrão de <see cref="Symbol"/> representa uma casa vazia.
++    /// </summary>
++    [Fact]
++    public void default_symbol_should_be_empty()
++    {
++        Symbol symbol = default;
++
++        Assert.Equal(Symbol.Empty, symbol);
++    }
++
++    /// <summary>
++    /// Confirma que o valor padrão de <see cref="GameState"/> representa partida não iniciada.
++    /// </summary>
++    [Fact]
++    public void default_game_state_should_be_not_started()
++    {
++        GameState game_state = default;
++
++        Assert.Equal(GameState.NotStarted, game_state);
++    }
++
++    /// <summary>
++    /// Confirma que o valor padrão de <see cref="GameResult"/> representa ausência de resultado.
++    /// </summary>
++    [Fact]
++    public void default_game_result_should_be_none()
++    {
++        GameResult game_result = default;
++
++        Assert.Equal(GameResult.None, game_result);
++    }
++}
+diff --git a/docs/04-modelo-conceitual.md b/docs/04-modelo-conceitual.md
+new file mode 100644
+--- /dev/null
++++ b/docs/04-modelo-conceitual.md
+@@ -0,0 +1,297 @@
++# Modelo conceitual do Tic-Tac-Toe Console AI
++
++## 1. Finalidade
++
++Este documento descreve o modelo conceitual inicial do domínio do **Tic-Tac-Toe Console AI**. O modelo identifica entidades, objetos de valor, enumerações e serviços de domínio sem antecipar detalhes completos de implementação.
++
++Nesta etapa, somente as enumerações `Symbol`, `GameState` e `GameResult`, além dos objetos de valor `BoardPosition` e `Move`, são implementados. Os demais conceitos serão materializados nos prompts posteriores.
++
++## 2. Conceitos centrais
++
++### 2.1 `Board`
++
++Representa o tabuleiro 3 × 3 e é responsável por preservar suas invariantes.
++
++Responsabilidades previstas:
++
++- armazenar o conteúdo das nove casas;
++- consultar símbolos por posição;
++- informar posições disponíveis;
++- verificar se uma posição está livre;
++- aplicar uma jogada válida;
++- desfazer uma jogada para simulações;
++- indicar se o tabuleiro está completo;
++- impedir exposição mutável de seu armazenamento interno.
++
++`Board` não deverá decidir sozinho o resultado global da partida nem executar entrada e saída.
++
++### 2.2 `BoardPosition`
++
++Objeto de valor que representa uma coordenada válida do tabuleiro.
++
++As coordenadas utilizam índices de zero a dois:
++
++- linha `0`, `1` ou `2`;
++- coluna `0`, `1` ou `2`.
++
++A validação ocorre no construtor, impedindo a criação de posições inválidas. A igualdade é determinada pelos valores de linha e coluna.
++
++### 2.3 `Move`
++
++Objeto de valor imutável que registra:
++
++- posição;
++- símbolo;
++- número do turno.
++
++Uma jogada não pode utilizar `Symbol.Empty`, e sua numeração começa em um. Informações experimentais, como tempo de decisão e estados avaliados, deverão ser registradas em modelos específicos de telemetria, não no objeto básico `Move`.
++
++### 2.4 `Match`
++
++Agregado que representa uma partida completa.
++
++Responsabilidades previstas:
++
++- possuir um `Board`;
++- associar dois participantes;
++- controlar o participante atual;
++- manter o histórico de `Move`;
++- controlar `GameState`;
++- consolidar `GameResult`;
++- aceitar jogadas válidas;
++- alternar turnos;
++- impedir jogadas após o encerramento.
++
++`Match` será o limite principal de consistência do domínio.
++
++### 2.5 `Player`
++
++Abstração conceitual de um participante.
++
++Propriedades previstas:
++
++- nome;
++- símbolo;
++- tipo de participante.
++
++O participante não armazenará um booleano redundante de turno. A responsabilidade de determinar o participante atual pertence a `Match`.
++
++### 2.6 `HumanPlayer`
++
++Especialização de `Player` que representa uma pessoa. A obtenção da entrada não deverá ocorrer dentro dessa classe; a camada de apresentação fornecerá a jogada selecionada.
++
++### 2.7 `ComputerPlayer`
++
++Especialização de `Player` que representa um agente computacional. A escolha da jogada será delegada a um contrato de estratégia, posteriormente denominado `IMoveStrategy`.
++
++### 2.8 `Symbol`
++
++Enumeração que representa:
++
++- `Empty`;
++- `X`;
++- `O`.
++
++O valor padrão é `Empty`, reduzindo o risco de uma casa recém-criada assumir implicitamente um símbolo jogável.
++
++### 2.9 `GameState`
++
++Enumeração que representa o ciclo de vida:
++
++- `NotStarted`;
++- `InProgress`;
++- `Finished`.
++
++O estado indica a fase da partida, enquanto `GameResult` descreve seu desfecho.
++
++### 2.10 `GameResult`
++
++Enumeração que representa:
++
++- `None`;
++- `XWins`;
++- `OWins`;
++- `Draw`.
++
++`None` é utilizado enquanto não existe resultado consolidado.
++
++### 2.11 `GameRules`
++
++Serviço de domínio responsável por avaliar um estado de tabuleiro.
++
++Responsabilidades previstas:
++
++- detectar vitória de `X`;
++- detectar vitória de `O`;
++- detectar empate;
++- indicar partida em andamento;
++- retornar as posições da sequência vencedora.
++
++`GameRules` não deverá modificar o tabuleiro.
++
++## 3. Diagrama conceitual
++
++O diagrama apresenta as relações planejadas entre os conceitos centrais. As operações listadas possuem caráter conceitual e poderão ser refinadas quando as classes forem implementadas.
++
++```mermaid
++classDiagram
++    class Board {
++        +get_symbol(position) Symbol
++        +get_available_positions() IReadOnlyList
++        +is_position_available(position) bool
++        +apply_move(move)
++        +undo_move(position)
++        +is_full() bool
++    }
++
++    class BoardPosition {
++        +int Row
++        +int Column
++    }
++
++    class Move {
++        +BoardPosition Position
++        +Symbol Symbol
++        +int TurnNumber
++    }
++
++    class Match {
++        +Board Board
++        +Player CurrentPlayer
++        +GameState State
++        +GameResult Result
++        +IReadOnlyList~Move~ Moves
++        +start()
++        +apply_move(move)
++    }
++
++    class Player {
++        <<abstract>>
++        +string Name
++        +Symbol Symbol
++    }
++
++    class HumanPlayer
++
++    class ComputerPlayer {
++        +IMoveStrategy Strategy
++    }
++
++    class IMoveStrategy {
++        <<interface>>
++        +choose_move(board) Move
++    }
++
++    class GameRules {
++        +evaluate(board) GameResult
++        +get_winning_positions(board) IReadOnlyList
++    }
++
++    class Symbol {
++        <<enumeration>>
++        Empty
++        X
++        O
++    }
++
++    class GameState {
++        <<enumeration>>
++        NotStarted
++        InProgress
++        Finished
++    }
++
++    class GameResult {
++        <<enumeration>>
++        None
++        XWins
++        OWins
++        Draw
++    }
++
++    Match *-- Board
++    Match *-- Player
++    Match *-- Move
++    Match --> GameRules
++
++    Player <|-- HumanPlayer
++    Player <|-- ComputerPlayer
++    ComputerPlayer --> IMoveStrategy
++
++    Board --> BoardPosition
++    Board --> Symbol
++    Move --> BoardPosition
++    Move --> Symbol
++    Match --> GameState
++    Match --> GameResult
++```
++
++`Match` agrega o tabuleiro, os participantes e o histórico. `BoardPosition` e `Move` são objetos de valor. `GameRules` avalia o tabuleiro sem modificá-lo. A decisão de um participante computacional fica fora de `Match` e é delegada à estratégia.
++
++## 4. Classificação dos conceitos
++
++| Conceito | Classificação | Implementação nesta etapa |
++|---|---|---|
++| `Board` | Entidade de domínio | Não |
++| `BoardPosition` | Objeto de valor | Sim |
++| `Move` | Objeto de valor | Sim |
++| `Match` | Agregado e entidade | Não |
++| `Player` | Entidade abstrata | Não |
++| `HumanPlayer` | Entidade especializada | Não |
++| `ComputerPlayer` | Entidade especializada | Não |
++| `Symbol` | Enumeração | Sim |
++| `GameState` | Enumeração | Sim |
++| `GameResult` | Enumeração | Sim |
++| `GameRules` | Serviço de domínio | Não |
++| `IMoveStrategy` | Contrato de estratégia | Não |
++
++## 5. Invariantes iniciais
++
++As invariantes implementadas nesta etapa são:
++
++1. uma posição deve estar dentro do tabuleiro 3 × 3;
++2. uma jogada deve utilizar `X` ou `O`;
++3. a numeração do turno deve ser maior ou igual a um;
++4. objetos de valor equivalentes devem possuir igualdade por valor;
++5. o valor padrão de `Symbol` deve ser `Empty`;
++6. o valor padrão de `GameState` deve ser `NotStarted`;
++7. o valor padrão de `GameResult` deve ser `None`.
++
++## 6. Decisões de modelagem
++
++### 6.1 Coordenadas iniciadas em zero
++
++O domínio utiliza coordenadas de zero a dois, alinhadas à indexação de estruturas em C#. A apresentação poderá converter números de um a nove para coordenadas sem transferir essa convenção ao núcleo.
++
++### 6.2 Imutabilidade dos objetos de valor
++
++`BoardPosition` e `Move` são `readonly record struct`. Essa escolha oferece:
++
++- semântica de valor;
++- imutabilidade;
++- igualdade estrutural;
++- baixo custo para objetos pequenos;
++- ausência de dependência externa.
++
++### 6.3 Separação entre estado e resultado
++
++`GameState` representa o ciclo de vida, enquanto `GameResult` representa o desfecho. Uma partida pode estar `InProgress` com resultado `None`, ou `Finished` com vitória ou empate.
++
++### 6.4 Ausência de classes prematuras
++
++`Board`, `Match`, `Player` e `GameRules` não são implementados nesta etapa. Antecipar essas classes antes dos requisitos específicos poderia produzir APIs especulativas e aumentar o retrabalho.
++
++## 7. Testes básicos
++
++Os testes desta etapa verificam:
++
++- aceitação de coordenadas válidas;
++- rejeição de coordenadas inválidas;
++- igualdade de posições;
++- criação de jogadas válidas;
++- rejeição de símbolo vazio;
++- rejeição de turno zero;
++- igualdade de jogadas;
++- valores padrão das enumerações.
++
++Os testes não verificam regras de vitória, ocupação do tabuleiro ou alternância de turnos, pois essas responsabilidades pertencem aos próximos prompts.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -42,6 +42,10 @@
+ - `docs/02-requisitos.md` com escopo, requisitos funcionais, requisitos não funcionais, restrições e critérios de aceitação.
+ - `docs/03-arquitetura.md` com camadas, responsabilidades, contratos e regras de dependência.
+ - Diagramas Mermaid de contexto, componentes, sequência e estados com interpretação textual.
++- `docs/04-modelo-conceitual.md` com entidades, objetos de valor, enumerações e relações do domínio.
++- Enumerações `Symbol`, `GameState` e `GameResult`.
++- Objetos de valor imutáveis `BoardPosition` e `Move`.
++- Testes básicos das invariantes e da igualdade dos objetos de valor.
+ 
+ ### Changed
+ 

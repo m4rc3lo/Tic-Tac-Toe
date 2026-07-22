@@ -1,0 +1,2307 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -37,6 +37,24 @@
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- modo demonstrativo IA contra IA com Strategies independentes para X e O;
++- pausa e cancelamento por contrato testável;
++- aplicação de Strategy e semente padrão;
++- persistência opcional de partidas demonstrativas;
++- `PreferenceAwareAudioService` para áudio reativo;
++- `MoveStrategyFactory` compartilhada pelos runners;
++- `docs/23-modo-automatico.md`.
++
++### Changed
++
++- configurações alteradas na interface passaram a ser persistidas;
++- atraso de animação passou a ser editável pela tela de configurações;
++- `Program.Main` foi reduzido e a composição movida para `ConsoleApplication`;
++- menu principal passou a oferecer o modo demonstrativo.
++
++
+ ## [1.8.0] - 2026-07-18
+ 
+ ### Added
+diff --git a/docs/17-screen-manager.md b/docs/17-screen-manager.md
+--- a/docs/17-screen-manager.md
++++ b/docs/17-screen-manager.md
+@@ -43,8 +43,12 @@
+     class ScreenContext {
+         +MatchConfiguration MatchConfiguration
+         +Match LastMatch
++        +AutomaticMatchConfiguration AutomaticMatchConfiguration
++        +AutomaticMatchResult LastAutomaticMatchResult
++        +ApplicationSettings ApplicationSettings
+         +set_match_configuration(configuration)
+-        +set_last_match(match)
++        +set_automatic_match_configuration(configuration)
++        +persist_presentation_preferences()
+     }
+ 
+     ScreenManager --> IScreen
+@@ -64,6 +68,8 @@
+ - `MatchSetup`;
+ - `Playing`;
+ - `MatchResult`;
++- `AutomaticSetup`;
++- `AutomaticPlaying`;
+ - `Statistics`;
+ - `ExperimentSetup`;
+ - `Settings`;
+@@ -78,7 +84,8 @@
+     [*] --> Splash
+     Splash --> MainMenu
+ 
+-    MainMenu --> MatchSetup : jogar
++    MainMenu --> MatchSetup : jogar contra IA
++    MainMenu --> AutomaticSetup : demonstração IA contra IA
+     MainMenu --> Statistics : estatísticas
+     MainMenu --> ExperimentSetup : experimentos
+     MainMenu --> Settings : configurações
+@@ -92,6 +99,11 @@
+     Playing --> MatchResult : partida executada
+     MatchResult --> MainMenu
+ 
++    AutomaticSetup --> AutomaticPlaying : configuração válida
++    AutomaticSetup --> MainMenu : cancelar
++    AutomaticPlaying --> AutomaticSetup : configuração ausente
++    AutomaticPlaying --> MainMenu : concluída ou cancelada
++
+     Statistics --> MainMenu
+     ExperimentSetup --> MainMenu
+     Settings --> MainMenu
+@@ -101,9 +113,9 @@
+     Exit --> [*]
+ ```
+ 
+-`Statistics`, `ExperimentSetup` e `Settings` são estados reais, porém ainda
+-apresentam conteúdo provisório. A estrutura já evita que esses recursos futuros
+-sejam adicionados diretamente ao menu principal.
++`Statistics` e `ExperimentSetup` permanecem provisórios. `Settings` já persiste
++preferências, enquanto `AutomaticSetup` e `AutomaticPlaying` implementam o modo
++demonstrativo sem adicionar regras à navegação.
+ 
+ ## 4. Configuração e execução de partida
+ 
+diff --git a/docs/20-configuracoes-json.md b/docs/20-configuracoes-json.md
+--- a/docs/20-configuracoes-json.md
++++ b/docs/20-configuracoes-json.md
+@@ -131,13 +131,19 @@
+ 
+ ## 7. Integração
+ 
+-`Program.Main` carrega `data/settings.json` antes de compor tema, animação e
+-áudio. `PresentationPreferences.from_settings` converte os campos relevantes.
++`ConsoleApplication` carrega `data/settings.json` antes de compor tema,
++animação e áudio. `PresentationPreferences.from_settings` converte os campos
++relevantes.
+ 
+-O atraso configurado passa a ser utilizado pelo texto progressivo e pelo
+-indicador de análise da IA. Em `v1.8.0`, alterações feitas em `SettingsScreen`
+-permanecem apenas em memória; a gravação automática dessas alterações ainda não
+-foi integrada à navegação.
++`SettingsScreen` altera o mesmo objeto de preferências observado pelos serviços
++de apresentação. Ao retornar ao menu, `ScreenContext` copia os valores para
++`ApplicationSettings` e chama `ISettingsRepository.save`.
++
++O atraso configurado é utilizado pelo texto progressivo, pelo indicador de
++análise e pelo modo automático. `DefaultStrategy` e `RandomSeed` são aplicados
++como padrões nas telas de configuração de partida. O áudio é consultado por
++`PreferenceAwareAudioService` a cada evento, portanto a alteração é válida na
++mesma sessão.
+ 
+ ## 8. Testes
+ 
+@@ -151,4 +157,6 @@
+ - propriedades desconhecidas;
+ - substituição do arquivo existente;
+ - remoção de temporários;
+-- validação independente.
++- validação independente;
++- persistência das preferências alteradas pela interface;
++- aplicação de Strategy e semente padrão.
+diff --git a/docs/23-modo-automatico.md b/docs/23-modo-automatico.md
+new file mode 100644
+--- /dev/null
++++ b/docs/23-modo-automatico.md
+@@ -0,0 +1,100 @@
++# Modo automático demonstrativo
++
++## 1. Finalidade
++
++O modo automático executa uma partida entre duas Strategies existentes sem
++criar regras paralelas. `MatchController` continua coordenando o agregado
++`Match`, enquanto a apresentação acrescenta renderização, atraso e controle de
++pausa ou cancelamento.
++
++## 2. Configuração
++
++A tela `AutomaticSetupScreen` permite escolher Strategy de X e O, informar uma
++semente e decidir se a partida concluída deve entrar no histórico. Campos em
++branco utilizam `ApplicationSettings.DefaultStrategy` e
++`ApplicationSettings.RandomSeed`.
++
++O diagrama mostra a separação entre configuração, execução e persistência.
++
++```mermaid
++classDiagram
++    class AutomaticSetupScreen
++    class AutomaticMatchConfiguration
++    class AutomaticPlayingScreen
++    class IAutomaticMatchRunner
++    class AutomaticMatchRunner
++    class IAutomaticModeControl
++    class MatchController
++    class IMatchPersistenceService
++
++    AutomaticSetupScreen --> AutomaticMatchConfiguration
++    AutomaticPlayingScreen --> IAutomaticMatchRunner
++    IAutomaticMatchRunner <|.. AutomaticMatchRunner
++    AutomaticMatchRunner --> IAutomaticModeControl
++    AutomaticMatchRunner --> MatchController
++    AutomaticMatchRunner --> IMatchPersistenceService
++```
++
++As telas não conhecem regras de vitória ou seleção de jogadas. Elas apenas
++coletam opções e acionam o runner.
++
++## 3. Fluxo da demonstração
++
++`AutomaticMatchRunner` cria dois `ComputerPlayer`, usa `MoveStrategyFactory` e associa uma Strategy a cada
++símbolo por `IComputerMoveStrategyResolver` e executa o controlador existente.
++
++```mermaid
++sequenceDiagram
++    participant Screen as AutomaticPlayingScreen
++    participant Runner as AutomaticMatchRunner
++    participant Control as IAutomaticModeControl
++    participant Controller as MatchController
++    participant Resolver as IComputerMoveStrategyResolver
++    participant Match as Match
++
++    Screen->>Runner: run(configuration)
++    Runner->>Controller: run(match)
++    loop enquanto a partida estiver em andamento
++        Controller->>Control: wait_for_turn()
++        Control-->>Controller: Continue ou Cancel
++        Controller->>Resolver: resolve_strategy(player)
++        Resolver-->>Controller: Strategy
++        Controller->>Match: apply_move(position)
++    end
++    Controller-->>Runner: partida concluída
++    Runner-->>Screen: AutomaticMatchResult
++```
++
++O cancelamento é representado por uma exceção interna e controlada, capturada
++pelo runner. O `ScreenManager` recebe uma transição normal de retorno ao menu.
++
++## 4. Pausa, cancelamento e atraso
++
++No terminal, Espaço pausa ou retoma e Esc cancela. O contrato
++`IAutomaticModeControl` permite substituir o teclado por implementações
++simuladas. O atraso usa `IDelayService`, portanto os testes utilizam
++`ImmediateDelayService` e não aguardam tempo real.
++
++## 5. Persistência e configurações
++
++A partida automática só é persistida quando a opção correspondente é marcada e
++a partida chega a um estado final. Demonstrações canceladas nunca entram no
++histórico.
++
++`SettingsScreen` agora copia as preferências de apresentação para
++`ApplicationSettings` e chama `ISettingsRepository.save`. O áudio é envolvido
++por `PreferenceAwareAudioService`, que consulta `AudioEnabled` a cada evento;
++assim, a mudança é observável durante a mesma sessão.
++
++## 6. Testes
++
++A suíte cobre:
++
++- Strategy e semente padrão;
++- Strategies distintas para X e O;
++- execução sem espera real;
++- cancelamento antes da primeira jogada;
++- persistência opcional;
++- retorno ao menu;
++- gravação das configurações;
++- áudio reativo sem dispositivo físico.
+diff --git a/src/TicTacToe.Console/Audio/PreferenceAwareAudioService.cs b/src/TicTacToe.Console/Audio/PreferenceAwareAudioService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/PreferenceAwareAudioService.cs
+@@ -0,0 +1,35 @@
++using TicTacToe.Presentation;
++
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Observa as preferências atuais antes de reproduzir cada sinal sonoro.
++/// </summary>
++public sealed class PreferenceAwareAudioService : IAudioService
++{
++    private readonly PresentationPreferences preferences;
++    private readonly IAudioService enabled_service;
++
++    /// <summary>
++    /// Inicializa o serviço reativo.
++    /// </summary>
++    public PreferenceAwareAudioService(
++        PresentationPreferences preferences,
++        IAudioService enabled_service)
++    {
++        ArgumentNullException.ThrowIfNull(preferences);
++        ArgumentNullException.ThrowIfNull(enabled_service);
++
++        this.preferences = preferences;
++        this.enabled_service = enabled_service;
++    }
++
++    /// <inheritdoc />
++    public void play(AudioCue cue)
++    {
++        if (preferences.AudioEnabled)
++        {
++            enabled_service.play(cue);
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/ConsoleApplication.cs b/src/TicTacToe.Console/ConsoleApplication.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/ConsoleApplication.cs
+@@ -0,0 +1,145 @@
++using TicTacToe.Application;
++using TicTacToe.Audio;
++using TicTacToe.Persistence;
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++
++namespace TicTacToe;
++
++/// <summary>
++/// Compõe e executa a aplicação Console.
++/// </summary>
++public sealed class ConsoleApplication
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public ConsoleApplication(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public void run()
++    {
++        string settings_path = Path.Combine(
++            AppContext.BaseDirectory,
++            "data",
++            "settings.json");
++        ISettingsRepository settings_repository =
++            new JsonSettingsRepository(
++                settings_path,
++                new SettingsValidator());
++        ApplicationSettings settings = settings_repository.load();
++        PresentationPreferences preferences =
++            PresentationPreferences.from_settings(settings);
++        ConsoleTheme theme = new(preferences);
++        AsciiArtCatalog art_catalog = new();
++        IDelayService delay_service = new ThreadDelayService();
++        IAnimationService animation_service =
++            new AnimationService(
++                writer,
++                delay_service,
++                preferences);
++        ConsoleBoardRenderer board_renderer = new(writer, theme);
++        ConsoleGameInput game_input = new(reader, writer);
++        IVisualFeedbackService visual_feedback =
++            new VisualFeedbackService(board_renderer);
++        IAudioService enabled_audio =
++            new AudioServiceSelector(writer).select(
++                audio_enabled: true);
++        IAudioService audio_service =
++            new PreferenceAwareAudioService(
++                preferences,
++                enabled_audio);
++        ConsoleGameOutput game_output = new(
++            writer,
++            board_renderer,
++            theme,
++            art_catalog,
++            visual_feedback,
++            audio_service);
++        IMatchPersistenceService persistence_service =
++            create_match_persistence(settings);
++        IMoveStrategyFactory strategy_factory =
++            new MoveStrategyFactory();
++        IMatchSessionRunner match_runner =
++            new ConsoleMatchSessionRunner(
++                game_input,
++                game_output,
++                animation_service,
++                preferences,
++                persistence_service,
++                strategy_factory);
++        IAutomaticModeControl mode_control =
++            new ConsoleAutomaticModeControl(
++                writer,
++                delay_service);
++        IAutomaticMatchRunner automatic_runner =
++            new AutomaticMatchRunner(
++                writer,
++                game_output,
++                delay_service,
++                preferences,
++                strategy_factory,
++                mode_control,
++                persistence_service);
++        CitationMetadata citation_metadata =
++            new CitationMetadataLoader().load(
++                Path.Combine(
++                    AppContext.BaseDirectory,
++                    "CITATION.cff"));
++
++        IScreen[] screens =
++        [
++            new SplashScreen(
++                reader,
++                writer,
++                theme,
++                art_catalog,
++                animation_service),
++            new MainMenuScreen(reader, writer),
++            new MatchSetupScreen(reader, writer),
++            new PlayingScreen(match_runner),
++            new MatchResultScreen(reader, writer),
++            new AutomaticSetupScreen(reader, writer),
++            new AutomaticPlayingScreen(automatic_runner),
++            new StatisticsScreen(reader, writer),
++            new ExperimentSetupScreen(reader, writer),
++            new SettingsScreen(reader, writer),
++            new HelpScreen(reader, writer),
++            new CreditsScreen(reader, writer, citation_metadata),
++            new ExitScreen(writer)
++        ];
++
++        ScreenContext context = new(
++            preferences,
++            settings,
++            settings_repository);
++
++        new ScreenManager(screens).run(
++            ScreenState.Splash,
++            context);
++    }
++
++    private static IMatchPersistenceService create_match_persistence(
++        ApplicationSettings settings)
++    {
++        string data_directory = Path.Combine(
++            AppContext.BaseDirectory,
++            settings.Directories.Data);
++
++        return new MatchPersistenceService(
++            new JsonMatchHistoryRepository(
++                Path.Combine(data_directory, "matches.json")),
++            new JsonMatchStatisticsRepository(
++                Path.Combine(data_directory, "statistics.json")),
++            new MatchRecordMapper(),
++            new MatchStatisticsCalculator());
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+--- a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
++++ b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+@@ -138,15 +138,19 @@
+         Symbol symbol)
+     {
+         Player winner = match.get_player(symbol);
+-        bool human_won = winner is HumanPlayer;
++        bool automatic_match =
++            match.FirstPlayer is ComputerPlayer &&
++            match.SecondPlayer is ComputerPlayer;
++        bool positive_result =
++            automatic_match || winner is HumanPlayer;
+ 
+         audio_service.play(
+-            human_won
++            positive_result
+                 ? AudioCue.Victory
+                 : AudioCue.Defeat);
+ 
+         show_art(
+-            human_won
++            positive_result
+                 ? art_catalog.get_victory()
+                 : art_catalog.get_defeat());
+ 
+@@ -154,7 +158,7 @@
+             $"Resultado: {winner.Name} venceu com {symbol}.";
+ 
+         writer.WriteLine(
+-            human_won
++            positive_result
+                 ? theme.colorize_success(message)
+                 : theme.colorize_error(message));
+     }
+diff --git a/src/TicTacToe.Console/Presentation/DelayedGameOutput.cs b/src/TicTacToe.Console/Presentation/DelayedGameOutput.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/DelayedGameOutput.cs
+@@ -0,0 +1,59 @@
++using TicTacToe.Application;
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation;
++
++/// <summary>
++/// Decora a saída da partida com atraso configurável entre jogadas.
++/// </summary>
++public sealed class DelayedGameOutput : IGameOutput
++{
++    private readonly IGameOutput inner_output;
++    private readonly IDelayService delay_service;
++    private readonly PresentationPreferences preferences;
++
++    public DelayedGameOutput(
++        IGameOutput inner_output,
++        IDelayService delay_service,
++        PresentationPreferences preferences)
++    {
++        ArgumentNullException.ThrowIfNull(inner_output);
++        ArgumentNullException.ThrowIfNull(delay_service);
++        ArgumentNullException.ThrowIfNull(preferences);
++
++        this.inner_output = inner_output;
++        this.delay_service = delay_service;
++        this.preferences = preferences;
++    }
++
++    public void show_match(Match match)
++    {
++        inner_output.show_match(match);
++
++        if (preferences.VisualEffects &&
++            preferences.AnimationDelayMilliseconds > 0 &&
++            match.Moves.Count > 0 &&
++            match.State == GameState.InProgress)
++        {
++            delay_service.wait(
++                TimeSpan.FromMilliseconds(
++                    preferences.AnimationDelayMilliseconds));
++        }
++    }
++
++    public void show_invalid_move(
++        Player player,
++        BoardPosition position,
++        string message)
++    {
++        inner_output.show_invalid_move(
++            player,
++            position,
++            message);
++    }
++
++    public void show_result(Match match)
++    {
++        inner_output.show_result(match);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/AutomaticControlDecision.cs b/src/TicTacToe.Console/Presentation/Navigation/AutomaticControlDecision.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/AutomaticControlDecision.cs
+@@ -0,0 +1,10 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Indica se o modo automático deve continuar ou ser cancelado.
++/// </summary>
++public enum AutomaticControlDecision
++{
++    Continue,
++    Cancel
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchConfiguration.cs b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchConfiguration.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchConfiguration.cs
+@@ -0,0 +1,10 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Contém as opções do modo demonstrativo IA contra IA.
++/// </summary>
++public sealed record AutomaticMatchConfiguration(
++    StrategyKind XStrategy,
++    StrategyKind OStrategy,
++    int? RandomSeed,
++    bool PersistMatch);
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchResult.cs b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchResult.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchResult.cs
+@@ -0,0 +1,11 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Representa o resultado de uma demonstração automática.
++/// </summary>
++public sealed record AutomaticMatchResult(
++    Match Match,
++    bool WasCancelled,
++    int? EffectiveSeed);
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchRunner.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchRunner.cs
+@@ -0,0 +1,165 @@
++using System.Diagnostics;
++using System.Reflection;
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++using TicTacToe.Persistence;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Executa uma demonstração IA contra IA usando o fluxo regular de partida.
++/// </summary>
++public sealed class AutomaticMatchRunner : IAutomaticMatchRunner
++{
++    private readonly TextWriter writer;
++    private readonly IGameOutput game_output;
++    private readonly IDelayService delay_service;
++    private readonly PresentationPreferences preferences;
++    private readonly IMoveStrategyFactory strategy_factory;
++    private readonly IAutomaticModeControl mode_control;
++    private readonly IMatchPersistenceService? persistence_service;
++
++    public AutomaticMatchRunner(
++        TextWriter writer,
++        IGameOutput game_output,
++        IDelayService delay_service,
++        PresentationPreferences preferences,
++        IMoveStrategyFactory strategy_factory,
++        IAutomaticModeControl mode_control,
++        IMatchPersistenceService? persistence_service = null)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        ArgumentNullException.ThrowIfNull(game_output);
++        ArgumentNullException.ThrowIfNull(delay_service);
++        ArgumentNullException.ThrowIfNull(preferences);
++        ArgumentNullException.ThrowIfNull(strategy_factory);
++        ArgumentNullException.ThrowIfNull(mode_control);
++
++        this.writer = writer;
++        this.game_output = game_output;
++        this.delay_service = delay_service;
++        this.preferences = preferences;
++        this.strategy_factory = strategy_factory;
++        this.mode_control = mode_control;
++        this.persistence_service = persistence_service;
++    }
++
++    public AutomaticMatchResult run(
++        AutomaticMatchConfiguration configuration)
++    {
++        ArgumentNullException.ThrowIfNull(configuration);
++
++        IMoveStrategy x_strategy = strategy_factory.create(
++            configuration.XStrategy,
++            configuration.RandomSeed);
++        IMoveStrategy o_strategy = strategy_factory.create(
++            configuration.OStrategy,
++            configuration.RandomSeed);
++
++        IComputerMoveStrategyResolver resolver =
++            new ConfiguredComputerMoveStrategyResolver(
++                new Dictionary<Symbol, IMoveStrategy>
++                {
++                    [Symbol.X] = x_strategy,
++                    [Symbol.O] = o_strategy
++                });
++
++        IMoveSelector selector =
++            new ControlledComputerMoveSelector(
++                resolver,
++                mode_control);
++        IGameOutput delayed_output = new DelayedGameOutput(
++            game_output,
++            delay_service,
++            preferences);
++        MatchController controller = new(
++            selector,
++            delayed_output);
++        Match match = new(
++            new ComputerPlayer(
++                configuration.XStrategy.ToString(),
++                Symbol.X),
++            new ComputerPlayer(
++                configuration.OStrategy.ToString(),
++                Symbol.O));
++
++        writer.WriteLine();
++        writer.WriteLine("Demonstração IA contra IA");
++        writer.WriteLine($"X: {configuration.XStrategy}");
++        writer.WriteLine($"O: {configuration.OStrategy}");
++        writer.WriteLine(
++            $"Semente: {format_seed(configuration.RandomSeed)}");
++        writer.WriteLine(
++            "Espaço pausa ou continua; Esc cancela.");
++
++        DateTimeOffset started_at = DateTimeOffset.UtcNow;
++        Stopwatch stopwatch = Stopwatch.StartNew();
++
++        try
++        {
++            Match completed_match = controller.run(match);
++            stopwatch.Stop();
++
++            if (configuration.PersistMatch)
++            {
++                persistence_service?.persist(
++                    create_persistence_context(
++                        completed_match,
++                        configuration,
++                        started_at,
++                        stopwatch.Elapsed));
++            }
++
++            return new AutomaticMatchResult(
++                completed_match,
++                WasCancelled: false,
++                configuration.RandomSeed);
++        }
++        catch (AutomaticModeCancelledException)
++        {
++            stopwatch.Stop();
++            writer.WriteLine();
++            writer.WriteLine("Demonstração cancelada.");
++
++            return new AutomaticMatchResult(
++                match,
++                WasCancelled: true,
++                configuration.RandomSeed);
++        }
++    }
++
++    private static MatchPersistenceContext create_persistence_context(
++        Match match,
++        AutomaticMatchConfiguration configuration,
++        DateTimeOffset started_at,
++        TimeSpan duration)
++    {
++        return new MatchPersistenceContext(
++            match,
++            started_at,
++            started_at + duration,
++            configuration.XStrategy.ToString(),
++            configuration.OStrategy.ToString(),
++            configuration.RandomSeed,
++            get_application_version());
++    }
++
++    private static string get_application_version()
++    {
++        Version? version = Assembly.GetExecutingAssembly()
++            .GetName()
++            .Version;
++
++        return version is null
++            ? "unknown"
++            : $"{version.Major}.{version.Minor}.{version.Build}";
++    }
++
++    private static string format_seed(int? seed)
++    {
++        return seed?.ToString(
++                   System.Globalization.CultureInfo.InvariantCulture)
++               ?? "não definida";
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/AutomaticModeCancelledException.cs b/src/TicTacToe.Console/Presentation/Navigation/AutomaticModeCancelledException.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/AutomaticModeCancelledException.cs
+@@ -0,0 +1,12 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Interrompe controladamente uma demonstração automática.
++/// </summary>
++public sealed class AutomaticModeCancelledException : Exception
++{
++    public AutomaticModeCancelledException()
++        : base("A demonstração automática foi cancelada.")
++    {
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleAutomaticModeControl.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleAutomaticModeControl.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleAutomaticModeControl.cs
+@@ -0,0 +1,86 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Implementa pausa e cancelamento por teclado no terminal.
++/// </summary>
++public sealed class ConsoleAutomaticModeControl
++    : IAutomaticModeControl
++{
++    private readonly TextWriter writer;
++    private readonly Func<bool> key_available;
++    private readonly Func<ConsoleKeyInfo> read_key;
++    private readonly IDelayService delay_service;
++
++    public ConsoleAutomaticModeControl(
++        TextWriter writer,
++        IDelayService delay_service)
++        : this(
++            writer,
++            delay_service,
++            () => global::System.Console.KeyAvailable,
++            () => global::System.Console.ReadKey(intercept: true))
++    {
++    }
++
++    public ConsoleAutomaticModeControl(
++        TextWriter writer,
++        IDelayService delay_service,
++        Func<bool> key_available,
++        Func<ConsoleKeyInfo> read_key)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        ArgumentNullException.ThrowIfNull(delay_service);
++        ArgumentNullException.ThrowIfNull(key_available);
++        ArgumentNullException.ThrowIfNull(read_key);
++
++        this.writer = writer;
++        this.delay_service = delay_service;
++        this.key_available = key_available;
++        this.read_key = read_key;
++    }
++
++    public AutomaticControlDecision wait_for_turn()
++    {
++        if (!key_available())
++        {
++            return AutomaticControlDecision.Continue;
++        }
++
++        ConsoleKeyInfo key = read_key();
++
++        if (key.Key == ConsoleKey.Escape)
++        {
++            return AutomaticControlDecision.Cancel;
++        }
++
++        if (key.Key != ConsoleKey.Spacebar)
++        {
++            return AutomaticControlDecision.Continue;
++        }
++
++        writer.WriteLine();
++        writer.WriteLine(
++            "Demonstração pausada. Espaço continua; Esc cancela.");
++
++        while (true)
++        {
++            if (key_available())
++            {
++                key = read_key();
++
++                if (key.Key == ConsoleKey.Escape)
++                {
++                    return AutomaticControlDecision.Cancel;
++                }
++
++                if (key.Key == ConsoleKey.Spacebar)
++                {
++                    writer.WriteLine("Demonstração retomada.");
++                    return AutomaticControlDecision.Continue;
++                }
++            }
++
++            delay_service.wait(TimeSpan.FromMilliseconds(25));
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+@@ -17,6 +17,7 @@
+     private readonly IAnimationService animation_service;
+     private readonly PresentationPreferences preferences;
+     private readonly IMatchPersistenceService? persistence_service;
++    private readonly IMoveStrategyFactory strategy_factory;
+ 
+     /// <summary>
+     /// Inicializa o executor de sessões sem persistência externa.
+@@ -34,7 +35,8 @@
+                     visual_effects: false)),
+             new PresentationPreferences(
+                 visual_effects: false),
+-            persistence_service: null)
++            persistence_service: null,
++            strategy_factory: new MoveStrategyFactory())
+     {
+     }
+ 
+@@ -51,7 +53,8 @@
+             game_output,
+             animation_service,
+             preferences,
+-            persistence_service: null)
++            persistence_service: null,
++            strategy_factory: new MoveStrategyFactory())
+     {
+     }
+ 
+@@ -63,7 +66,8 @@
+         IGameOutput game_output,
+         IAnimationService animation_service,
+         PresentationPreferences preferences,
+-        IMatchPersistenceService? persistence_service)
++        IMatchPersistenceService? persistence_service,
++        IMoveStrategyFactory? strategy_factory = null)
+     {
+         ArgumentNullException.ThrowIfNull(game_input);
+         ArgumentNullException.ThrowIfNull(game_output);
+@@ -75,6 +79,7 @@
+         this.animation_service = animation_service;
+         this.preferences = preferences;
+         this.persistence_service = persistence_service;
++        this.strategy_factory = strategy_factory ?? new MoveStrategyFactory();
+     }
+ 
+     /// <inheritdoc />
+@@ -83,7 +88,7 @@
+         ArgumentNullException.ThrowIfNull(configuration);
+ 
+         IMoveStrategy strategy =
+-            create_strategy(
++            strategy_factory.create(
+                 configuration.OpponentStrategy,
+                 configuration.RandomSeed);
+ 
+@@ -147,26 +152,4 @@
+             ? "unknown"
+             : $"{version.Major}.{version.Minor}.{version.Build}";
+     }
+-
+-    private static IMoveStrategy create_strategy(
+-        StrategyKind strategy_kind,
+-        int? random_seed)
+-    {
+-        return strategy_kind switch
+-        {
+-            StrategyKind.Random =>
+-                random_seed.HasValue
+-                    ? new RandomMoveStrategy(random_seed.Value)
+-                    : new RandomMoveStrategy(),
+-            StrategyKind.Heuristic =>
+-                random_seed.HasValue
+-                    ? new HeuristicMoveStrategy(random_seed.Value)
+-                    : new HeuristicMoveStrategy(),
+-            StrategyKind.Minimax => new MinimaxMoveStrategy(),
+-            _ => throw new ArgumentOutOfRangeException(
+-                nameof(strategy_kind),
+-                strategy_kind,
+-                "A estratégia selecionada não é suportada.")
+-        };
+-    }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ControlledComputerMoveSelector.cs b/src/TicTacToe.Console/Presentation/Navigation/ControlledComputerMoveSelector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/ControlledComputerMoveSelector.cs
+@@ -0,0 +1,52 @@
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Seleciona jogadas computacionais com controle de pausa e cancelamento.
++/// </summary>
++public sealed class ControlledComputerMoveSelector : IMoveSelector
++{
++    private readonly IComputerMoveStrategyResolver strategy_resolver;
++    private readonly IAutomaticModeControl mode_control;
++
++    public ControlledComputerMoveSelector(
++        IComputerMoveStrategyResolver strategy_resolver,
++        IAutomaticModeControl mode_control)
++    {
++        ArgumentNullException.ThrowIfNull(strategy_resolver);
++        ArgumentNullException.ThrowIfNull(mode_control);
++
++        this.strategy_resolver = strategy_resolver;
++        this.mode_control = mode_control;
++    }
++
++    public BoardPosition select_move(
++        Match match,
++        Player player)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++        ArgumentNullException.ThrowIfNull(player);
++
++        if (mode_control.wait_for_turn() ==
++            AutomaticControlDecision.Cancel)
++        {
++            throw new AutomaticModeCancelledException();
++        }
++
++        if (player is not ComputerPlayer computer_player)
++        {
++            throw new NotSupportedException(
++                "O modo automático aceita somente participantes computacionais.");
++        }
++
++        IMoveStrategy strategy =
++            strategy_resolver.resolve_strategy(computer_player);
++
++        return strategy.choose_move(
++            match.Board,
++            computer_player.Symbol);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/IAutomaticMatchRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/IAutomaticMatchRunner.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/IAutomaticMatchRunner.cs
+@@ -0,0 +1,13 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Define a execução de uma partida demonstrativa IA contra IA.
++/// </summary>
++public interface IAutomaticMatchRunner
++{
++    /// <summary>
++    /// Executa a demonstração configurada.
++    /// </summary>
++    AutomaticMatchResult run(
++        AutomaticMatchConfiguration configuration);
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/IAutomaticModeControl.cs b/src/TicTacToe.Console/Presentation/Navigation/IAutomaticModeControl.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/IAutomaticModeControl.cs
+@@ -0,0 +1,12 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Abstrai pausa e cancelamento do modo automático.
++/// </summary>
++public interface IAutomaticModeControl
++{
++    /// <summary>
++    /// Aguarda autorização para executar o próximo turno.
++    /// </summary>
++    AutomaticControlDecision wait_for_turn();
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/IMoveStrategyFactory.cs b/src/TicTacToe.Console/Presentation/Navigation/IMoveStrategyFactory.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/IMoveStrategyFactory.cs
+@@ -0,0 +1,16 @@
++using TicTacToe.AI;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Cria Strategies configuradas sem acoplar telas às implementações concretas.
++/// </summary>
++public interface IMoveStrategyFactory
++{
++    /// <summary>
++    /// Cria uma Strategy com semente opcional.
++    /// </summary>
++    IMoveStrategy create(
++        StrategyKind strategy_kind,
++        int? random_seed);
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/MoveStrategyFactory.cs b/src/TicTacToe.Console/Presentation/Navigation/MoveStrategyFactory.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/MoveStrategyFactory.cs
+@@ -0,0 +1,32 @@
++using TicTacToe.AI;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Cria as Strategies disponíveis na aplicação.
++/// </summary>
++public sealed class MoveStrategyFactory : IMoveStrategyFactory
++{
++    /// <inheritdoc />
++    public IMoveStrategy create(
++        StrategyKind strategy_kind,
++        int? random_seed)
++    {
++        return strategy_kind switch
++        {
++            StrategyKind.Random =>
++                random_seed.HasValue
++                    ? new RandomMoveStrategy(random_seed.Value)
++                    : new RandomMoveStrategy(),
++            StrategyKind.Heuristic =>
++                random_seed.HasValue
++                    ? new HeuristicMoveStrategy(random_seed.Value)
++                    : new HeuristicMoveStrategy(),
++            StrategyKind.Minimax => new MinimaxMoveStrategy(),
++            _ => throw new ArgumentOutOfRangeException(
++                nameof(strategy_kind),
++                strategy_kind,
++                "A Strategy selecionada não é suportada.")
++        };
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenContext.cs
+@@ -1,5 +1,5 @@
+ using TicTacToe.Domain;
+-using TicTacToe.Presentation;
++using TicTacToe.Persistence;
+ 
+ namespace TicTacToe.Presentation.Navigation;
+ 
+@@ -9,35 +9,57 @@
+ public sealed class ScreenContext
+ {
+     public ScreenContext()
+-        : this(new PresentationPreferences())
++        : this(
++            new PresentationPreferences(),
++            ApplicationSettings.create_default(),
++            settings_repository: null)
+     {
+     }
+ 
+-    public ScreenContext(PresentationPreferences presentation_preferences)
++    public ScreenContext(
++        PresentationPreferences presentation_preferences)
++        : this(
++            presentation_preferences,
++            ApplicationSettings.create_default(),
++            settings_repository: null)
++    {
++    }
++
++    public ScreenContext(
++        PresentationPreferences presentation_preferences,
++        ApplicationSettings application_settings,
++        ISettingsRepository? settings_repository)
+     {
+         ArgumentNullException.ThrowIfNull(presentation_preferences);
++        ArgumentNullException.ThrowIfNull(application_settings);
++
+         PresentationPreferences = presentation_preferences;
++        ApplicationSettings = application_settings;
++        SettingsRepository = settings_repository;
+     }
+ 
+-    /// <summary>
+-    /// Obtém as preferências visuais compartilhadas pelas telas.
+-    /// </summary>
+     public PresentationPreferences PresentationPreferences { get; }
+ 
+-    /// <summary>
+-    /// Obtém a configuração selecionada para a próxima partida.
+-    /// </summary>
++    public ApplicationSettings ApplicationSettings { get; }
++
++    public ISettingsRepository? SettingsRepository { get; }
++
+     public MatchConfiguration? MatchConfiguration { get; private set; }
+ 
+-    /// <summary>
+-    /// Obtém a última partida executada.
+-    /// </summary>
+     public Match? LastMatch { get; private set; }
+ 
+-    /// <summary>
+-    /// Atualiza a configuração da próxima partida.
+-    /// </summary>
+-    /// <param name="configuration">Configuração validada pela apresentação.</param>
++    public AutomaticMatchConfiguration? AutomaticMatchConfiguration
++    {
++        get;
++        private set;
++    }
++
++    public AutomaticMatchResult? LastAutomaticMatchResult
++    {
++        get;
++        private set;
++    }
++
+     public void set_match_configuration(
+         MatchConfiguration configuration)
+     {
+@@ -45,13 +67,41 @@
+         MatchConfiguration = configuration;
+     }
+ 
+-    /// <summary>
+-    /// Registra a última partida executada.
+-    /// </summary>
+-    /// <param name="match">Partida concluída ou em andamento.</param>
+     public void set_last_match(Match match)
+     {
+         ArgumentNullException.ThrowIfNull(match);
+         LastMatch = match;
+     }
++
++    public void set_automatic_match_configuration(
++        AutomaticMatchConfiguration configuration)
++    {
++        ArgumentNullException.ThrowIfNull(configuration);
++        AutomaticMatchConfiguration = configuration;
++    }
++
++    public void set_last_automatic_match_result(
++        AutomaticMatchResult result)
++    {
++        ArgumentNullException.ThrowIfNull(result);
++        LastAutomaticMatchResult = result;
++    }
++
++    public void persist_presentation_preferences()
++    {
++        ApplicationSettings.UseUnicode =
++            PresentationPreferences.UseUnicode;
++        ApplicationSettings.UseAnsiColors =
++            PresentationPreferences.UseAnsiColors;
++        ApplicationSettings.ClearScreen =
++            PresentationPreferences.ClearScreen;
++        ApplicationSettings.AnimationsEnabled =
++            PresentationPreferences.VisualEffects;
++        ApplicationSettings.AudioEnabled =
++            PresentationPreferences.AudioEnabled;
++        ApplicationSettings.AnimationDelayMilliseconds =
++            PresentationPreferences.AnimationDelayMilliseconds;
++
++        SettingsRepository?.save(ApplicationSettings);
++    }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenState.cs
+@@ -10,6 +10,8 @@
+     MatchSetup,
+     Playing,
+     MatchResult,
++    AutomaticSetup,
++    AutomaticPlaying,
+     Statistics,
+     ExperimentSetup,
+     Settings,
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/StrategyKindParser.cs b/src/TicTacToe.Console/Presentation/Navigation/StrategyKindParser.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/StrategyKindParser.cs
+@@ -0,0 +1,30 @@
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Converte nomes persistidos e opções de menu em StrategyKind.
++/// </summary>
++public static class StrategyKindParser
++{
++    public static StrategyKind parse_or_default(
++        string? value,
++        StrategyKind default_value = StrategyKind.Minimax)
++    {
++        return Enum.TryParse(
++            value,
++            ignoreCase: true,
++            out StrategyKind parsed)
++            ? parsed
++            : default_value;
++    }
++
++    public static StrategyKind? parse_option(string? value)
++    {
++        return value?.Trim() switch
++        {
++            "1" => StrategyKind.Random,
++            "2" => StrategyKind.Heuristic,
++            "3" => StrategyKind.Minimax,
++            _ => null
++        };
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/AutomaticPlayingScreen.cs b/src/TicTacToe.Console/Presentation/Screens/AutomaticPlayingScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/AutomaticPlayingScreen.cs
+@@ -0,0 +1,37 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Executa a demonstração automática e retorna ao menu.
++/// </summary>
++public sealed class AutomaticPlayingScreen : IScreen
++{
++    private readonly IAutomaticMatchRunner runner;
++
++    public AutomaticPlayingScreen(
++        IAutomaticMatchRunner runner)
++    {
++        ArgumentNullException.ThrowIfNull(runner);
++        this.runner = runner;
++    }
++
++    public ScreenState State => ScreenState.AutomaticPlaying;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        AutomaticMatchConfiguration? configuration =
++            context.AutomaticMatchConfiguration;
++
++        if (configuration is null)
++        {
++            return new ScreenTransition(
++                ScreenState.AutomaticSetup);
++        }
++
++        AutomaticMatchResult result = runner.run(configuration);
++        context.set_last_automatic_match_result(result);
++
++        return new ScreenTransition(ScreenState.MainMenu);
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/AutomaticSetupScreen.cs b/src/TicTacToe.Console/Presentation/Screens/AutomaticSetupScreen.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Screens/AutomaticSetupScreen.cs
+@@ -0,0 +1,145 @@
++using TicTacToe.Presentation.Navigation;
++
++namespace TicTacToe.Presentation.Screens;
++
++/// <summary>
++/// Coleta as opções do modo demonstrativo IA contra IA.
++/// </summary>
++public sealed class AutomaticSetupScreen : IScreen
++{
++    private readonly TextReader reader;
++    private readonly TextWriter writer;
++
++    public AutomaticSetupScreen(
++        TextReader reader,
++        TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(reader);
++        ArgumentNullException.ThrowIfNull(writer);
++        this.reader = reader;
++        this.writer = writer;
++    }
++
++    public ScreenState State => ScreenState.AutomaticSetup;
++
++    public ScreenTransition show(ScreenContext context)
++    {
++        StrategyKind default_strategy =
++            StrategyKindParser.parse_or_default(
++                context.ApplicationSettings.DefaultStrategy);
++
++        StrategyKind? x_strategy = read_strategy(
++            "Strategy de X",
++            default_strategy);
++
++        if (!x_strategy.HasValue)
++        {
++            return new ScreenTransition(ScreenState.MainMenu);
++        }
++
++        StrategyKind? o_strategy = read_strategy(
++            "Strategy de O",
++            default_strategy);
++
++        if (!o_strategy.HasValue)
++        {
++            return new ScreenTransition(ScreenState.MainMenu);
++        }
++
++        int? seed = read_seed(
++            context.ApplicationSettings.RandomSeed);
++        bool persist_match = read_boolean(
++            "Persistir a partida no histórico? [s/N]: ");
++
++        context.set_automatic_match_configuration(
++            new AutomaticMatchConfiguration(
++                x_strategy.Value,
++                o_strategy.Value,
++                seed,
++                persist_match));
++
++        return new ScreenTransition(
++            ScreenState.AutomaticPlaying);
++    }
++
++    private StrategyKind? read_strategy(
++        string label,
++        StrategyKind default_strategy)
++    {
++        while (true)
++        {
++            writer.WriteLine();
++            writer.WriteLine(
++                $"{label} [padrão: {default_strategy}]:");
++            writer.WriteLine("1 - Random");
++            writer.WriteLine("2 - Heuristic");
++            writer.WriteLine("3 - Minimax");
++            writer.WriteLine("0 - Voltar");
++            writer.Write("Opção: ");
++
++            string? input = reader.ReadLine();
++
++            if (string.IsNullOrWhiteSpace(input))
++            {
++                return default_strategy;
++            }
++
++            if (input.Trim() == "0")
++            {
++                return null;
++            }
++
++            StrategyKind? strategy =
++                StrategyKindParser.parse_option(input);
++
++            if (strategy.HasValue)
++            {
++                return strategy;
++            }
++
++            writer.WriteLine("Strategy inválida.");
++        }
++    }
++
++    private int? read_seed(int? default_seed)
++    {
++        while (true)
++        {
++            writer.Write(
++                $"Semente [padrão: {format_seed(default_seed)}; - para nenhuma]: ");
++            string? input = reader.ReadLine();
++
++            if (string.IsNullOrWhiteSpace(input))
++            {
++                return default_seed;
++            }
++
++            if (input.Trim() == "-")
++            {
++                return null;
++            }
++
++            if (int.TryParse(input.Trim(), out int seed))
++            {
++                return seed;
++            }
++
++            writer.WriteLine("Semente inválida.");
++        }
++    }
++
++    private bool read_boolean(string prompt)
++    {
++        writer.Write(prompt);
++        string? input = reader.ReadLine();
++        return string.Equals(
++            input?.Trim(),
++            "s",
++            StringComparison.OrdinalIgnoreCase);
++    }
++
++    private static string format_seed(int? seed)
++    {
++        return seed?.ToString() ?? "não definida";
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs b/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/MainMenuScreen.cs
+@@ -16,7 +16,6 @@
+     {
+         ArgumentNullException.ThrowIfNull(reader);
+         ArgumentNullException.ThrowIfNull(writer);
+-
+         this.reader = reader;
+         this.writer = writer;
+     }
+@@ -29,25 +28,25 @@
+         {
+             writer.WriteLine();
+             writer.WriteLine("Menu principal");
+-            writer.WriteLine("1 - Jogar");
+-            writer.WriteLine("2 - Estatísticas");
+-            writer.WriteLine("3 - Experimentos");
+-            writer.WriteLine("4 - Configurações");
+-            writer.WriteLine("5 - Ajuda");
+-            writer.WriteLine("6 - Créditos");
++            writer.WriteLine("1 - Jogar contra IA");
++            writer.WriteLine("2 - Demonstração IA contra IA");
++            writer.WriteLine("3 - Estatísticas");
++            writer.WriteLine("4 - Experimentos");
++            writer.WriteLine("5 - Configurações");
++            writer.WriteLine("6 - Ajuda");
++            writer.WriteLine("7 - Créditos");
+             writer.WriteLine("0 - Sair");
+             writer.Write("Opção: ");
+ 
+-            string? option = reader.ReadLine();
+-
+-            ScreenState? target = option?.Trim() switch
++            ScreenState? target = reader.ReadLine()?.Trim() switch
+             {
+                 "1" => ScreenState.MatchSetup,
+-                "2" => ScreenState.Statistics,
+-                "3" => ScreenState.ExperimentSetup,
+-                "4" => ScreenState.Settings,
+-                "5" => ScreenState.Help,
+-                "6" => ScreenState.Credits,
++                "2" => ScreenState.AutomaticSetup,
++                "3" => ScreenState.Statistics,
++                "4" => ScreenState.ExperimentSetup,
++                "5" => ScreenState.Settings,
++                "6" => ScreenState.Help,
++                "7" => ScreenState.Credits,
+                 "0" => ScreenState.Exit,
+                 _ => null
+             };
+diff --git a/src/TicTacToe.Console/Presentation/Screens/MatchSetupScreen.cs b/src/TicTacToe.Console/Presentation/Screens/MatchSetupScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/MatchSetupScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/MatchSetupScreen.cs
+@@ -3,7 +3,7 @@
+ namespace TicTacToe.Presentation.Screens;
+ 
+ /// <summary>
+-/// Coleta a configuração mínima de uma partida.
++/// Coleta a configuração de uma partida entre pessoa e IA.
+ /// </summary>
+ public sealed class MatchSetupScreen : IScreen
+ {
+@@ -16,7 +16,6 @@
+     {
+         ArgumentNullException.ThrowIfNull(reader);
+         ArgumentNullException.ThrowIfNull(writer);
+-
+         this.reader = reader;
+         this.writer = writer;
+     }
+@@ -32,12 +31,16 @@
+         string player_name = string.IsNullOrWhiteSpace(name_input)
+             ? "Pessoa"
+             : name_input.Trim();
++        StrategyKind default_strategy =
++            StrategyKindParser.parse_or_default(
++                context.ApplicationSettings.DefaultStrategy);
+ 
+         while (true)
+         {
+-            writer.WriteLine("Estratégia adversária:");
+-            writer.WriteLine("1 - Aleatória");
+-            writer.WriteLine("2 - Heurística");
++            writer.WriteLine(
++                $"Strategy adversária [padrão: {default_strategy}]:");
++            writer.WriteLine("1 - Random");
++            writer.WriteLine("2 - Heuristic");
+             writer.WriteLine("3 - Minimax");
+             writer.WriteLine("0 - Voltar");
+             writer.Write("Opção: ");
+@@ -49,24 +52,22 @@
+                 return new ScreenTransition(ScreenState.MainMenu);
+             }
+ 
+-            StrategyKind? strategy_kind = option?.Trim() switch
+-            {
+-                "1" => StrategyKind.Random,
+-                "2" => StrategyKind.Heuristic,
+-                "3" => StrategyKind.Minimax,
+-                _ => null
+-            };
++            StrategyKind? strategy_kind =
++                string.IsNullOrWhiteSpace(option)
++                    ? default_strategy
++                    : StrategyKindParser.parse_option(option);
+ 
+             if (!strategy_kind.HasValue)
+             {
+-                writer.WriteLine("Estratégia inválida.");
++                writer.WriteLine("Strategy inválida.");
+                 continue;
+             }
+ 
+             context.set_match_configuration(
+                 new MatchConfiguration(
+                     player_name,
+-                    strategy_kind.Value));
++                    strategy_kind.Value,
++                    context.ApplicationSettings.RandomSeed));
+ 
+             return new ScreenTransition(ScreenState.Playing);
+         }
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+@@ -3,7 +3,7 @@
+ namespace TicTacToe.Presentation.Screens;
+ 
+ /// <summary>
+-/// Permite ativar ou desativar preferências visuais da apresentação.
++/// Permite configurar e persistir preferências da apresentação.
+ /// </summary>
+ public sealed class SettingsScreen : IScreen
+ {
+@@ -16,7 +16,6 @@
+     {
+         ArgumentNullException.ThrowIfNull(reader);
+         ArgumentNullException.ThrowIfNull(writer);
+-
+         this.reader = reader;
+         this.writer = writer;
+     }
+@@ -31,7 +30,7 @@
+         while (true)
+         {
+             writer.WriteLine();
+-            writer.WriteLine("Configurações visuais");
++            writer.WriteLine("Configurações");
+             writer.WriteLine(
+                 $"1 - Unicode: {format(preferences.UseUnicode)}");
+             writer.WriteLine(
+@@ -42,7 +41,9 @@
+                 $"4 - Efeitos visuais: {format(preferences.VisualEffects)}");
+             writer.WriteLine(
+                 $"5 - Áudio: {format(preferences.AudioEnabled)}");
+-            writer.WriteLine("0 - Voltar");
++            writer.WriteLine(
++                $"6 - Atraso: {preferences.AnimationDelayMilliseconds} ms");
++            writer.WriteLine("0 - Salvar e voltar");
+             writer.Write("Opção: ");
+ 
+             switch (reader.ReadLine()?.Trim())
+@@ -50,30 +51,67 @@
+                 case "1":
+                     preferences.UseUnicode = !preferences.UseUnicode;
+                     break;
+-
+                 case "2":
+                     preferences.UseAnsiColors = !preferences.UseAnsiColors;
+                     break;
+-
+                 case "3":
+                     preferences.ClearScreen = !preferences.ClearScreen;
+                     break;
+-
+                 case "4":
+                     preferences.VisualEffects = !preferences.VisualEffects;
+                     break;
+-
+                 case "5":
+                     preferences.AudioEnabled = !preferences.AudioEnabled;
+                     break;
+-
++                case "6":
++                    read_delay(preferences);
++                    break;
+                 case "0":
++                    persist(context);
+                     return new ScreenTransition(ScreenState.MainMenu);
+-
+                 default:
+                     writer.WriteLine("Opção inválida.");
+                     break;
+             }
++        }
++    }
++
++    private void read_delay(PresentationPreferences preferences)
++    {
++        writer.Write("Novo atraso em milissegundos [0-5000]: ");
++        string? input = reader.ReadLine();
++
++        if (int.TryParse(input, out int delay) &&
++            delay >= 0 && delay <= 5000)
++        {
++            preferences.AnimationDelayMilliseconds = delay;
++            return;
++        }
++
++        writer.WriteLine("Atraso inválido.");
++    }
++
++    private void persist(ScreenContext context)
++    {
++        try
++        {
++            context.persist_presentation_preferences();
++            writer.WriteLine("Configurações salvas.");
++        }
++        catch (IOException exception)
++        {
++            writer.WriteLine(
++                $"Não foi possível salvar as configurações: {exception.Message}");
++        }
++        catch (UnauthorizedAccessException exception)
++        {
++            writer.WriteLine(
++                $"Não foi possível salvar as configurações: {exception.Message}");
++        }
++        catch (ArgumentException exception)
++        {
++            writer.WriteLine(
++                $"Configurações inválidas: {exception.Message}");
+         }
+     }
+ 
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -1,119 +1,14 @@
+-using TicTacToe.Audio;
+-using TicTacToe.Persistence;
+-using TicTacToe.Presentation;
+-using TicTacToe.Presentation.Navigation;
+-using TicTacToe.Presentation.Screens;
+-
+ namespace TicTacToe;
+ 
+ /// <summary>
+-/// Define o ponto de composição da aplicação Console.
++/// Define o ponto de entrada da aplicação Console.
+ /// </summary>
+ public static class Program
+ {
+     public static void Main(string[] args)
+     {
+-        TextReader reader = global::System.Console.In;
+-        TextWriter writer = global::System.Console.Out;
+-
+-        string settings_path = Path.Combine(
+-            AppContext.BaseDirectory,
+-            "data",
+-            "settings.json");
+-        ISettingsRepository settings_repository =
+-            new JsonSettingsRepository(
+-                settings_path,
+-                new SettingsValidator());
+-        ApplicationSettings settings =
+-            settings_repository.load();
+-        PresentationPreferences preferences =
+-            PresentationPreferences.from_settings(settings);
+-        ConsoleTheme theme = new(preferences);
+-        AsciiArtCatalog art_catalog = new();
+-        IAnimationService animation_service =
+-            new AnimationService(
+-                writer,
+-                new ThreadDelayService(),
+-                preferences);
+-
+-        ConsoleBoardRenderer board_renderer = new(
+-            writer,
+-            theme);
+-        ConsoleGameInput game_input = new(reader, writer);
+-        IVisualFeedbackService visual_feedback =
+-            new VisualFeedbackService(board_renderer);
+-        IAudioService audio_service =
+-            new AudioServiceSelector(writer).select(
+-                preferences.AudioEnabled);
+-
+-        ConsoleGameOutput game_output = new(
+-            writer,
+-            board_renderer,
+-            theme,
+-            art_catalog,
+-            visual_feedback,
+-            audio_service);
+-
+-        string data_directory =
+-            Path.Combine(
+-                AppContext.BaseDirectory,
+-                settings.Directories.Data);
+-
+-        IMatchPersistenceService match_persistence_service =
+-            new MatchPersistenceService(
+-                new JsonMatchHistoryRepository(
+-                    Path.Combine(
+-                        data_directory,
+-                        "matches.json")),
+-                new JsonMatchStatisticsRepository(
+-                    Path.Combine(
+-                        data_directory,
+-                        "statistics.json")),
+-                new MatchRecordMapper(),
+-                new MatchStatisticsCalculator());
+-
+-        IMatchSessionRunner match_session_runner =
+-            new ConsoleMatchSessionRunner(
+-                game_input,
+-                game_output,
+-                animation_service,
+-                preferences,
+-                match_persistence_service);
+-
+-        CitationMetadata citation_metadata =
+-            new CitationMetadataLoader().load(
+-                Path.Combine(
+-                    AppContext.BaseDirectory,
+-                    "CITATION.cff"));
+-
+-        IScreen[] screens =
+-        [
+-            new SplashScreen(
+-                reader,
+-                writer,
+-                theme,
+-                art_catalog,
+-                animation_service),
+-            new MainMenuScreen(reader, writer),
+-            new MatchSetupScreen(reader, writer),
+-            new PlayingScreen(match_session_runner),
+-            new MatchResultScreen(reader, writer),
+-            new StatisticsScreen(reader, writer),
+-            new ExperimentSetupScreen(reader, writer),
+-            new SettingsScreen(reader, writer),
+-            new HelpScreen(reader, writer),
+-            new CreditsScreen(
+-                reader,
+-                writer,
+-                citation_metadata),
+-            new ExitScreen(writer)
+-        ];
+-
+-        ScreenManager screen_manager = new(screens);
+-        ScreenContext context = new(preferences);
+-
+-        screen_manager.run(
+-            ScreenState.Splash,
+-            context);
++        new ConsoleApplication(
++            global::System.Console.In,
++            global::System.Console.Out).run();
+     }
+ }
+diff --git a/tests/TicTacToe.Tests/Audio/PreferenceAwareAudioServiceTests.cs b/tests/TicTacToe.Tests/Audio/PreferenceAwareAudioServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Audio/PreferenceAwareAudioServiceTests.cs
+@@ -0,0 +1,31 @@
++using TicTacToe.Audio;
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Audio;
++
++public class PreferenceAwareAudioServiceTests
++{
++    [Fact]
++    public void play_should_observe_current_preference()
++    {
++        PresentationPreferences preferences = new(
++            audio_enabled: false);
++        RecordingAudioService inner = new();
++        PreferenceAwareAudioService service = new(
++            preferences,
++            inner);
++
++        service.play(AudioCue.Move);
++        preferences.AudioEnabled = true;
++        service.play(AudioCue.Victory);
++
++        Assert.Equal([AudioCue.Victory], inner.Cues);
++    }
++
++    private sealed class RecordingAudioService : IAudioService
++    {
++        public List<AudioCue> Cues { get; } = [];
++        public void play(AudioCue cue) => Cues.Add(cue);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/AnimationServiceTests.cs b/tests/TicTacToe.Tests/Presentation/AnimationServiceTests.cs
+--- a/tests/TicTacToe.Tests/Presentation/AnimationServiceTests.cs
++++ b/tests/TicTacToe.Tests/Presentation/AnimationServiceTests.cs
+@@ -52,6 +52,29 @@
+     }
+ 
+     [Fact]
++    public void write_progressive_should_observe_effect_preference_changes()
++    {
++        StringWriter writer = new();
++        RecordingDelayService delay = new();
++        PresentationPreferences preferences = new(
++            visual_effects: false);
++        AnimationService service = new(
++            writer,
++            delay,
++            preferences);
++
++        service.write_progressive(
++            "A",
++            TimeSpan.FromMilliseconds(1));
++        preferences.VisualEffects = true;
++        service.write_progressive(
++            "B",
++            TimeSpan.FromMilliseconds(1));
++
++        Assert.Single(delay.Calls);
++    }
++
++    [Fact]
+     public void show_progress_bar_should_write_exact_progress()
+     {
+         StringWriter writer = new();
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticMatchRunnerTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticMatchRunnerTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticMatchRunnerTests.cs
+@@ -0,0 +1,123 @@
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++using TicTacToe.Persistence;
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++public class AutomaticMatchRunnerTests
++{
++    [Fact]
++    public void run_should_complete_without_real_delay_and_persist_when_requested()
++    {
++        RecordingPersistenceService persistence = new();
++        AutomaticMatchRunner runner = create_runner(
++            new ContinueControl(),
++            persistence);
++
++        AutomaticMatchResult result = runner.run(
++            new AutomaticMatchConfiguration(
++                StrategyKind.Minimax,
++                StrategyKind.Minimax,
++                7,
++                PersistMatch: true));
++
++        Assert.False(result.WasCancelled);
++        Assert.Equal(GameState.Finished, result.Match.State);
++        Assert.Equal(7, result.EffectiveSeed);
++        Assert.Equal(1, persistence.CallCount);
++    }
++
++    [Fact]
++    public void run_should_not_persist_when_option_is_disabled()
++    {
++        RecordingPersistenceService persistence = new();
++        AutomaticMatchRunner runner = create_runner(
++            new ContinueControl(),
++            persistence);
++
++        runner.run(
++            new AutomaticMatchConfiguration(
++                StrategyKind.Minimax,
++                StrategyKind.Minimax,
++                null,
++                PersistMatch: false));
++
++        Assert.Equal(0, persistence.CallCount);
++    }
++
++    [Fact]
++    public void run_should_cancel_safely()
++    {
++        AutomaticMatchRunner runner = create_runner(
++            new CancelControl(),
++            persistence: null);
++
++        AutomaticMatchResult result = runner.run(
++            new AutomaticMatchConfiguration(
++                StrategyKind.Random,
++                StrategyKind.Random,
++                1,
++                PersistMatch: false));
++
++        Assert.True(result.WasCancelled);
++        Assert.Equal(GameState.InProgress, result.Match.State);
++        Assert.Empty(result.Match.Moves);
++    }
++
++    private static AutomaticMatchRunner create_runner(
++        IAutomaticModeControl control,
++        IMatchPersistenceService? persistence)
++    {
++        PresentationPreferences preferences = new(
++            visual_effects: false,
++            animation_delay_milliseconds: 0);
++
++        return new AutomaticMatchRunner(
++            new StringWriter(),
++            new RecordingGameOutput(),
++            new ImmediateDelayService(),
++            preferences,
++            new MoveStrategyFactory(),
++            control,
++            persistence);
++    }
++
++    private sealed class ContinueControl : IAutomaticModeControl
++    {
++        public AutomaticControlDecision wait_for_turn() =>
++            AutomaticControlDecision.Continue;
++    }
++
++    private sealed class CancelControl : IAutomaticModeControl
++    {
++        public AutomaticControlDecision wait_for_turn() =>
++            AutomaticControlDecision.Cancel;
++    }
++
++    private sealed class RecordingGameOutput : IGameOutput
++    {
++        public void show_match(Match match) { }
++        public void show_invalid_move(
++            Player player,
++            BoardPosition position,
++            string message) { }
++        public void show_result(Match match) { }
++    }
++
++    private sealed class RecordingPersistenceService
++        : IMatchPersistenceService
++    {
++        public int CallCount { get; private set; }
++
++        public MatchRecord persist(
++            MatchPersistenceContext context)
++        {
++            CallCount++;
++            return new MatchRecordMapper().map(context);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticPlayingScreenTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticPlayingScreenTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticPlayingScreenTests.cs
+@@ -0,0 +1,45 @@
++using TicTacToe.Domain;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++public class AutomaticPlayingScreenTests
++{
++    [Fact]
++    public void show_should_return_to_menu_after_execution()
++    {
++        Match match = new(
++            new ComputerPlayer("X", Symbol.X),
++            new ComputerPlayer("O", Symbol.O));
++        RecordingRunner runner = new(match);
++        AutomaticPlayingScreen screen = new(runner);
++        ScreenContext context = new();
++        context.set_automatic_match_configuration(
++            new AutomaticMatchConfiguration(
++                StrategyKind.Minimax,
++                StrategyKind.Minimax,
++                null,
++                PersistMatch: false));
++
++        ScreenTransition transition = screen.show(context);
++
++        Assert.Equal(ScreenState.MainMenu, transition.Target);
++        Assert.NotNull(context.LastAutomaticMatchResult);
++        Assert.Equal(1, runner.CallCount);
++    }
++
++    private sealed class RecordingRunner : IAutomaticMatchRunner
++    {
++        private readonly Match match;
++        public RecordingRunner(Match match) => this.match = match;
++        public int CallCount { get; private set; }
++        public AutomaticMatchResult run(
++            AutomaticMatchConfiguration configuration)
++        {
++            CallCount++;
++            return new AutomaticMatchResult(match, false, configuration.RandomSeed);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticSetupScreenTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticSetupScreenTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticSetupScreenTests.cs
+@@ -0,0 +1,68 @@
++using TicTacToe.Persistence;
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++public class AutomaticSetupScreenTests
++{
++    [Fact]
++    public void show_should_use_default_strategy_and_seed()
++    {
++        ApplicationSettings settings = new()
++        {
++            DefaultStrategy = "Heuristic",
++            RandomSeed = 123
++        };
++        ScreenContext context = new(
++            PresentationPreferences.from_settings(settings),
++            settings,
++            settings_repository: null);
++        AutomaticSetupScreen screen = new(
++            new StringReader(
++                Environment.NewLine +
++                Environment.NewLine +
++                Environment.NewLine +
++                "n" + Environment.NewLine),
++            new StringWriter());
++
++        ScreenTransition transition = screen.show(context);
++
++        Assert.Equal(ScreenState.AutomaticPlaying, transition.Target);
++        Assert.NotNull(context.AutomaticMatchConfiguration);
++        Assert.Equal(
++            StrategyKind.Heuristic,
++            context.AutomaticMatchConfiguration.XStrategy);
++        Assert.Equal(
++            StrategyKind.Heuristic,
++            context.AutomaticMatchConfiguration.OStrategy);
++        Assert.Equal(123, context.AutomaticMatchConfiguration.RandomSeed);
++        Assert.False(context.AutomaticMatchConfiguration.PersistMatch);
++    }
++
++    [Fact]
++    public void show_should_allow_distinct_strategies_and_persistence()
++    {
++        ScreenContext context = new();
++        AutomaticSetupScreen screen = new(
++            new StringReader(
++                "1" + Environment.NewLine +
++                "3" + Environment.NewLine +
++                "42" + Environment.NewLine +
++                "s" + Environment.NewLine),
++            new StringWriter());
++
++        screen.show(context);
++
++        Assert.Equal(
++            StrategyKind.Random,
++            context.AutomaticMatchConfiguration!.XStrategy);
++        Assert.Equal(
++            StrategyKind.Minimax,
++            context.AutomaticMatchConfiguration.OStrategy);
++        Assert.Equal(42, context.AutomaticMatchConfiguration.RandomSeed);
++        Assert.True(context.AutomaticMatchConfiguration.PersistMatch);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/ConsoleAutomaticModeControlTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/ConsoleAutomaticModeControlTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/ConsoleAutomaticModeControlTests.cs
+@@ -0,0 +1,65 @@
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++public class ConsoleAutomaticModeControlTests
++{
++    [Fact]
++    public void wait_for_turn_should_pause_and_resume()
++    {
++        Queue<ConsoleKeyInfo> keys = new(
++        [
++            create_key(ConsoleKey.Spacebar, ' '),
++            create_key(ConsoleKey.Spacebar, ' ')
++        ]);
++        ConsoleAutomaticModeControl control = new(
++            new StringWriter(),
++            new ImmediateDelayService(),
++            () => keys.Count > 0,
++            () => keys.Dequeue());
++
++        AutomaticControlDecision decision =
++            control.wait_for_turn();
++
++        Assert.Equal(
++            AutomaticControlDecision.Continue,
++            decision);
++        Assert.Empty(keys);
++    }
++
++    [Fact]
++    public void wait_for_turn_should_cancel_from_pause()
++    {
++        Queue<ConsoleKeyInfo> keys = new(
++        [
++            create_key(ConsoleKey.Spacebar, ' '),
++            create_key(ConsoleKey.Escape, '\u001b')
++        ]);
++        ConsoleAutomaticModeControl control = new(
++            new StringWriter(),
++            new ImmediateDelayService(),
++            () => keys.Count > 0,
++            () => keys.Dequeue());
++
++        AutomaticControlDecision decision =
++            control.wait_for_turn();
++
++        Assert.Equal(
++            AutomaticControlDecision.Cancel,
++            decision);
++    }
++
++    private static ConsoleKeyInfo create_key(
++        ConsoleKey key,
++        char character)
++    {
++        return new ConsoleKeyInfo(
++            character,
++            key,
++            shift: false,
++            alt: false,
++            control: false);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/MatchSetupDefaultsTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/MatchSetupDefaultsTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/MatchSetupDefaultsTests.cs
+@@ -0,0 +1,36 @@
++using TicTacToe.Persistence;
++using TicTacToe.Presentation;
++using TicTacToe.Presentation.Navigation;
++using TicTacToe.Presentation.Screens;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++public class MatchSetupDefaultsTests
++{
++    [Fact]
++    public void show_should_apply_configured_strategy_and_seed_on_blank_option()
++    {
++        ApplicationSettings settings = new()
++        {
++            DefaultStrategy = "Random",
++            RandomSeed = 77
++        };
++        ScreenContext context = new(
++            PresentationPreferences.from_settings(settings),
++            settings,
++            settings_repository: null);
++        MatchSetupScreen screen = new(
++            new StringReader(
++                Environment.NewLine +
++                Environment.NewLine),
++            new StringWriter());
++
++        screen.show(context);
++
++        Assert.Equal(
++            StrategyKind.Random,
++            context.MatchConfiguration!.OpponentStrategy);
++        Assert.Equal(77, context.MatchConfiguration.RandomSeed);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs b/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
+--- a/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
++++ b/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
+@@ -1,3 +1,4 @@
++using TicTacToe.Persistence;
+ using TicTacToe.Presentation;
+ using TicTacToe.Presentation.Navigation;
+ using TicTacToe.Presentation.Screens;
+@@ -8,21 +9,21 @@
+ public class SettingsScreenTests
+ {
+     [Fact]
+-    public void show_should_toggle_all_visual_preferences()
++    public void show_should_toggle_and_persist_preferences()
+     {
+-        PresentationPreferences preferences = new(
+-            use_ansi_colors: false,
+-            use_unicode: true,
+-            clear_screen: false,
+-            visual_effects: true);
+-        ScreenContext context = new(preferences);
++        ApplicationSettings settings = new();
++        PresentationPreferences preferences =
++            PresentationPreferences.from_settings(settings);
++        RecordingSettingsRepository repository = new();
++        ScreenContext context = new(
++            preferences,
++            settings,
++            repository);
+         StringReader reader = new(
+             string.Join(
+                 Environment.NewLine,
+-                ["1", "2", "3", "4", "5", "0", string.Empty]));
+-        SettingsScreen screen = new(
+-            reader,
+-            new StringWriter());
++                ["1", "2", "3", "4", "5", "6", "125", "0", string.Empty]));
++        SettingsScreen screen = new(reader, new StringWriter());
+ 
+         ScreenTransition transition = screen.show(context);
+ 
+@@ -32,5 +33,23 @@
+         Assert.True(preferences.ClearScreen);
+         Assert.False(preferences.VisualEffects);
+         Assert.False(preferences.AudioEnabled);
++        Assert.Equal(125, preferences.AnimationDelayMilliseconds);
++        Assert.Equal(1, repository.SaveCount);
++        Assert.False(repository.Saved!.UseUnicode);
++        Assert.Equal(125, repository.Saved.AnimationDelayMilliseconds);
++    }
++
++    private sealed class RecordingSettingsRepository
++        : ISettingsRepository
++    {
++        public int SaveCount { get; private set; }
++        public ApplicationSettings? Saved { get; private set; }
++        public ApplicationSettings load() =>
++            ApplicationSettings.create_default();
++        public void save(ApplicationSettings settings)
++        {
++            SaveCount++;
++            Saved = settings;
++        }
+     }
+ }

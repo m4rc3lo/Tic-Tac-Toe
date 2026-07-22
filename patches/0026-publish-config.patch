@@ -1,0 +1,1161 @@
+diff --git a/.gitignore b/.gitignore
+--- a/.gitignore
++++ b/.gitignore
+@@ -8,6 +8,7 @@
+ *.publish.xml
+ *.pubxml
+ *.pubxml.user
++!src/TicTacToe.Console/Properties/PublishProfiles/*.pubxml
+ 
+ # Visual Studio
+ .vs/
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,23 @@
+ 
+ ### Added
+ 
++- Quatro perfis MSBuild para publicação Windows e Linux.
++- Arquivos mínimos de distribuição e configuração de exemplo.
++- Validador e scripts para inspeção e medição dos pacotes.
++- `docs/26-publicacao.md`, `docs/27-glossario.md` e
++  `docs/28-uso-ia-generativa.md`.
++- Índice em `docs/README.md`.
++- README ampliado com arte ASCII e catálogo documental.
++
++### Changed
++
++- `CITATION.cff` passou a ser copiado explicitamente na publicação.
++- `.gitignore` passou a permitir somente os perfis versionados.
++- Publicações foram configuradas sem single-file, trimming ou ReadyToRun.
++
++
++### Added
++
+ - Detecção separada de plataforma e capacidades do terminal.
+ - Modo de compatibilidade para preferências efetivas da sessão.
+ - Verificação de `CITATION.cff` no diretório publicado.
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,59 +1,166 @@
+ # Tic-Tac-Toe Console AI
+ 
+-Refatoração didática de uma implementação legada de jogo da velha, desenvolvida
+-em C# para .NET 9.
++```text
++ _______ _        _______            _______
++|__   __(_)      |__   __|          |__   __|
++   | |   _  ___     | | __ _  ___     | | ___   ___
++   | |  | |/ __|    | |/ _` |/ __|    | |/ _ \ / _ \
++   | |  | | (__     | | (_| | (__     | | (_) |  __/
++   |_|  |_|\___|    |_|\__,_|\___|    |_|\___/ \___|
++
++              Console AI · .NET 9
++```
++
++Refatoração didática e experimental de uma implementação legada de jogo da
++velha. O projeto combina domínio encapsulado, Strategies de inteligência
++artificial, aplicação Console, persistência JSON, exportação CSV, modo
++demonstrativo, experimentação reproduzível e publicação multiplataforma.
++
++## Recursos
++
++- partida pessoa contra IA;
++- demonstração IA contra IA;
++- Strategies `Random`, `Heuristic` e `Minimax`;
++- temas ASCII e Unicode;
++- cores, animações e áudio com fallback;
++- configurações persistentes;
++- histórico e estatísticas;
++- exportação CSV;
++- confrontos experimentais em lote;
++- compatibilidade Windows e Unix-like;
++- quatro perfis de publicação.
+ 
+ ## Estado do projeto
+ 
+-- `v1.0.0` — 2026-07-15: estado legado preservado;
+-- `v1.1.0` — 2026-07-15: solução .NET 9, governança e infraestrutura inicial;
+-- `v1.2.0` — 2026-07-16: domínio, regras e agregado de partida;
+-- `v1.3.0` — 2026-07-16: padrão Strategy e estratégia aleatória;
+-- `v1.4.0` — 2026-07-16: fluxo básico de aplicação, correções arquiteturais e estratégia heurística;
+-- `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
+-- `v1.6.0` — 2026-07-17: apresentação Console e máquina de estados;
+-- `v1.7.0` — 2026-07-17: recursos visuais, animações e áudio com fallback;
+-- `v1.8.0` — 2026-07-18: persistência JSON e exportação CSV;
+-- `Unreleased`: próxima etapa de desenvolvimento;
+-- `v2.0.0` — data a definir: consolidação final da refatoração.
++| Versão | Data | Marco |
++|---|---|---|
++| `v1.0.0` | 2026-07-15 | legado preservado |
++| `v1.1.0` | 2026-07-15 | solução .NET 9 e governança |
++| `v1.2.0` | 2026-07-16 | domínio e agregado |
++| `v1.3.0` | 2026-07-16 | Strategy aleatória |
++| `v1.4.0` | 2026-07-16 | aplicação e heurística |
++| `v1.5.0` | 2026-07-17 | Minimax |
++| `v1.6.0` | 2026-07-17 | apresentação e navegação |
++| `v1.7.0` | 2026-07-17 | recursos audiovisuais |
++| `v1.8.0` | 2026-07-18 | persistência e CSV |
++| `Unreleased` | — | experimentação, robustez e publicação |
++| `v2.0.0` | a definir | consolidação final |
+ 
+-O código legado foi movido para `legacy/` e não participa da compilação. A nova
+-implementação será construída em `src/`, com testes em `tests/`.
++## Estrutura
+ 
+-## Requisitos
++```text
++src/TicTacToe.Console/      aplicação
++tests/TicTacToe.Tests/      testes automatizados
++docs/                       documentação técnica
++distribution/               arquivos incluídos na publicação
++scripts/                    validações de empacotamento
++legacy/                     código legado preservado
++data/                       dados criados em runtime
++exports/                    exportações criadas em runtime
++```
+ 
+-- SDK do .NET 9;
++## Requisitos de desenvolvimento
++
++- SDK .NET 9;
+ - Git.
+ 
+-## Restaurar dependências
++## Compilar e testar
+ 
+ ```bash
+-dotnet restore
++dotnet restore TicTacToe.sln
++dotnet build TicTacToe.sln --configuration Release
++dotnet test TicTacToe.sln --configuration Release --no-build
+ ```
+ 
+-## Compilar
++Para tratar warnings como erros:
+ 
+ ```bash
+-dotnet build
++dotnet build TicTacToe.sln --configuration Release -warnaserror
+ ```
+ 
+ ## Executar
+ 
+ ```bash
+-dotnet run --project src/TicTacToe.Console
++dotnet run --project src/TicTacToe.Console/TicTacToe.Console.csproj
+ ```
+ 
+-## Executar os testes
++## Publicar
++
++Exemplo:
+ 
+ ```bash
+-dotnet test
++dotnet publish src/TicTacToe.Console/TicTacToe.Console.csproj \
++  /p:PublishProfile=linux-x64-framework-dependent
+ ```
+ 
+-## Convenções iniciais
++Consulte [`docs/26-publicacao.md`](docs/26-publicacao.md) para os quatro perfis,
++validação, atualização e permissões.
++
++## Dados e privacidade
++
++O repositório e os pacotes não incluem histórico, estatísticas ou resultados
++locais. A aplicação cria `data/` e `exports/` somente durante a execução.
++
++Arquivos JSON corrompidos são preservados em quarentena antes da recuperação.
++
++## Uso de IA generativa
++
++IA generativa foi utilizada como apoio incremental à análise, geração de
++patches, testes e documentação. A validação, integração e responsabilidade
++permanecem humanas.
++
++Consulte
++[`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md).
++
++## Convenções
+ 
+ - identificadores em inglês;
+-- tipos em `CamelCase`;
++- classes e tipos em `CamelCase`;
+ - métodos e variáveis em `snake_case`;
+-- comentários e documentação em português do Brasil;
+-- indentação com quatro espaços, sem tabulações;
+-- arquivos de texto em UTF-8 e finais de linha LF.
++- documentação e commits em português do Brasil;
++- quatro espaços;
++- UTF-8 e LF;
++- dependências externas mínimas.
++
++## Documentação
++
++| Documento | Descrição |
++|---|---|
++| [`docs/00-decisoes-e-escopo.md`](docs/00-decisoes-e-escopo.md) | Decisões gerais, convenções e escopo. |
++| [`docs/01-projeto-original.md`](docs/01-projeto-original.md) | Inventário e contexto do código legado. |
++| [`docs/02-requisitos.md`](docs/02-requisitos.md) | Requisitos funcionais, não funcionais e restrições. |
++| [`docs/03-arquitetura.md`](docs/03-arquitetura.md) | Módulos, dependências e componentes. |
++| [`docs/04-modelo-conceitual.md`](docs/04-modelo-conceitual.md) | Entidades, objetos de valor e relações. |
++| [`docs/05-game-rules.md`](docs/05-game-rules.md) | Regras e avaliação do jogo. |
++| [`docs/06-match-aggregate.md`](docs/06-match-aggregate.md) | Agregado Match e invariantes. |
++| [`docs/07-fluxo-aplicacao.md`](docs/07-fluxo-aplicacao.md) | Controlador e portas da aplicação. |
++| [`docs/08-revisao-prompt-10.md`](docs/08-revisao-prompt-10.md) | Revisão intermediária após o Prompt 10. |
++| [`docs/09-correcao-fronteiras-arquiteturais.md`](docs/09-correcao-fronteiras-arquiteturais.md) | Correção de dependências e fronteiras. |
++| [`docs/10-inteligencia-artificial.md`](docs/10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
++| [`docs/11-experimentacao.md`](docs/11-experimentacao.md) | Plano formal de experimentação. |
++| [`docs/14-limitacoes.md`](docs/14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
++| [`docs/15-audio.md`](docs/15-audio.md) | Serviços de áudio e fallback. |
++| [`docs/16-apresentacao-console.md`](docs/16-apresentacao-console.md) | Entrada, saída e renderização Console. |
++| [`docs/17-screen-manager.md`](docs/17-screen-manager.md) | Estados e navegação. |
++| [`docs/18-temas-e-creditos.md`](docs/18-temas-e-creditos.md) | Temas, ASCII, Unicode e créditos. |
++| [`docs/19-feedback-visual-e-animacoes.md`](docs/19-feedback-visual-e-animacoes.md) | Animações e feedback visual. |
++| [`docs/20-configuracoes-json.md`](docs/20-configuracoes-json.md) | Configuração persistente em JSON. |
++| [`docs/21-partidas-e-estatisticas-json.md`](docs/21-partidas-e-estatisticas-json.md) | Histórico e estatísticas. |
++| [`docs/22-exportacao-csv.md`](docs/22-exportacao-csv.md) | Esquemas e regras CSV. |
++| [`docs/23-modo-automatico.md`](docs/23-modo-automatico.md) | Demonstração IA contra IA. |
++| [`docs/24-modo-experimental.md`](docs/24-modo-experimental.md) | Execução experimental em lote. |
++| [`docs/25-robustez-fronteiras-externas.md`](docs/25-robustez-fronteiras-externas.md) | Falhas externas e recuperação. |
++| [`docs/26-publicacao.md`](docs/26-publicacao.md) | Perfis e validação de publicação. |
++| [`docs/27-glossario.md`](docs/27-glossario.md) | Vocabulário geral, técnico e de domínio. |
++| [`docs/28-uso-ia-generativa.md`](docs/28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
++
++Também há um índice dedicado em [`docs/README.md`](docs/README.md).
++
++## Licença e citação
++
++O projeto usa Apache License 2.0. Consulte:
++
++- [`LICENSE`](LICENSE);
++- [`LICENSE.md`](LICENSE.md);
++- [`NOTICE`](NOTICE);
++- [`CITATION.cff`](CITATION.cff).
+diff --git a/distribution/README-PUBLISH.md b/distribution/README-PUBLISH.md
+new file mode 100644
+--- /dev/null
++++ b/distribution/README-PUBLISH.md
+@@ -0,0 +1,45 @@
++# Tic-Tac-Toe Console AI — execução do pacote
++
++## Requisitos
++
++Pacotes dependentes do framework exigem o .NET Runtime 9 compatível com o
++sistema operacional e a arquitetura. Pacotes autocontidos já incluem o runtime.
++
++## Executar no Windows
++
++```powershell
++.\TicTacToe.Console.exe
++```
++
++Também é possível executar:
++
++```powershell
++dotnet .\TicTacToe.Console.dll
++```
++
++## Executar no Linux
++
++```bash
++chmod +x TicTacToe.Console
++./TicTacToe.Console
++```
++
++No pacote dependente do framework:
++
++```bash
++dotnet TicTacToe.Console.dll
++```
++
++## Dados locais
++
++Na primeira execução, a aplicação cria os diretórios e arquivos necessários em
++relação ao diretório do executável. O pacote não inclui histórico, estatísticas
++ou resultados experimentais.
++
++`settings.example.json` é apenas uma referência. A configuração ativa é criada
++pela aplicação em `data/settings.json`.
++
++## Compatibilidade
++
++Quando a entrada ou saída está redirecionada, a aplicação reduz
++automaticamente cores, animações, limpeza de tela, áudio e interação por teclas.
+diff --git a/distribution/settings.example.json b/distribution/settings.example.json
+new file mode 100644
+--- /dev/null
++++ b/distribution/settings.example.json
+@@ -0,0 +1,14 @@
++{
++  "useUnicode": true,
++  "useAnsiColors": false,
++  "clearScreen": false,
++  "animationsEnabled": true,
++  "audioEnabled": true,
++  "animationDelayMilliseconds": 40,
++  "defaultStrategy": "Minimax",
++  "randomSeed": null,
++  "directories": {
++    "data": "data",
++    "exports": "exports"
++  }
++}
+diff --git a/docs/26-publicacao.md b/docs/26-publicacao.md
+new file mode 100644
+--- /dev/null
++++ b/docs/26-publicacao.md
+@@ -0,0 +1,214 @@
++# Publicação
++
++## 1. Objetivo
++
++O projeto oferece quatro perfis de publicação para Windows e Linux, em modos
++dependente do framework e autocontido.
++
++| Perfil | RID | Runtime incluído |
++|---|---|---|
++| `win-x64-framework-dependent` | `win-x64` | não |
++| `win-x64-self-contained` | `win-x64` | sim |
++| `linux-x64-framework-dependent` | `linux-x64` | não |
++| `linux-x64-self-contained` | `linux-x64` | sim |
++
++## 2. Requisitos
++
++Para compilar e publicar:
++
++- SDK .NET 9;
++- acesso aos pacotes NuGet necessários;
++- espaço para artefatos;
++- permissões de escrita em `artifacts/`.
++
++Pacotes dependentes do framework exigem .NET Runtime 9 na máquina de destino.
++Pacotes autocontidos não exigem instalação prévia do runtime.
++
++## 3. Comandos
++
++```powershell
++dotnet publish .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    /p:PublishProfile=win-x64-framework-dependent
++
++dotnet publish .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    /p:PublishProfile=win-x64-self-contained
++
++dotnet publish .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    /p:PublishProfile=linux-x64-framework-dependent
++
++dotnet publish .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    /p:PublishProfile=linux-x64-self-contained
++```
++
++Os comandos são equivalentes em Bash, retirando a continuação por acento grave.
++
++## 4. Diretórios
++
++Os resultados são gravados em:
++
++```text
++artifacts/publish/
++├── win-x64-framework-dependent/
++├── win-x64-self-contained/
++├── linux-x64-framework-dependent/
++└── linux-x64-self-contained/
++```
++
++`artifacts/` é ignorado pelo Git.
++
++Cada pacote deve conter:
++
++- aplicação e dependências;
++- `CITATION.cff`;
++- `README-PUBLISH.md`;
++- `settings.example.json`.
++
++Não deve conter:
++
++- `data/`;
++- `exports/`;
++- `settings.json`;
++- `matches.json`;
++- `statistics.json`;
++- resultados experimentais.
++
++## 5. Fluxo de empacotamento
++
++O fluxo abaixo separa conteúdo versionado, artefatos e dados criados em runtime.
++
++```mermaid
++flowchart LR
++    A[Código e perfis versionados] --> B[dotnet publish]
++    C[CITATION e arquivos de distribuição] --> B
++    B --> D[Pacote limpo em artifacts]
++    D --> E[Validação do pacote]
++    E --> F[Distribuição]
++    F --> G[Primeira execução]
++    G --> H[data e exports criados em runtime]
++```
++
++Dados do usuário só surgem depois da execução. Atualizar o executável não exige
++substituir `data/` ou `exports/`.
++
++## 6. Execução
++
++No Windows:
++
++```powershell
++.\TicTacToe.Console.exe
++```
++
++No Linux:
++
++```bash
++chmod +x TicTacToe.Console
++./TicTacToe.Console
++```
++
++Em pacotes dependentes do framework:
++
++```bash
++dotnet TicTacToe.Console.dll
++```
++
++## 7. Tamanho medido
++
++O tamanho deve ser medido depois de cada publicação, sem estimativas
++fabricadas.
++
++PowerShell:
++
++```powershell
++.\scripts\validate-publish.ps1 `
++    .\artifacts\publish\win-x64-framework-dependent
++```
++
++Bash:
++
++```bash
++./scripts/validate-publish.sh   artifacts/publish/linux-x64-framework-dependent
++```
++
++Os scripts exibem `SizeBytes` e `SizeMiB`. Registre os valores efetivamente
++obtidos na preparação da release.
++
++Em termos relativos:
++
++- dependente do framework tende a ser menor;
++- autocontido tende a ser maior por incluir o runtime;
++- tamanhos podem mudar entre versões do SDK.
++
++## 8. Localização e permissões de dados
++
++A aplicação resolve `data` e `exports` em relação ao diretório do executável,
++conforme a configuração.
++
++O usuário precisa de permissão de escrita nesse local. Em instalações
++protegidas, como `Program Files`, recomenda-se copiar o pacote para um diretório
++do usuário ou ajustar os diretórios configurados.
++
++## 9. Atualização sem perda de dados
++
++Para atualizar:
++
++1. preservar `data/` e `exports/`;
++2. substituir somente os arquivos da aplicação;
++3. não copiar `settings.example.json` sobre `data/settings.json`;
++4. iniciar a nova versão;
++5. conferir mensagens de recuperação e quarentena.
++
++O pacote distribuído não contém dados locais, reduzindo o risco de substituição
++acidental.
++
++## 10. Single-file, trimming e ReadyToRun
++
++Os quatro perfis mantêm:
++
++```text
++PublishSingleFile = false
++PublishTrimmed = false
++PublishReadyToRun = false
++```
++
++### Single-file
++
++Pode simplificar a distribuição, mas ainda pode extrair arquivos, alterar
++carregamento de conteúdo e dificultar inspeção. Não é habilitado nesta etapa.
++
++### Trimming
++
++Pode remover código acessado por serialização ou reflexão. Como o projeto usa
++JSON e metadados em runtime, trimming exige validação específica antes de ser
++ativado.
++
++### ReadyToRun
++
++Pode reduzir tempo de inicialização em alguns ambientes, mas aumenta o pacote e
++é sensível ao RID. O jogo tem inicialização pequena; não há evidência atual que
++justifique o custo.
++
++## 11. Validação
++
++O diagrama representa as verificações mínimas.
++
++```mermaid
++flowchart TD
++    A[Publicar perfil] --> B[Verificar arquivos obrigatórios]
++    B --> C[Procurar dados locais proibidos]
++    C --> D[Medir tamanho]
++    D --> E[Executar pacote]
++    E --> F[Testar terminal e redirecionamento]
++    F --> G[Registrar resultado]
++```
++
++Use os scripts de `scripts/` e execute pelo menos um pacote Windows e um Linux
++no sistema correspondente.
++
++## 12. Limitações
++
++- o SDK não permite executar binários Linux nativamente no Windows;
++- testes simulados não substituem execução real;
++- autocontido aumenta o tamanho;
++- permissões variam conforme o diretório;
++- o tamanho final deve ser registrado após publicação real;
++- assinatura de código e instaladores não fazem parte desta etapa.
+diff --git a/docs/27-glossario.md b/docs/27-glossario.md
+new file mode 100644
+--- /dev/null
++++ b/docs/27-glossario.md
+@@ -0,0 +1,77 @@
++# Glossário
++
++## 1. Finalidade
++
++Este glossário reúne termos gerais de engenharia de software, termos técnicos
++da implementação e conceitos do domínio do jogo da velha. As definições são
++específicas ao contexto deste projeto.
++
++## 2. Termos gerais
++
++| Termo | Definição no projeto |
++|---|---|
++| aplicação | conjunto executável que coordena domínio, IA, persistência e apresentação |
++| arquitetura | organização dos módulos, responsabilidades e dependências permitidas |
++| contrato | interface ou comportamento público esperado entre componentes |
++| fallback | comportamento alternativo seguro quando um recurso não está disponível |
++| infraestrutura | código de arquivos, Console, áudio, temporização e ambiente operacional |
++| reprodutibilidade | capacidade de repetir uma execução com configuração e sementes registradas |
++| refatoração | modificação estrutural que preserva ou melhora o comportamento observável |
++| release | versão preparada, validada e distribuída |
++| Strategy | padrão que encapsula algoritmos intercambiáveis de escolha de jogada |
++| teste de integração local | teste que combina componentes usando recursos temporários da máquina |
++
++## 3. Termos técnicos
++
++| Termo | Definição no projeto |
++|---|---|
++| ANSI | sequências de controle usadas para cores e limpeza em terminais compatíveis |
++| autocontido | pacote que inclui o runtime .NET necessário |
++| dependente do framework | pacote que exige .NET Runtime instalado |
++| composition root | ponto em que dependências concretas são construídas |
++| CSV | formato tabular UTF-8, separado por ponto e vírgula |
++| JSON | formato textual usado para configurações e persistência |
++| LF | caractere de fim de linha adotado nos arquivos do repositório |
++| Minimax | algoritmo de busca adversarial usado como Strategy |
++| publish profile | arquivo MSBuild que registra opções de publicação |
++| ReadyToRun | compilação antecipada parcial para acelerar inicialização em alguns cenários |
++| redirecionamento | uso de arquivo ou pipe no lugar do terminal interativo |
++| RID | identificador de runtime, como `win-x64` ou `linux-x64` |
++| single-file | publicação que agrega arquivos em um executável principal |
++| trimming | remoção de código considerado não utilizado durante a publicação |
++| UTF-8 sem BOM | codificação usada nos arquivos persistidos e exportados |
++
++## 4. Termos do domínio
++
++| Termo | Definição no projeto |
++|---|---|
++| tabuleiro | grade 3 × 3 que armazena símbolos |
++| posição | coordenada válida de linha e coluna |
++| símbolo | marca X ou O |
++| jogada | associação entre posição, símbolo e momento da partida |
++| participante | pessoa ou computador associado a um símbolo |
++| partida | agregado que controla turnos, jogadas e resultado |
++| vitória | resultado em que três símbolos iguais formam uma linha válida |
++| empate | término sem vencedor e sem casas livres |
++| sequência vencedora | três posições que comprovam a vitória |
++| partida demonstrativa | confronto IA contra IA com apresentação |
++| execução experimental | confronto IA contra IA sem recursos de apresentação |
++| semente | valor usado para tornar decisões pseudoaleatórias reproduzíveis |
++
++## 5. Relação entre os grupos
++
++O diagrama apresenta como vocabulário geral, técnico e de domínio se encontram
++na aplicação.
++
++```mermaid
++flowchart LR
++    A[Engenharia de software] --> B[Arquitetura e contratos]
++    B --> C[Componentes técnicos]
++    C --> D[Domínio do jogo]
++    E[Testes e publicação] --> B
++    F[Persistência e Console] --> C
++    G[Partida e tabuleiro] --> D
++```
++
++Os termos gerais descrevem decisões de construção; os técnicos identificam
++mecanismos concretos; os termos de domínio descrevem o problema modelado.
+diff --git a/docs/28-uso-ia-generativa.md b/docs/28-uso-ia-generativa.md
+new file mode 100644
+--- /dev/null
++++ b/docs/28-uso-ia-generativa.md
+@@ -0,0 +1,122 @@
++# Uso de inteligência artificial generativa
++
++## 1. Declaração de transparência
++
++Este projeto utiliza inteligência artificial generativa como apoio ao processo
++de refatoração, documentação e preparação de patches. A responsabilidade pelas
++decisões, aplicação dos patches, execução dos testes, integração no Git e
++publicação permanece humana.
++
++A IA não opera diretamente sobre a branch principal. O trabalho é organizado
++em prompts incrementais, revisões e validações explícitas.
++
++## 2. Responsabilidades
++
++### Responsabilidade humana
++
++- definir requisitos e restrições;
++- fornecer o repositório real;
++- revisar as propostas;
++- aplicar patches;
++- executar build e testes no ambiente alvo;
++- relatar erros observados;
++- aprovar commits, merges, tags e releases;
++- avaliar adequação acadêmica e técnica.
++
++### Apoio da IA generativa
++
++- analisar código e documentação fornecidos;
++- propor alterações incrementais;
++- gerar patches e arquivos de apoio;
++- identificar inconsistências;
++- sugerir testes;
++- atualizar documentação;
++- explicar procedimentos Git e .NET;
++- preparar correções quando a validação humana encontra falhas.
++
++## 3. Fluxo incremental
++
++O fluxo abaixo representa o processo efetivamente utilizado.
++
++```mermaid
++flowchart TD
++    A[Professor define o prompt incremental] --> B[IA analisa a base real]
++    B --> C[IA prepara código, testes e documentação]
++    C --> D[IA gera patch numerado e ZIP]
++    D --> E[Professor aplica em branch curta]
++    E --> F[Professor executa build, testes e uso manual]
++    F --> G{Validação aprovada?}
++    G -- Sim --> H[Commit e merge --no-ff]
++    G -- Não --> I[Professor relata erro real]
++    I --> J[IA analisa a causa]
++    J --> K[Patch corretivo sem numeração]
++    K --> F
++```
++
++A numeração pertence aos incrementos funcionais. Correções intermediárias usam
++nomes descritivos para não consumir a sequência dos prompts.
++
++## 4. Sequência de interação
++
++O diagrama detalha a troca de evidências entre as partes.
++
++```mermaid
++sequenceDiagram
++    participant Human as Responsável humano
++    participant AI as IA generativa
++    participant Git as Repositório Git
++    participant DotNet as SDK e testes
++
++    Human->>AI: requisito e repositório atualizado
++    AI->>AI: revisão estrutural e documental
++    AI-->>Human: patch, ZIP e instruções
++    Human->>Git: criar branch e aplicar patch
++    Human->>DotNet: restore, build e test
++    alt validação aprovada
++        Human->>Git: commit e merge
++    else erro observado
++        Human-->>AI: logs e comportamento real
++        AI-->>Human: correção localizada
++        Human->>DotNet: repetir validação
++    end
++```
++
++Logs de compilação e testes são tratados como evidência superior a uma
++suposição produzida durante a geração.
++
++## 5. Controles de qualidade
++
++O processo adota:
++
++- patches pequenos e rastreáveis;
++- branches temáticas;
++- commits em português do Brasil;
++- testes automatizados;
++- build Release com warnings tratados como erros;
++- revisão de whitespace;
++- preservação do domínio contra dependências externas;
++- documentação Mermaid com interpretação;
++- distinção entre resultado executado e resultado apenas esperado;
++- revisão humana antes de qualquer integração.
++
++## 6. Limitações
++
++A IA pode:
++
++- interpretar incorretamente uma API;
++- gerar código que compila apenas após ajuste;
++- omitir uma dependência;
++- propor um teste insuficiente;
++- descrever como executada uma validação que não ocorreu, caso não haja controle.
++
++Por isso, este projeto registra explicitamente quando o SDK não está disponível
++no ambiente de geração e exige validação local antes do merge.
++
++## 7. Autoria e atribuição
++
++A IA generativa é uma ferramenta de apoio, não substitui a autoria e a
++responsabilidade das pessoas que definem o projeto, selecionam as contribuições
++e aprovam a versão final.
++
++Alterações relevantes permanecem documentadas no histórico Git, no
++`CHANGELOG.md` e nos documentos de decisão.
+diff --git a/docs/README.md b/docs/README.md
+new file mode 100644
+--- /dev/null
++++ b/docs/README.md
+@@ -0,0 +1,37 @@
++# Índice da documentação
++
++Este índice orienta a navegação pelos documentos técnicos e acadêmicos do
++projeto.
++
++| Documento | Conteúdo |
++|---|---|
++| [00-decisoes-e-escopo.md](00-decisoes-e-escopo.md) | Decisões gerais, convenções e escopo. |
++| [01-projeto-original.md](01-projeto-original.md) | Inventário e contexto do código legado. |
++| [02-requisitos.md](02-requisitos.md) | Requisitos funcionais, não funcionais e restrições. |
++| [03-arquitetura.md](03-arquitetura.md) | Módulos, dependências e componentes. |
++| [04-modelo-conceitual.md](04-modelo-conceitual.md) | Entidades, objetos de valor e relações. |
++| [05-game-rules.md](05-game-rules.md) | Regras e avaliação do jogo. |
++| [06-match-aggregate.md](06-match-aggregate.md) | Agregado Match e invariantes. |
++| [07-fluxo-aplicacao.md](07-fluxo-aplicacao.md) | Controlador e portas da aplicação. |
++| [08-revisao-prompt-10.md](08-revisao-prompt-10.md) | Revisão intermediária após o Prompt 10. |
++| [09-correcao-fronteiras-arquiteturais.md](09-correcao-fronteiras-arquiteturais.md) | Correção de dependências e fronteiras. |
++| [10-inteligencia-artificial.md](10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
++| [11-experimentacao.md](11-experimentacao.md) | Plano formal de experimentação. |
++| [14-limitacoes.md](14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
++| [15-audio.md](15-audio.md) | Serviços de áudio e fallback. |
++| [16-apresentacao-console.md](16-apresentacao-console.md) | Entrada, saída e renderização Console. |
++| [17-screen-manager.md](17-screen-manager.md) | Estados e navegação. |
++| [18-temas-e-creditos.md](18-temas-e-creditos.md) | Temas, ASCII, Unicode e créditos. |
++| [19-feedback-visual-e-animacoes.md](19-feedback-visual-e-animacoes.md) | Animações e feedback visual. |
++| [20-configuracoes-json.md](20-configuracoes-json.md) | Configuração persistente em JSON. |
++| [21-partidas-e-estatisticas-json.md](21-partidas-e-estatisticas-json.md) | Histórico e estatísticas. |
++| [22-exportacao-csv.md](22-exportacao-csv.md) | Esquemas e regras CSV. |
++| [23-modo-automatico.md](23-modo-automatico.md) | Demonstração IA contra IA. |
++| [24-modo-experimental.md](24-modo-experimental.md) | Execução experimental em lote. |
++| [25-robustez-fronteiras-externas.md](25-robustez-fronteiras-externas.md) | Falhas externas e recuperação. |
++| [26-publicacao.md](26-publicacao.md) | Perfis e validação de publicação. |
++| [27-glossario.md](27-glossario.md) | Vocabulário geral, técnico e de domínio. |
++| [28-uso-ia-generativa.md](28-uso-ia-generativa.md) | Transparência e fluxo de uso de IA generativa. |
++
++A ordem numérica registra a evolução temática, mas alguns números foram
++reservados ou ocupados por revisões intermediárias.
+diff --git a/scripts/validate-publish.ps1 b/scripts/validate-publish.ps1
+new file mode 100644
+--- /dev/null
++++ b/scripts/validate-publish.ps1
+@@ -0,0 +1,66 @@
++param(
++    [Parameter(Mandatory = $true)]
++    [string]$PublishDirectory
++)
++
++$ErrorActionPreference = "Stop"
++$path = (Resolve-Path $PublishDirectory).Path
++
++$required = @(
++    "CITATION.cff",
++    "README-PUBLISH.md",
++    "settings.example.json"
++)
++
++$missing = @(
++    $required | Where-Object {
++        -not (Test-Path (Join-Path $path $_) -PathType Leaf)
++    }
++)
++
++$forbiddenDirectories = @(
++    "data",
++    "exports"
++) | Where-Object {
++    Test-Path (Join-Path $path $_) -PathType Container
++}
++
++$forbiddenNames = @(
++    "settings.json",
++    "matches.json",
++    "statistics.json",
++    "experiment-result.json",
++    "experiment-metrics.csv"
++)
++
++$forbiddenFiles = @(
++    Get-ChildItem $path -File -Recurse |
++        Where-Object { $_.Name -in $forbiddenNames } |
++        ForEach-Object {
++            $_.FullName.Substring($path.Length).TrimStart("\", "/")
++        }
++)
++
++$sizeBytes = (
++    Get-ChildItem $path -File -Recurse |
++        Measure-Object -Property Length -Sum
++).Sum
++
++if ($null -eq $sizeBytes) {
++    $sizeBytes = 0
++}
++
++[pscustomobject]@{
++    Directory = $path
++    SizeBytes = [int64]$sizeBytes
++    SizeMiB = [math]::Round($sizeBytes / 1MB, 2)
++    MissingFiles = $missing -join ", "
++    ForbiddenEntries =
++        @($forbiddenDirectories + $forbiddenFiles) -join ", "
++}
++
++if ($missing.Count -gt 0 -or
++    $forbiddenDirectories.Count -gt 0 -or
++    $forbiddenFiles.Count -gt 0) {
++    throw "A publicação contém arquivos ausentes ou dados locais proibidos."
++}
+diff --git a/scripts/validate-publish.sh b/scripts/validate-publish.sh
+new file mode 100755
+--- /dev/null
++++ b/scripts/validate-publish.sh
+@@ -0,0 +1,42 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++publish_directory="${1:?Informe o diretório publicado.}"
++publish_directory="$(cd "$publish_directory" && pwd)"
++
++required=(
++  "CITATION.cff"
++  "README-PUBLISH.md"
++  "settings.example.json"
++)
++
++missing=()
++for file in "${required[@]}"; do
++  [[ -f "$publish_directory/$file" ]] || missing+=("$file")
++done
++
++forbidden=()
++for directory in data exports; do
++  [[ ! -d "$publish_directory/$directory" ]] ||
++    forbidden+=("$directory/")
++done
++
++while IFS= read -r file; do
++  forbidden+=("${file#"$publish_directory/"}")
++done < <(
++  find "$publish_directory" -type f     \( -name settings.json     -o -name matches.json     -o -name statistics.json     -o -name experiment-result.json     -o -name experiment-metrics.csv \)
++)
++
++size_bytes="$(find "$publish_directory" -type f -printf '%s\n' |
++  awk '{ total += $1 } END { print total + 0 }')"
++size_mib="$(awk -v size="$size_bytes"   'BEGIN { printf "%.2f", size / 1024 / 1024 }')"
++
++printf 'Directory: %s\n' "$publish_directory"
++printf 'SizeBytes: %s\n' "$size_bytes"
++printf 'SizeMiB: %s\n' "$size_mib"
++printf 'MissingFiles: %s\n' "${missing[*]:-}"
++printf 'ForbiddenEntries: %s\n' "${forbidden[*]:-}"
++
++if (( ${#missing[@]} > 0 || ${#forbidden[@]} > 0 )); then
++  exit 1
++fi
+diff --git a/src/TicTacToe.Console/Compatibility/PublishPackageValidationResult.cs b/src/TicTacToe.Console/Compatibility/PublishPackageValidationResult.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/PublishPackageValidationResult.cs
+@@ -0,0 +1,13 @@
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Contém o resultado da inspeção de um diretório publicado.
++/// </summary>
++public sealed record PublishPackageValidationResult(
++    IReadOnlyList<string> MissingFiles,
++    IReadOnlyList<string> ForbiddenEntries)
++{
++    public bool IsValid =>
++        MissingFiles.Count == 0 &&
++        ForbiddenEntries.Count == 0;
++}
+diff --git a/src/TicTacToe.Console/Compatibility/PublishPackageVerifier.cs b/src/TicTacToe.Console/Compatibility/PublishPackageVerifier.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Compatibility/PublishPackageVerifier.cs
+@@ -0,0 +1,66 @@
++namespace TicTacToe.Compatibility;
++
++/// <summary>
++/// Valida arquivos obrigatórios e ausência de dados locais em uma publicação.
++/// </summary>
++public sealed class PublishPackageVerifier
++{
++    private static readonly string[] required_files =
++    [
++        "CITATION.cff",
++        "README-PUBLISH.md",
++        "settings.example.json"
++    ];
++
++    private static readonly string[] forbidden_directories =
++    [
++        "data",
++        "exports"
++    ];
++
++    private static readonly string[] forbidden_file_names =
++    [
++        "settings.json",
++        "matches.json",
++        "statistics.json",
++        "experiment-result.json",
++        "experiment-metrics.csv"
++    ];
++
++    public PublishPackageValidationResult validate(
++        string publish_directory)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(publish_directory);
++
++        string full_path = Path.GetFullPath(publish_directory);
++        List<string> missing = required_files
++            .Where(file => !File.Exists(Path.Combine(full_path, file)))
++            .ToList();
++        List<string> forbidden = [];
++
++        foreach (string directory in forbidden_directories)
++        {
++            if (Directory.Exists(Path.Combine(full_path, directory)))
++            {
++                forbidden.Add(directory + Path.DirectorySeparatorChar);
++            }
++        }
++
++        if (Directory.Exists(full_path))
++        {
++            forbidden.AddRange(
++                Directory.EnumerateFiles(
++                        full_path,
++                        "*",
++                        SearchOption.AllDirectories)
++                    .Where(path => forbidden_file_names.Contains(
++                        Path.GetFileName(path),
++                        StringComparer.OrdinalIgnoreCase))
++                    .Select(path => Path.GetRelativePath(full_path, path)));
++        }
++
++        return new PublishPackageValidationResult(
++            missing.AsReadOnly(),
++            forbidden.AsReadOnly());
++    }
++}
+diff --git a/src/TicTacToe.Console/Properties/PublishProfiles/linux-x64-framework-dependent.pubxml b/src/TicTacToe.Console/Properties/PublishProfiles/linux-x64-framework-dependent.pubxml
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Properties/PublishProfiles/linux-x64-framework-dependent.pubxml
+@@ -0,0 +1,13 @@
++<Project>
++    <PropertyGroup>
++        <Configuration>Release</Configuration>
++        <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
++        <SelfContained>false</SelfContained>
++        <PublishSingleFile>false</PublishSingleFile>
++        <PublishTrimmed>false</PublishTrimmed>
++        <PublishReadyToRun>false</PublishReadyToRun>
++        <DebugType>none</DebugType>
++        <DebugSymbols>false</DebugSymbols>
++        <PublishDir>$(MSBuildProjectDirectory)/../../artifacts/publish/linux-x64-framework-dependent/</PublishDir>
++    </PropertyGroup>
++</Project>
+diff --git a/src/TicTacToe.Console/Properties/PublishProfiles/linux-x64-self-contained.pubxml b/src/TicTacToe.Console/Properties/PublishProfiles/linux-x64-self-contained.pubxml
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Properties/PublishProfiles/linux-x64-self-contained.pubxml
+@@ -0,0 +1,13 @@
++<Project>
++    <PropertyGroup>
++        <Configuration>Release</Configuration>
++        <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
++        <SelfContained>true</SelfContained>
++        <PublishSingleFile>false</PublishSingleFile>
++        <PublishTrimmed>false</PublishTrimmed>
++        <PublishReadyToRun>false</PublishReadyToRun>
++        <DebugType>none</DebugType>
++        <DebugSymbols>false</DebugSymbols>
++        <PublishDir>$(MSBuildProjectDirectory)/../../artifacts/publish/linux-x64-self-contained/</PublishDir>
++    </PropertyGroup>
++</Project>
+diff --git a/src/TicTacToe.Console/Properties/PublishProfiles/win-x64-framework-dependent.pubxml b/src/TicTacToe.Console/Properties/PublishProfiles/win-x64-framework-dependent.pubxml
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Properties/PublishProfiles/win-x64-framework-dependent.pubxml
+@@ -0,0 +1,13 @@
++<Project>
++    <PropertyGroup>
++        <Configuration>Release</Configuration>
++        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
++        <SelfContained>false</SelfContained>
++        <PublishSingleFile>false</PublishSingleFile>
++        <PublishTrimmed>false</PublishTrimmed>
++        <PublishReadyToRun>false</PublishReadyToRun>
++        <DebugType>none</DebugType>
++        <DebugSymbols>false</DebugSymbols>
++        <PublishDir>$(MSBuildProjectDirectory)/../../artifacts/publish/win-x64-framework-dependent/</PublishDir>
++    </PropertyGroup>
++</Project>
+diff --git a/src/TicTacToe.Console/Properties/PublishProfiles/win-x64-self-contained.pubxml b/src/TicTacToe.Console/Properties/PublishProfiles/win-x64-self-contained.pubxml
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Properties/PublishProfiles/win-x64-self-contained.pubxml
+@@ -0,0 +1,13 @@
++<Project>
++    <PropertyGroup>
++        <Configuration>Release</Configuration>
++        <RuntimeIdentifier>win-x64</RuntimeIdentifier>
++        <SelfContained>true</SelfContained>
++        <PublishSingleFile>false</PublishSingleFile>
++        <PublishTrimmed>false</PublishTrimmed>
++        <PublishReadyToRun>false</PublishReadyToRun>
++        <DebugType>none</DebugType>
++        <DebugSymbols>false</DebugSymbols>
++        <PublishDir>$(MSBuildProjectDirectory)/../../artifacts/publish/win-x64-self-contained/</PublishDir>
++    </PropertyGroup>
++</Project>
+diff --git a/src/TicTacToe.Console/TicTacToe.Console.csproj b/src/TicTacToe.Console/TicTacToe.Console.csproj
+--- a/src/TicTacToe.Console/TicTacToe.Console.csproj
++++ b/src/TicTacToe.Console/TicTacToe.Console.csproj
+@@ -7,6 +7,13 @@
+     <ItemGroup>
+         <None Include="..\..\CITATION.cff"
+               Link="CITATION.cff"
+-              CopyToOutputDirectory="PreserveNewest" />
++              CopyToOutputDirectory="PreserveNewest"
++              CopyToPublishDirectory="PreserveNewest" />
++        <None Include="..\..\distribution\README-PUBLISH.md"
++              Link="README-PUBLISH.md"
++              CopyToPublishDirectory="PreserveNewest" />
++        <None Include="..\..\distribution\settings.example.json"
++              Link="settings.example.json"
++              CopyToPublishDirectory="PreserveNewest" />
+     </ItemGroup>
+ </Project>
+diff --git a/tests/TicTacToe.Tests/Compatibility/PublishPackageVerifierTests.cs b/tests/TicTacToe.Tests/Compatibility/PublishPackageVerifierTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Compatibility/PublishPackageVerifierTests.cs
+@@ -0,0 +1,83 @@
++using TicTacToe.Compatibility;
++using Xunit;
++
++namespace TicTacToe.Tests.Compatibility;
++
++public sealed class PublishPackageVerifierTests : IDisposable
++{
++    private readonly string directory = Path.Combine(
++        Path.GetTempPath(),
++        $"tictactoe-publish-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void validate_should_accept_clean_package()
++    {
++        create_required_files();
++
++        PublishPackageValidationResult result =
++            new PublishPackageVerifier().validate(directory);
++
++        Assert.True(result.IsValid);
++        Assert.Empty(result.MissingFiles);
++        Assert.Empty(result.ForbiddenEntries);
++    }
++
++    [Fact]
++    public void validate_should_report_missing_required_files()
++    {
++        Directory.CreateDirectory(directory);
++
++        PublishPackageValidationResult result =
++            new PublishPackageVerifier().validate(directory);
++
++        Assert.False(result.IsValid);
++        Assert.Contains("CITATION.cff", result.MissingFiles);
++        Assert.Contains("README-PUBLISH.md", result.MissingFiles);
++        Assert.Contains("settings.example.json", result.MissingFiles);
++    }
++
++    [Fact]
++    public void validate_should_reject_runtime_data()
++    {
++        create_required_files();
++        string data_directory = Path.Combine(directory, "data");
++        Directory.CreateDirectory(data_directory);
++        File.WriteAllText(
++            Path.Combine(data_directory, "matches.json"),
++            "[]");
++
++        PublishPackageValidationResult result =
++            new PublishPackageVerifier().validate(directory);
++
++        Assert.False(result.IsValid);
++        Assert.Contains(
++            "data" + Path.DirectorySeparatorChar,
++            result.ForbiddenEntries);
++        Assert.Contains(
++            Path.Combine("data", "matches.json"),
++            result.ForbiddenEntries);
++    }
++
++    private void create_required_files()
++    {
++        Directory.CreateDirectory(directory);
++
++        foreach (string file in new[]
++                 {
++                     "CITATION.cff",
++                     "README-PUBLISH.md",
++                     "settings.example.json"
++                 })
++        {
++            File.WriteAllText(Path.Combine(directory, file), "content");
++        }
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(directory, recursive: true);
++        }
++    }
++}

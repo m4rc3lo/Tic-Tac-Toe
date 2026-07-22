@@ -1,0 +1,357 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -37,6 +37,13 @@
+ 
+ ## [Unreleased]
+ 
++### Fixed
++
++- Validação do experimento de referência agora detecta divergências entre
++  resultado em memória, JSON e CSV antes de gerar o manifesto.
++- Script de análise passou a informar cenário e contagens inconsistentes.
++
++
+ ### Added
+ 
+ - Orquestrador não interativo do experimento de referência.
+diff --git a/scripts/analyze-reference-experiment.py b/scripts/analyze-reference-experiment.py
+--- a/scripts/analyze-reference-experiment.py
++++ b/scripts/analyze-reference-experiment.py
+@@ -1,40 +1,182 @@
+ #!/usr/bin/env python3
+-import csv, hashlib, json, pathlib, statistics, sys
++import csv
++import hashlib
++import json
++import pathlib
++import statistics
++import sys
+ 
+-root = pathlib.Path(sys.argv[1] if len(sys.argv) > 1 else "artifacts/experiments/reference")
++
++def fail(message: str) -> None:
++    raise SystemExit(f"Erro de validação: {message}")
++
++
++root = pathlib.Path(
++    sys.argv[1]
++    if len(sys.argv) > 1
++    else "artifacts/experiments/reference"
++)
+ manifest_path = root / "reference-manifest.json"
++
++if not manifest_path.is_file():
++    fail(f"manifesto ausente: {manifest_path}")
++
+ manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+-required = ["experiment_id","run_number","x_strategy","o_strategy","seed","result","move_count","duration_ms","evaluated_states","failed","failure_message","application_version"]
+-rows=[]
++required = [
++    "experiment_id",
++    "run_number",
++    "x_strategy",
++    "o_strategy",
++    "seed",
++    "result",
++    "move_count",
++    "duration_ms",
++    "evaluated_states",
++    "failed",
++    "failure_message",
++    "application_version",
++]
++rows = []
++
+ for scenario in manifest["scenarios"]:
+-    folder=root/scenario["directory"]
+-    csv_path=folder/scenario["csvFile"]
+-    json_path=folder/scenario["jsonFile"]
+-    assert hashlib.sha256(csv_path.read_bytes()).hexdigest()==scenario["csvSha256"]
+-    assert hashlib.sha256(json_path.read_bytes()).hexdigest()==scenario["jsonSha256"]
+-    data=json.loads(json_path.read_text(encoding="utf-8"))
+-    with csv_path.open(encoding="utf-8", newline="") as f:
+-        reader=csv.DictReader(f, delimiter=";")
+-        assert reader.fieldnames==required
+-        scenario_rows=list(reader)
+-    assert len(scenario_rows)==data["summary"]["totalRuns"]
+-    for row in scenario_rows: row["scenario_id"]=scenario["scenarioId"]
++    scenario_id = scenario["scenarioId"]
++    folder = root / scenario["directory"]
++    csv_path = folder / scenario["csvFile"]
++    json_path = folder / scenario["jsonFile"]
++
++    if not csv_path.is_file():
++        fail(f"{scenario_id}: CSV ausente: {csv_path}")
++
++    if not json_path.is_file():
++        fail(f"{scenario_id}: JSON ausente: {json_path}")
++
++    csv_hash = hashlib.sha256(csv_path.read_bytes()).hexdigest()
++    json_hash = hashlib.sha256(json_path.read_bytes()).hexdigest()
++
++    if csv_hash != scenario["csvSha256"]:
++        fail(
++            f"{scenario_id}: hash CSV divergente; "
++            f"manifesto={scenario['csvSha256']}, atual={csv_hash}"
++        )
++
++    if json_hash != scenario["jsonSha256"]:
++        fail(
++            f"{scenario_id}: hash JSON divergente; "
++            f"manifesto={scenario['jsonSha256']}, atual={json_hash}"
++        )
++
++    data = json.loads(json_path.read_text(encoding="utf-8"))
++
++    with csv_path.open(encoding="utf-8", newline="") as file:
++        reader = csv.DictReader(file, delimiter=";")
++
++        if reader.fieldnames != required:
++            fail(
++                f"{scenario_id}: cabeçalho CSV inválido; "
++                f"esperado={required}, atual={reader.fieldnames}"
++            )
++
++        scenario_rows = list(reader)
++
++    summary_count = data["summary"]["totalRuns"]
++    metric_count = len(data["metrics"])
++    csv_count = len(scenario_rows)
++
++    if not (
++        summary_count == metric_count == csv_count
++    ):
++        fail(
++            f"{scenario_id}: contagens inconsistentes; "
++            f"summary.totalRuns={summary_count}, "
++            f"metrics={metric_count}, "
++            f"csvRows={csv_count}. "
++            "Apague o diretório do cenário e execute novamente."
++        )
++
++    for row in scenario_rows:
++        row["scenario_id"] = scenario_id
++
+     rows.extend(scenario_rows)
+ 
+-summary={"totalRuns":len(rows),"failedRuns":sum(r["failed"]=="true" for r in rows),"results":{}}
+-for result in ("XWins","OWins","Draw","Failed"):
+-    summary["results"][result]=sum(r["result"]==result for r in rows)
+-summary["averageMoves"]=statistics.fmean(int(r["move_count"]) for r in rows if r["failed"]=="false")
+-summary["averageDurationMs"]=statistics.fmean(int(r["duration_ms"]) for r in rows if r["failed"]=="false")
+-(root/"reference-summary.json").write_text(json.dumps(summary,indent=2),encoding="utf-8")
++if not rows:
++    fail("nenhuma métrica foi encontrada")
+ 
+-counts=summary["results"]
+-width,height=700,360
+-maxv=max(counts.values()) or 1
+-bars=[]
+-for i,(label,value) in enumerate(counts.items()):
+-    x=90+i*145; h=220*value/maxv; y=290-h
+-    bars.append(f'<rect x="{x}" y="{y:.1f}" width="80" height="{h:.1f}" fill="#0786b4"/><text x="{x+40}" y="315" text-anchor="middle">{label}</text><text x="{x+40}" y="{y-8:.1f}" text-anchor="middle">{value}</text>')
+-svg=f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"><rect width="100%" height="100%" fill="white"/><text x="350" y="30" text-anchor="middle" font-size="20">Resultados do experimento de referência</text><line x1="60" y1="290" x2="660" y2="290" stroke="black"/>{"".join(bars)}</svg>'
+-(root/"reference-results.svg").write_text(svg,encoding="utf-8")
+-print(json.dumps(summary,indent=2))
++successful = [
++    row
++    for row in rows
++    if row["failed"].lower() == "false"
++]
++
++summary = {
++    "totalRuns": len(rows),
++    "failedRuns": sum(
++        row["failed"].lower() == "true"
++        for row in rows
++    ),
++    "results": {},
++}
++
++for result in ("XWins", "OWins", "Draw", "Failed"):
++    summary["results"][result] = sum(
++        row["result"] == result
++        for row in rows
++    )
++
++summary["averageMoves"] = (
++    statistics.fmean(
++        int(row["move_count"])
++        for row in successful
++    )
++    if successful
++    else 0
++)
++summary["averageDurationMs"] = (
++    statistics.fmean(
++        int(row["duration_ms"])
++        for row in successful
++    )
++    if successful
++    else 0
++)
++
++(root / "reference-summary.json").write_text(
++    json.dumps(summary, indent=2),
++    encoding="utf-8",
++)
++
++counts = summary["results"]
++width, height = 700, 360
++max_value = max(counts.values()) or 1
++bars = []
++
++for index, (label, value) in enumerate(counts.items()):
++    x = 90 + index * 145
++    bar_height = 220 * value / max_value
++    y = 290 - bar_height
++    bars.append(
++        f'<rect x="{x}" y="{y:.1f}" width="80" '
++        f'height="{bar_height:.1f}" fill="#0786b4"/>'
++        f'<text x="{x + 40}" y="315" '
++        f'text-anchor="middle">{label}</text>'
++        f'<text x="{x + 40}" y="{y - 8:.1f}" '
++        f'text-anchor="middle">{value}</text>'
++    )
++
++svg = (
++    f'<svg xmlns="http://www.w3.org/2000/svg" '
++    f'width="{width}" height="{height}">'
++    '<rect width="100%" height="100%" fill="white"/>'
++    '<text x="350" y="30" text-anchor="middle" font-size="20">'
++    'Resultados do experimento de referência'
++    '</text>'
++    '<line x1="60" y1="290" x2="660" y2="290" stroke="black"/>'
++    f'{"".join(bars)}'
++    '</svg>'
++)
++
++(root / "reference-results.svg").write_text(
++    svg,
++    encoding="utf-8",
++)
++
++print(json.dumps(summary, indent=2))
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
+--- a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
+@@ -40,7 +40,8 @@
+                     new JsonExperimentResultRepository(),
+                     new CsvExperimentResultRepository(new CsvWriter())
+                 ]);
+-            controller.run(new ExperimentConfiguration(
++            ExperimentResult result = controller.run(
++                new ExperimentConfiguration(
+                 scenario.XStrategy,
+                 scenario.OStrategy,
+                 plan.RepetitionsPerScenario,
+@@ -58,6 +59,13 @@
+             string csv_path = Path.Combine(
+                 scenario_directory,
+                 "experiment-metrics.csv");
++
++            validate_scenario_artifacts(
++                scenario.Id,
++                result,
++                json_path,
++                csv_path);
++
+             artifacts.Add(new ReferenceScenarioArtifact(
+                 scenario.Id,
+                 Path.GetRelativePath(plan.OutputDirectory, scenario_directory),
+@@ -98,6 +106,94 @@
+         return manifest;
+     }
+ 
++
++    private static void validate_scenario_artifacts(
++        string scenario_id,
++        ExperimentResult result,
++        string json_path,
++        string csv_path)
++    {
++        if (!File.Exists(json_path))
++        {
++            throw new InvalidDataException(
++                $"O cenário '{scenario_id}' não produziu o arquivo JSON.");
++        }
++
++        if (!File.Exists(csv_path))
++        {
++            throw new InvalidDataException(
++                $"O cenário '{scenario_id}' não produziu o arquivo CSV.");
++        }
++
++        int expected_count = result.Summary.TotalRuns;
++        int metric_count = result.Metrics.Count;
++        int csv_count = count_csv_records(csv_path);
++
++        using JsonDocument document =
++            JsonDocument.Parse(File.ReadAllText(json_path));
++        JsonElement root = document.RootElement;
++        int json_summary_count = root
++            .GetProperty("summary")
++            .GetProperty("totalRuns")
++            .GetInt32();
++        int json_metric_count = root
++            .GetProperty("metrics")
++            .GetArrayLength();
++
++        if (expected_count != metric_count ||
++            expected_count != json_summary_count ||
++            expected_count != json_metric_count ||
++            expected_count != csv_count)
++        {
++            throw new InvalidDataException(
++                $"O cenário '{scenario_id}' gerou artefatos inconsistentes. " +
++                $"Resultado em memória: {expected_count}; " +
++                $"métricas em memória: {metric_count}; " +
++                $"resumo JSON: {json_summary_count}; " +
++                $"métricas JSON: {json_metric_count}; " +
++                $"linhas CSV: {csv_count}.");
++        }
++    }
++
++    private static int count_csv_records(string path)
++    {
++        string content = File.ReadAllText(path);
++        int record_count = 0;
++        bool inside_quotes = false;
++
++        for (int index = 0; index < content.Length; index++)
++        {
++            char current = content[index];
++
++            if (current == '"')
++            {
++                if (inside_quotes &&
++                    index + 1 < content.Length &&
++                    content[index + 1] == '"')
++                {
++                    index++;
++                    continue;
++                }
++
++                inside_quotes = !inside_quotes;
++                continue;
++            }
++
++            if (!inside_quotes && current == '\n')
++            {
++                record_count++;
++            }
++        }
++
++        if (content.Length > 0 &&
++            content[^1] != '\n')
++        {
++            record_count++;
++        }
++
++        return Math.Max(0, record_count - 1);
++    }
++
+     private static string calculate_sha256(string path)
+     {
+         using FileStream stream = File.OpenRead(path);

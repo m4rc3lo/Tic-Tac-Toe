@@ -1,0 +1,752 @@
+diff --git a/src/TicTacToe.Console/Domain/Player.cs b/src/TicTacToe.Console/Domain/Player.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/Player.cs
+@@ -0,0 +1,46 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa um participante de uma partida.
++/// </summary>
++public abstract class Player
++{
++    /// <summary>
++    /// Inicializa um participante.
++    /// </summary>
++    /// <param name="name">Nome de exibição do participante.</param>
++    /// <param name="symbol">Símbolo controlado pelo participante.</param>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando o nome está vazio ou quando o símbolo é
++    /// <see cref="Symbol.Empty"/>.
++    /// </exception>
++    protected Player(string name, Symbol symbol)
++    {
++        if (string.IsNullOrWhiteSpace(name))
++        {
++            throw new ArgumentException(
++                "O nome do participante não pode ser vazio.",
++                nameof(name));
++        }
++
++        if (symbol == Symbol.Empty)
++        {
++            throw new ArgumentException(
++                "Um participante deve controlar X ou O.",
++                nameof(symbol));
++        }
++
++        Name = name.Trim();
++        Symbol = symbol;
++    }
++
++    /// <summary>
++    /// Obtém o nome de exibição.
++    /// </summary>
++    public string Name { get; }
++
++    /// <summary>
++    /// Obtém o símbolo controlado.
++    /// </summary>
++    public Symbol Symbol { get; }
++}
+diff --git a/src/TicTacToe.Console/Domain/HumanPlayer.cs b/src/TicTacToe.Console/Domain/HumanPlayer.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/HumanPlayer.cs
+@@ -0,0 +1,17 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa uma pessoa participante.
++/// </summary>
++public sealed class HumanPlayer : Player
++{
++    /// <summary>
++    /// Inicializa uma pessoa participante.
++    /// </summary>
++    /// <param name="name">Nome de exibição.</param>
++    /// <param name="symbol">Símbolo controlado.</param>
++    public HumanPlayer(string name, Symbol symbol)
++        : base(name, symbol)
++    {
++    }
++}
+diff --git a/src/TicTacToe.Console/Domain/ComputerPlayer.cs b/src/TicTacToe.Console/Domain/ComputerPlayer.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/ComputerPlayer.cs
+@@ -0,0 +1,21 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa um participante controlado computacionalmente.
++/// </summary>
++/// <remarks>
++/// A estratégia de decisão será associada em uma etapa posterior. Nesta versão,
++/// a classe identifica apenas a natureza do participante no domínio.
++/// </remarks>
++public sealed class ComputerPlayer : Player
++{
++    /// <summary>
++    /// Inicializa um participante computacional.
++    /// </summary>
++    /// <param name="name">Nome de exibição.</param>
++    /// <param name="symbol">Símbolo controlado.</param>
++    public ComputerPlayer(string name, Symbol symbol)
++        : base(name, symbol)
++    {
++    }
++}
+diff --git a/src/TicTacToe.Console/Domain/Match.cs b/src/TicTacToe.Console/Domain/Match.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/Match.cs
+@@ -0,0 +1,158 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa o agregado responsável por preservar a consistência de uma partida.
++/// </summary>
++/// <remarks>
++/// O agregado controla tabuleiro, participantes, turno atual, histórico, estado,
++/// resultado e sequência vencedora. Jogadas não devem ser aplicadas diretamente
++/// ao tabuleiro durante uma partida.
++/// </remarks>
++public sealed class Match
++{
++    private readonly List<Move> moves = [];
++    private IReadOnlyList<BoardPosition> winning_positions =
++        Array.Empty<BoardPosition>();
++
++    /// <summary>
++    /// Inicializa uma partida em andamento.
++    /// </summary>
++    /// <param name="first_player">Participante que realizará a primeira jogada.</param>
++    /// <param name="second_player">Participante adversário.</param>
++    /// <exception cref="ArgumentNullException">
++    /// Lançada quando algum participante é nulo.
++    /// </exception>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando os participantes controlam o mesmo símbolo.
++    /// </exception>
++    public Match(Player first_player, Player second_player)
++    {
++        ArgumentNullException.ThrowIfNull(first_player);
++        ArgumentNullException.ThrowIfNull(second_player);
++
++        if (first_player.Symbol == second_player.Symbol)
++        {
++            throw new ArgumentException(
++                "Os participantes devem controlar símbolos diferentes.",
++                nameof(second_player));
++        }
++
++        FirstPlayer = first_player;
++        SecondPlayer = second_player;
++        CurrentPlayer = first_player;
++        Board = new Board();
++        State = GameState.InProgress;
++        Result = GameResult.None;
++    }
++
++    /// <summary>
++    /// Obtém o tabuleiro da partida.
++    /// </summary>
++    public Board Board { get; }
++
++    /// <summary>
++    /// Obtém o participante que inicia a partida.
++    /// </summary>
++    public Player FirstPlayer { get; }
++
++    /// <summary>
++    /// Obtém o segundo participante.
++    /// </summary>
++    public Player SecondPlayer { get; }
++
++    /// <summary>
++    /// Obtém o participante responsável pelo turno atual.
++    /// </summary>
++    /// <remarks>
++    /// Após o encerramento, permanece apontando para o participante que realizou
++    /// a última jogada.
++    /// </remarks>
++    public Player CurrentPlayer { get; private set; }
++
++    /// <summary>
++    /// Obtém o histórico de jogadas em ordem cronológica.
++    /// </summary>
++    public IReadOnlyList<Move> Moves => moves.AsReadOnly();
++
++    /// <summary>
++    /// Obtém o estado atual da partida.
++    /// </summary>
++    public GameState State { get; private set; }
++
++    /// <summary>
++    /// Obtém o resultado consolidado.
++    /// </summary>
++    public GameResult Result { get; private set; }
++
++    /// <summary>
++    /// Obtém a sequência vencedora, quando houver.
++    /// </summary>
++    public IReadOnlyList<BoardPosition> WinningPositions => winning_positions;
++
++    /// <summary>
++    /// Aplica uma jogada do participante atual.
++    /// </summary>
++    /// <param name="position">Posição escolhida para o turno.</param>
++    /// <returns>A jogada criada e registrada pelo agregado.</returns>
++    /// <exception cref="InvalidOperationException">
++    /// Lançada quando a partida já terminou ou a posição está ocupada.
++    /// </exception>
++    public Move apply_move(BoardPosition position)
++    {
++        if (State != GameState.InProgress)
++        {
++            throw new InvalidOperationException(
++                "Não é possível aplicar jogadas após o encerramento da partida.");
++        }
++
++        Move move = new(
++            position,
++            CurrentPlayer.Symbol,
++            moves.Count + 1);
++
++        Board.apply_move(move);
++        moves.Add(move);
++
++        GameEvaluation evaluation = GameRules.evaluate(Board);
++        Result = evaluation.Result;
++        winning_positions = evaluation.WinningPositions;
++
++        if (evaluation.IsInProgress)
++        {
++            CurrentPlayer = get_opponent(CurrentPlayer);
++        }
++        else
++        {
++            State = GameState.Finished;
++        }
++
++        return move;
++    }
++
++    /// <summary>
++    /// Obtém o participante associado a um símbolo.
++    /// </summary>
++    /// <param name="symbol">Símbolo procurado.</param>
++    /// <returns>Participante responsável pelo símbolo.</returns>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando o símbolo é <see cref="Symbol.Empty"/>.
++    /// </exception>
++    public Player get_player(Symbol symbol)
++    {
++        return symbol switch
++        {
++            var value when value == FirstPlayer.Symbol => FirstPlayer,
++            var value when value == SecondPlayer.Symbol => SecondPlayer,
++            _ => throw new ArgumentException(
++                "O símbolo deve pertencer a um participante da partida.",
++                nameof(symbol))
++        };
++    }
++
++    private Player get_opponent(Player player)
++    {
++        return ReferenceEquals(player, FirstPlayer)
++            ? SecondPlayer
++            : FirstPlayer;
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/PlayerTests.cs b/tests/TicTacToe.Tests/Domain/PlayerTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Domain/PlayerTests.cs
+@@ -0,0 +1,53 @@
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Domain;
++
++/// <summary>
++/// Verifica as invariantes dos participantes.
++/// </summary>
++public class PlayerTests
++{
++    /// <summary>
++    /// Confirma a criação de uma pessoa participante.
++    /// </summary>
++    [Fact]
++    public void human_player_should_preserve_name_and_symbol()
++    {
++        HumanPlayer player = new("Ana", Symbol.X);
++
++        Assert.Equal("Ana", player.Name);
++        Assert.Equal(Symbol.X, player.Symbol);
++    }
++
++    /// <summary>
++    /// Confirma a normalização de espaços externos no nome.
++    /// </summary>
++    [Fact]
++    public void player_should_trim_name()
++    {
++        ComputerPlayer player = new("  CPU  ", Symbol.O);
++
++        Assert.Equal("CPU", player.Name);
++    }
++
++    /// <summary>
++    /// Confirma que nomes vazios são rejeitados.
++    /// </summary>
++    [Fact]
++    public void player_should_reject_empty_name()
++    {
++        Assert.Throws<ArgumentException>(
++            () => new HumanPlayer(" ", Symbol.X));
++    }
++
++    /// <summary>
++    /// Confirma que participantes não podem controlar o símbolo vazio.
++    /// </summary>
++    [Fact]
++    public void player_should_reject_empty_symbol()
++    {
++        Assert.Throws<ArgumentException>(
++            () => new ComputerPlayer("CPU", Symbol.Empty));
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/MatchTests.cs b/tests/TicTacToe.Tests/Domain/MatchTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Domain/MatchTests.cs
+@@ -0,0 +1,253 @@
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Domain;
++
++/// <summary>
++/// Verifica as invariantes, os turnos e o encerramento de <see cref="Match"/>.
++/// </summary>
++public class MatchTests
++{
++    /// <summary>
++    /// Confirma o estado inicial do agregado.
++    /// </summary>
++    [Fact]
++    public void constructor_should_create_in_progress_match()
++    {
++        (HumanPlayer first_player, ComputerPlayer second_player) = create_players();
++
++        Match match = new(first_player, second_player);
++
++        Assert.Same(first_player, match.CurrentPlayer);
++        Assert.Equal(GameState.InProgress, match.State);
++        Assert.Equal(GameResult.None, match.Result);
++        Assert.Empty(match.Moves);
++        Assert.Empty(match.WinningPositions);
++        Assert.Equal(0, match.Board.OccupiedCount);
++    }
++
++    /// <summary>
++    /// Confirma que os participantes devem possuir símbolos diferentes.
++    /// </summary>
++    [Fact]
++    public void constructor_should_reject_equal_symbols()
++    {
++        HumanPlayer first_player = new("Ana", Symbol.X);
++        ComputerPlayer second_player = new("CPU", Symbol.X);
++
++        Assert.Throws<ArgumentException>(
++            () => new Match(first_player, second_player));
++    }
++
++    /// <summary>
++    /// Confirma a alternância após uma jogada válida.
++    /// </summary>
++    [Fact]
++    public void apply_move_should_alternate_current_player()
++    {
++        Match match = create_match();
++
++        Move move = match.apply_move(new BoardPosition(1, 1));
++
++        Assert.Equal(Symbol.X, move.Symbol);
++        Assert.Equal(1, move.TurnNumber);
++        Assert.Same(match.SecondPlayer, match.CurrentPlayer);
++    }
++
++    /// <summary>
++    /// Confirma que jogadas sucessivas utilizam o símbolo do turno.
++    /// </summary>
++    [Fact]
++    public void apply_move_should_use_current_player_symbol()
++    {
++        Match match = create_match();
++
++        Move first_move = match.apply_move(new BoardPosition(0, 0));
++        Move second_move = match.apply_move(new BoardPosition(1, 1));
++
++        Assert.Equal(Symbol.X, first_move.Symbol);
++        Assert.Equal(Symbol.O, second_move.Symbol);
++        Assert.Equal(Symbol.X, match.Board.get_symbol(first_move.Position));
++        Assert.Equal(Symbol.O, match.Board.get_symbol(second_move.Position));
++    }
++
++    /// <summary>
++    /// Confirma a numeração e a ordem cronológica do histórico.
++    /// </summary>
++    [Fact]
++    public void apply_move_should_append_ordered_history()
++    {
++        Match match = create_match();
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++
++        Assert.Equal(3, match.Moves.Count);
++        Assert.Equal([1, 2, 3], match.Moves.Select(move => move.TurnNumber));
++        Assert.Equal(new BoardPosition(0, 0), match.Moves[0].Position);
++        Assert.Equal(new BoardPosition(1, 0), match.Moves[1].Position);
++        Assert.Equal(new BoardPosition(0, 1), match.Moves[2].Position);
++    }
++
++    /// <summary>
++    /// Confirma que uma jogada inválida não altera turno nem histórico.
++    /// </summary>
++    [Fact]
++    public void invalid_move_should_preserve_match_state()
++    {
++        Match match = create_match();
++        BoardPosition position = new(0, 0);
++        match.apply_move(position);
++        Player current_player = match.CurrentPlayer;
++
++        Assert.Throws<InvalidOperationException>(
++            () => match.apply_move(position));
++
++        Assert.Same(current_player, match.CurrentPlayer);
++        Assert.Single(match.Moves);
++        Assert.Equal(GameState.InProgress, match.State);
++    }
++
++    /// <summary>
++    /// Confirma o encerramento por vitória.
++    /// </summary>
++    [Fact]
++    public void apply_move_should_finish_match_after_win()
++    {
++        Match match = create_match();
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++        match.apply_move(new BoardPosition(1, 1));
++        match.apply_move(new BoardPosition(0, 2));
++
++        Assert.Equal(GameState.Finished, match.State);
++        Assert.Equal(GameResult.XWins, match.Result);
++        Assert.Same(match.FirstPlayer, match.CurrentPlayer);
++        Assert.Equal(
++            [
++                new BoardPosition(0, 0),
++                new BoardPosition(0, 1),
++                new BoardPosition(0, 2)
++            ],
++            match.WinningPositions);
++    }
++
++    /// <summary>
++    /// Confirma o encerramento por empate.
++    /// </summary>
++    [Fact]
++    public void apply_move_should_finish_match_after_draw()
++    {
++        Match match = create_match();
++
++        BoardPosition[] positions =
++        [
++            new BoardPosition(0, 0),
++            new BoardPosition(0, 1),
++            new BoardPosition(0, 2),
++            new BoardPosition(1, 1),
++            new BoardPosition(1, 0),
++            new BoardPosition(1, 2),
++            new BoardPosition(2, 1),
++            new BoardPosition(2, 0),
++            new BoardPosition(2, 2)
++        ];
++
++        foreach (BoardPosition position in positions)
++        {
++            match.apply_move(position);
++        }
++
++        Assert.Equal(GameState.Finished, match.State);
++        Assert.Equal(GameResult.Draw, match.Result);
++        Assert.Empty(match.WinningPositions);
++        Assert.Equal(9, match.Moves.Count);
++    }
++
++    /// <summary>
++    /// Confirma que o turno não alterna após a jogada final.
++    /// </summary>
++    [Fact]
++    public void final_move_should_keep_last_player_as_current()
++    {
++        Match match = create_match();
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++        match.apply_move(new BoardPosition(1, 1));
++        match.apply_move(new BoardPosition(0, 2));
++
++        Assert.Same(match.FirstPlayer, match.CurrentPlayer);
++    }
++
++    /// <summary>
++    /// Confirma que não são aceitas jogadas após o encerramento.
++    /// </summary>
++    [Fact]
++    public void apply_move_should_reject_move_after_finish()
++    {
++        Match match = create_finished_match();
++        int move_count = match.Moves.Count;
++
++        Assert.Throws<InvalidOperationException>(
++            () => match.apply_move(new BoardPosition(2, 2)));
++
++        Assert.Equal(move_count, match.Moves.Count);
++        Assert.Equal(Symbol.Empty, match.Board.get_symbol(new BoardPosition(2, 2)));
++    }
++
++    /// <summary>
++    /// Confirma a recuperação de participantes por símbolo.
++    /// </summary>
++    [Fact]
++    public void get_player_should_return_player_by_symbol()
++    {
++        Match match = create_match();
++
++        Assert.Same(match.FirstPlayer, match.get_player(Symbol.X));
++        Assert.Same(match.SecondPlayer, match.get_player(Symbol.O));
++    }
++
++    /// <summary>
++    /// Confirma que o símbolo vazio não identifica participante.
++    /// </summary>
++    [Fact]
++    public void get_player_should_reject_empty_symbol()
++    {
++        Match match = create_match();
++
++        Assert.Throws<ArgumentException>(
++            () => match.get_player(Symbol.Empty));
++    }
++
++    private static Match create_match()
++    {
++        (HumanPlayer first_player, ComputerPlayer second_player) = create_players();
++
++        return new Match(first_player, second_player);
++    }
++
++    private static Match create_finished_match()
++    {
++        Match match = create_match();
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++        match.apply_move(new BoardPosition(1, 1));
++        match.apply_move(new BoardPosition(0, 2));
++
++        return match;
++    }
++
++    private static (HumanPlayer, ComputerPlayer) create_players()
++    {
++        return (
++            new HumanPlayer("Ana", Symbol.X),
++            new ComputerPlayer("CPU", Symbol.O));
++    }
++}
+diff --git a/docs/06-match-aggregate.md b/docs/06-match-aggregate.md
+new file mode 100644
+--- /dev/null
++++ b/docs/06-match-aggregate.md
+@@ -0,0 +1,105 @@
++# Agregado Match e controle de turnos
++
++## 1. Finalidade
++
++Este documento descreve o agregado `Match`, responsável por controlar uma partida completa sem depender de Console, inteligência artificial, persistência ou áudio.
++
++## 2. Invariantes
++
++O agregado preserva as seguintes invariantes:
++
++1. existem exatamente dois participantes;
++2. os participantes controlam símbolos diferentes;
++3. a partida inicia com o primeiro participante;
++4. somente o participante atual fornece o símbolo da próxima jogada;
++5. o histórico é cronológico e iniciado no turno um;
++6. o turno alterna somente após uma jogada válida;
++7. vitória ou empate encerram a partida;
++8. o turno não alterna após a jogada final;
++9. nenhuma jogada é aceita após o encerramento;
++10. o resultado e a sequência vencedora derivam de `GameRules`.
++
++## 3. Relações do agregado
++
++O diagrama apresenta `Match` como limite de consistência sobre tabuleiro, participantes e histórico.
++
++```mermaid
++classDiagram
++    class Match {
++        +Board Board
++        +Player FirstPlayer
++        +Player SecondPlayer
++        +Player CurrentPlayer
++        +IReadOnlyList~Move~ Moves
++        +GameState State
++        +GameResult Result
++        +IReadOnlyList~BoardPosition~ WinningPositions
++        +apply_move(position) Move
++        +get_player(symbol) Player
++    }
++
++    class Player {
++        <<abstract>>
++        +string Name
++        +Symbol Symbol
++    }
++
++    class HumanPlayer
++    class ComputerPlayer
++    class Board
++    class Move
++    class GameRules
++    class GameEvaluation
++
++    Match *-- Board
++    Match *-- Player
++    Match *-- Move
++    Match --> GameRules
++    GameRules --> GameEvaluation
++    Player <|-- HumanPlayer
++    Player <|-- ComputerPlayer
++```
++
++A aplicação externa informa apenas uma posição. O agregado cria a jogada com o símbolo do participante atual e o número correto do turno, reduzindo a possibilidade de estados inconsistentes.
++
++## 4. Sequência de uma jogada
++
++O diagrama descreve o fluxo interno de uma jogada válida.
++
++```mermaid
++sequenceDiagram
++    actor Caller as Caso de uso
++    participant Match
++    participant Board
++    participant Rules as GameRules
++    participant Evaluation as GameEvaluation
++
++    Caller->>Match: apply_move(position)
++    Match->>Match: validar estado em andamento
++    Match->>Match: criar Move do participante atual
++    Match->>Board: apply_move(move)
++    Board-->>Match: posição ocupada
++    Match->>Match: adicionar ao histórico
++    Match->>Rules: evaluate(board)
++    Rules-->>Evaluation: resultado e sequência
++    Evaluation-->>Match: avaliação
++
++    alt partida em andamento
++        Match->>Match: alternar participante
++    else vitória ou empate
++        Match->>Match: definir estado Finished
++        Match->>Match: manter último participante
++    end
++
++    Match-->>Caller: Move
++```
++
++Uma jogada inválida é rejeitada por `Board` antes de entrar no histórico. Consequentemente, turno, resultado e participante atual permanecem inalterados.
++
++## 5. Encerramento
++
++Ao receber uma avaliação de vitória ou empate, `Match` altera `State` para `Finished`. O `CurrentPlayer` permanece como o autor da última jogada, o que permite identificar diretamente quem encerrou a partida.
++
++## 6. Limites desta versão
++
++`ComputerPlayer` ainda não possui uma estratégia. A interface de estratégia e os agentes aleatórios serão introduzidos na versão `1.3.0`. O agregado continuará recebendo posições, independentemente da origem humana ou computacional.
+diff --git a/Directory.Build.props b/Directory.Build.props
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.1.0</Version>
++        <Version>1.2.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,8 +2,8 @@
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.1.0"
+-date-released: "2026-07-15"
++version: "1.2.0"
++date-released: "2026-07-16"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+ authors:
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -33,6 +33,8 @@
+ 
+ ## [Unreleased]
+ 
++## [1.2.0] - 2026-07-16
++
+ ### Added
+ 
+ - `LICENSE.md` com síntese acessível das condições de licenciamento.
+@@ -45,19 +47,22 @@
+ - `docs/04-modelo-conceitual.md` com entidades, objetos de valor, enumerações e relações do domínio.
+ - Enumerações `Symbol`, `GameState` e `GameResult`.
+ - Objetos de valor imutáveis `BoardPosition` e `Move`.
+-- Testes básicos das invariantes e da igualdade dos objetos de valor.
+ - `Board` com armazenamento encapsulado, consulta de símbolos, casas livres, aplicação e desfazimento de jogadas.
+-- Testes completos do comportamento e das invariantes de `Board`.
+ - `GameRules` para detecção de vitória, empate e partida em andamento.
+ - `GameEvaluation` com resultado e sequência vencedora imutável.
+-- Testes de linhas, colunas, diagonais, empates e falsos positivos.
++- `Player`, `HumanPlayer` e `ComputerPlayer`.
++- Agregado `Match` com tabuleiro, jogadores, turno, histórico, estado e resultado.
+ - `docs/05-game-rules.md` com diagramas e interpretação das regras.
++- `docs/06-match-aggregate.md` com invariantes e diagrama de sequência.
++- Testes automatizados do domínio, das regras e do agregado.
+ 
+ ### Changed
+ 
+ - Licença da linha de refatoração alterada de MIT para Apache License 2.0.
+ - Timeline do projeto consolidada entre `v1.0.0` e `v2.0.0`.
+ - Política de dependências definida para privilegiar a biblioteca padrão do .NET.
++- Descoberta de testes xUnit habilitada no projeto de testes.
++- Versão do projeto atualizada para `1.2.0`.
+ 
+ ## [1.1.0] - 2026-07-15
+ 

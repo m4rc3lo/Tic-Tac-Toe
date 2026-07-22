@@ -1,0 +1,836 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -26,7 +26,7 @@
+         2026-07-17 : v1.5.0 — estratégia Minimax
+         2026-07-17 : v1.6.0 — apresentação e estados
+     section Marcos planejados
+-        Data a definir : v1.7.0 — recursos audiovisuais
++        2026-07-17 : v1.7.0 — recursos audiovisuais
+         Data a definir : v1.8.0 — persistência e exportação
+         Data a definir : v1.9.0 — experimentação e consolidação
+         Data a definir : v2.0.0 — refatoração completa
+@@ -36,6 +36,26 @@
+ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
++
++## [1.7.0] - 2026-07-17
++
++### Added
++
++- `IAudioService` e eventos `AudioCue`.
++- `ConsoleBeepAudioService` para Windows.
++- `TerminalBellAudioService` para terminais Unix-like.
++- `SilentAudioService` para execução silenciosa.
++- `FallbackAudioService` para recuperação de falhas.
++- `AudioServiceSelector` com seleção configurável e testável.
++- Opção de áudio na tela de configurações.
++- Testes sem dispositivo físico.
++- `docs/15-audio.md`.
++
++### Changed
++
++- Saída da partida passou a emitir sinais de jogada, erro e resultado.
++- Versão do projeto e metadados atualizados para `1.7.0`.
++
+ 
+ ### Added
+ 
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,7 +2,7 @@
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.6.0"
++version: "1.7.0"
+ date-released: "2026-07-17"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+diff --git a/Directory.Build.props b/Directory.Build.props
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.6.0</Version>
++        <Version>1.7.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -12,6 +12,7 @@
+ - `v1.4.0` — 2026-07-16: fluxo básico de aplicação, correções arquiteturais e estratégia heurística;
+ - `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
+ - `v1.6.0` — 2026-07-17: apresentação Console e máquina de estados;
++- `v1.7.0` — 2026-07-17: recursos visuais, animações e áudio com fallback;
+ - `Unreleased`: próxima etapa de desenvolvimento;
+ - `v2.0.0` — data a definir: consolidação final da refatoração.
+ 
+diff --git a/docs/15-audio.md b/docs/15-audio.md
+new file mode 100644
+--- /dev/null
++++ b/docs/15-audio.md
+@@ -0,0 +1,142 @@
++# Serviços de áudio e fallback
++
++## 1. Finalidade
++
++A versão `1.7.0` adiciona sinais sonoros opcionais sem introduzir dependências
++de plataforma em `Domain`, `AI` ou `Application`. Todo o código de reprodução
++permanece no módulo `Audio` e é composto pela apresentação.
++
++Falhas de áudio são recuperáveis: a aplicação troca para um serviço silencioso
++e continua executando a partida.
++
++## 2. Arquitetura
++
++O contrato comum recebe eventos sem expor frequência, duração ou tecnologia.
++
++```mermaid
++classDiagram
++    class IAudioService {
++        <<interface>>
++        +play(cue)
++    }
++
++    class ConsoleBeepAudioService
++    class TerminalBellAudioService
++    class SilentAudioService
++    class FallbackAudioService {
++        -IAudioService active_service
++        -IAudioService fallback_service
++    }
++
++    class AudioServiceSelector
++    class AudioCue {
++        <<enumeration>>
++        Move
++        InvalidMove
++        Victory
++        Defeat
++        Draw
++        Menu
++    }
++
++    IAudioService <|.. ConsoleBeepAudioService
++    IAudioService <|.. TerminalBellAudioService
++    IAudioService <|.. SilentAudioService
++    IAudioService <|.. FallbackAudioService
++    FallbackAudioService --> IAudioService
++    AudioServiceSelector --> FallbackAudioService
++    IAudioService --> AudioCue
++```
++
++A camada de apresentação solicita apenas um `AudioCue`. A implementação
++selecionada decide como representar esse evento.
++
++## 3. Capacidades por plataforma
++
++### Windows
++
++`ConsoleBeepAudioService` utiliza `Console.Beep`. Ele permite frequências e
++durações distintas para jogada, erro, vitória, derrota e empate.
++
++O suporte pode variar em terminais modernos, sessões remotas, máquinas virtuais
++e sistemas sem dispositivo de áudio configurado.
++
++### Sistemas Unix-like
++
++`TerminalBellAudioService` escreve o caractere BEL (`\a`) no fluxo do terminal.
++O resultado depende da configuração do emulador: ele pode produzir som, alerta
++visual ou nenhum efeito.
++
++### Execução silenciosa
++
++`SilentAudioService` não produz saída nem acessa dispositivos. Ele é usado
++quando o áudio está desabilitado e como fallback final.
++
++## 4. Seleção e fallback
++
++`AudioServiceSelector` considera a configuração e a plataforma.
++
++```mermaid
++flowchart TD
++    A[Solicitar serviço de áudio] --> B{Áudio habilitado?}
++    B -- Não --> S[SilentAudioService]
++    B -- Sim --> C{Windows?}
++    C -- Sim --> W[ConsoleBeepAudioService]
++    C -- Não --> T[TerminalBellAudioService]
++    W --> F[FallbackAudioService]
++    T --> F
++    F --> S
++```
++
++O serviço primário é envolvido por `FallbackAudioService`. Após uma falha
++recuperável, o serviço ativo passa a ser o fallback silencioso, evitando novas
++tentativas no dispositivo defeituoso.
++
++## 5. Configuração
++
++`PresentationPreferences.AudioEnabled` controla a seleção inicial. A tela de
++configurações oferece a opção `Áudio: ativado/desativado`.
++
++A configuração atual vale para a composição da execução. Persistência e
++recomposição dinâmica serão tratadas na etapa de configurações JSON.
++
++## 6. Integração com a partida
++
++Os eventos atualmente emitidos são:
++
++- jogada aplicada;
++- jogada inválida;
++- vitória humana;
++- derrota humana;
++- empate.
++
++A saída textual e visual continua sendo apresentada mesmo quando o áudio está
++desativado ou falha.
++
++## 7. Limitações
++
++A implementação inicial não oferece:
++
++- arquivos WAV, MP3 ou outros recursos externos;
++- controle de volume;
++- reprodução assíncrona;
++- mistura de sons;
++- detecção confiável de dispositivo;
++- garantia de que BEL produzirá som;
++- alteração imediata do serviço após mudar a configuração durante uma sessão.
++
++Essas limitações preservam dependências mínimas e compatibilidade
++multiplataforma.
++
++## 8. Testes sem dispositivo de áudio
++
++A suíte não chama `Console.Beep`. Os testes utilizam:
++
++- serviços simulados que registram eventos;
++- serviço primário que lança falha controlada;
++- `StringWriter` para verificar o caractere BEL;
++- `SilentAudioService`;
++- fábricas injetáveis no seletor.
++
++Assim, seleção, fallback e ausência de encerramento inesperado são verificadas
++sem depender de hardware.
+diff --git a/src/TicTacToe.Console/Audio/AudioCue.cs b/src/TicTacToe.Console/Audio/AudioCue.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/AudioCue.cs
+@@ -0,0 +1,14 @@
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Identifica eventos sonoros independentes da tecnologia de reprodução.
++/// </summary>
++public enum AudioCue
++{
++    Move,
++    InvalidMove,
++    Victory,
++    Defeat,
++    Draw,
++    Menu
++}
+diff --git a/src/TicTacToe.Console/Audio/AudioServiceSelector.cs b/src/TicTacToe.Console/Audio/AudioServiceSelector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/AudioServiceSelector.cs
+@@ -0,0 +1,69 @@
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Seleciona uma implementação de áudio conforme configuração e plataforma.
++/// </summary>
++public sealed class AudioServiceSelector
++{
++    private readonly Func<bool> is_windows;
++    private readonly Func<IAudioService> windows_factory;
++    private readonly Func<IAudioService> terminal_factory;
++    private readonly Func<IAudioService> silent_factory;
++
++    /// <summary>
++    /// Inicializa o seletor para uso na aplicação.
++    /// </summary>
++    /// <param name="terminal_writer">Fluxo usado pelo terminal bell.</param>
++    public AudioServiceSelector(TextWriter terminal_writer)
++        : this(
++            OperatingSystem.IsWindows,
++            () => new ConsoleBeepAudioService(),
++            () => new TerminalBellAudioService(terminal_writer),
++            () => new SilentAudioService())
++    {
++        ArgumentNullException.ThrowIfNull(terminal_writer);
++    }
++
++    /// <summary>
++    /// Inicializa o seletor com fábricas injetáveis para testes.
++    /// </summary>
++    public AudioServiceSelector(
++        Func<bool> is_windows,
++        Func<IAudioService> windows_factory,
++        Func<IAudioService> terminal_factory,
++        Func<IAudioService> silent_factory)
++    {
++        ArgumentNullException.ThrowIfNull(is_windows);
++        ArgumentNullException.ThrowIfNull(windows_factory);
++        ArgumentNullException.ThrowIfNull(terminal_factory);
++        ArgumentNullException.ThrowIfNull(silent_factory);
++
++        this.is_windows = is_windows;
++        this.windows_factory = windows_factory;
++        this.terminal_factory = terminal_factory;
++        this.silent_factory = silent_factory;
++    }
++
++    /// <summary>
++    /// Seleciona um serviço protegido por fallback silencioso.
++    /// </summary>
++    /// <param name="audio_enabled">Indica se o áudio está habilitado.</param>
++    /// <returns>Serviço apropriado à configuração.</returns>
++    public IAudioService select(bool audio_enabled)
++    {
++        IAudioService silent_service = silent_factory();
++
++        if (!audio_enabled)
++        {
++            return silent_service;
++        }
++
++        IAudioService primary_service = is_windows()
++            ? windows_factory()
++            : terminal_factory();
++
++        return new FallbackAudioService(
++            primary_service,
++            silent_service);
++    }
++}
+diff --git a/src/TicTacToe.Console/Audio/ConsoleBeepAudioService.cs b/src/TicTacToe.Console/Audio/ConsoleBeepAudioService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/ConsoleBeepAudioService.cs
+@@ -0,0 +1,31 @@
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Reproduz sinais por <see cref="Console.Beep(int, int)"/>.
++/// </summary>
++/// <remarks>
++/// Esta implementação é destinada prioritariamente ao Windows. O suporte
++/// efetivo depende do terminal, do sistema e do dispositivo de áudio.
++/// </remarks>
++public sealed class ConsoleBeepAudioService : IAudioService
++{
++    /// <inheritdoc />
++    public void play(AudioCue cue)
++    {
++        (int frequency, int duration) = cue switch
++        {
++            AudioCue.Move => (660, 70),
++            AudioCue.InvalidMove => (220, 160),
++            AudioCue.Victory => (880, 220),
++            AudioCue.Defeat => (196, 260),
++            AudioCue.Draw => (440, 180),
++            AudioCue.Menu => (520, 60),
++            _ => throw new ArgumentOutOfRangeException(
++                nameof(cue),
++                cue,
++                "O evento sonoro não é reconhecido.")
++        };
++
++        Console.Beep(frequency, duration);
++    }
++}
+diff --git a/src/TicTacToe.Console/Audio/FallbackAudioService.cs b/src/TicTacToe.Console/Audio/FallbackAudioService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/FallbackAudioService.cs
+@@ -0,0 +1,48 @@
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Protege a aplicação contra falhas da implementação primária de áudio.
++/// </summary>
++public sealed class FallbackAudioService : IAudioService
++{
++    private readonly IAudioService fallback_service;
++    private IAudioService active_service;
++
++    /// <summary>
++    /// Inicializa o serviço resiliente.
++    /// </summary>
++    /// <param name="primary_service">Implementação preferencial.</param>
++    /// <param name="fallback_service">Implementação usada após falha.</param>
++    public FallbackAudioService(
++        IAudioService primary_service,
++        IAudioService fallback_service)
++    {
++        ArgumentNullException.ThrowIfNull(primary_service);
++        ArgumentNullException.ThrowIfNull(fallback_service);
++
++        active_service = primary_service;
++        this.fallback_service = fallback_service;
++    }
++
++    /// <inheritdoc />
++    public void play(AudioCue cue)
++    {
++        try
++        {
++            active_service.play(cue);
++        }
++        catch (Exception)
++        {
++            active_service = fallback_service;
++
++            try
++            {
++                fallback_service.play(cue);
++            }
++            catch (Exception)
++            {
++                // Áudio é recurso opcional e nunca encerra a aplicação.
++            }
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Audio/IAudioService.cs b/src/TicTacToe.Console/Audio/IAudioService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/IAudioService.cs
+@@ -0,0 +1,13 @@
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Define a reprodução de sinais sonoros da aplicação.
++/// </summary>
++public interface IAudioService
++{
++    /// <summary>
++    /// Reproduz o sinal associado ao evento informado.
++    /// </summary>
++    /// <param name="cue">Evento sonoro solicitado.</param>
++    void play(AudioCue cue);
++}
+diff --git a/src/TicTacToe.Console/Audio/SilentAudioService.cs b/src/TicTacToe.Console/Audio/SilentAudioService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/SilentAudioService.cs
+@@ -0,0 +1,12 @@
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Implementa áudio nulo para execução silenciosa e fallback.
++/// </summary>
++public sealed class SilentAudioService : IAudioService
++{
++    /// <inheritdoc />
++    public void play(AudioCue cue)
++    {
++    }
++}
+diff --git a/src/TicTacToe.Console/Audio/TerminalBellAudioService.cs b/src/TicTacToe.Console/Audio/TerminalBellAudioService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Audio/TerminalBellAudioService.cs
+@@ -0,0 +1,26 @@
++namespace TicTacToe.Audio;
++
++/// <summary>
++/// Emite o caractere de campainha do terminal.
++/// </summary>
++public sealed class TerminalBellAudioService : IAudioService
++{
++    private readonly TextWriter writer;
++
++    /// <summary>
++    /// Inicializa o serviço com o fluxo textual do terminal.
++    /// </summary>
++    /// <param name="writer">Fluxo que receberá o caractere BEL.</param>
++    public TerminalBellAudioService(TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    /// <inheritdoc />
++    public void play(AudioCue cue)
++    {
++        writer.Write('\a');
++        writer.Flush();
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+--- a/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
++++ b/src/TicTacToe.Console/Presentation/ConsoleGameOutput.cs
+@@ -1,4 +1,5 @@
+ using TicTacToe.Application;
++using TicTacToe.Audio;
+ using TicTacToe.Domain;
+ 
+ namespace TicTacToe.Presentation;
+@@ -12,6 +13,7 @@
+     private readonly ConsoleTheme theme;
+     private readonly AsciiArtCatalog art_catalog;
+     private readonly IVisualFeedbackService visual_feedback;
++    private readonly IAudioService audio_service;
+ 
+     public ConsoleGameOutput(
+         TextWriter writer,
+@@ -21,7 +23,8 @@
+             board_renderer,
+             new ConsoleTheme(new PresentationPreferences()),
+             new AsciiArtCatalog(),
+-            new VisualFeedbackService(board_renderer))
++            new VisualFeedbackService(board_renderer),
++            new SilentAudioService())
+     {
+     }
+ 
+@@ -30,18 +33,21 @@
+         ConsoleBoardRenderer board_renderer,
+         ConsoleTheme theme,
+         AsciiArtCatalog art_catalog,
+-        IVisualFeedbackService visual_feedback)
++        IVisualFeedbackService visual_feedback,
++        IAudioService audio_service)
+     {
+         ArgumentNullException.ThrowIfNull(writer);
+         ArgumentNullException.ThrowIfNull(board_renderer);
+         ArgumentNullException.ThrowIfNull(theme);
+         ArgumentNullException.ThrowIfNull(art_catalog);
+         ArgumentNullException.ThrowIfNull(visual_feedback);
++        ArgumentNullException.ThrowIfNull(audio_service);
+ 
+         this.writer = writer;
+         this.theme = theme;
+         this.art_catalog = art_catalog;
+         this.visual_feedback = visual_feedback;
++        this.audio_service = audio_service;
+     }
+ 
+     public void show_match(Match match)
+@@ -59,6 +65,11 @@
+             match.Board,
+             last_move);
+ 
++        if (last_move.HasValue)
++        {
++            audio_service.play(AudioCue.Move);
++        }
++
+         if (match.State == GameState.InProgress)
+         {
+             writer.WriteLine();
+@@ -75,6 +86,8 @@
+         string message)
+     {
+         ArgumentNullException.ThrowIfNull(player);
++
++        audio_service.play(AudioCue.InvalidMove);
+ 
+         writer.WriteLine(
+             theme.colorize_warning(
+@@ -108,6 +121,7 @@
+                 break;
+ 
+             case GameResult.Draw:
++                audio_service.play(AudioCue.Draw);
+                 show_art(art_catalog.get_draw());
+                 writer.WriteLine(
+                     theme.colorize_warning("Resultado: empate."));
+@@ -125,6 +139,11 @@
+     {
+         Player winner = match.get_player(symbol);
+         bool human_won = winner is HumanPlayer;
++
++        audio_service.play(
++            human_won
++                ? AudioCue.Victory
++                : AudioCue.Defeat);
+ 
+         show_art(
+             human_won
+diff --git a/src/TicTacToe.Console/Presentation/PresentationPreferences.cs b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+--- a/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
++++ b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+@@ -16,12 +16,14 @@
+         bool use_ansi_colors = false,
+         bool use_unicode = true,
+         bool clear_screen = false,
+-        bool visual_effects = true)
++        bool visual_effects = true,
++        bool audio_enabled = true)
+     {
+         UseAnsiColors = use_ansi_colors;
+         UseUnicode = use_unicode;
+         ClearScreen = clear_screen;
+         VisualEffects = visual_effects;
++        AudioEnabled = audio_enabled;
+     }
+ 
+     public bool UseAnsiColors { get; set; }
+@@ -31,4 +33,9 @@
+     public bool ClearScreen { get; set; }
+ 
+     public bool VisualEffects { get; set; }
++
++    /// <summary>
++    /// Obtém ou define se sinais sonoros estão habilitados.
++    /// </summary>
++    public bool AudioEnabled { get; set; }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+@@ -40,6 +40,8 @@
+                 $"3 - Limpeza de tela: {format(preferences.ClearScreen)}");
+             writer.WriteLine(
+                 $"4 - Efeitos visuais: {format(preferences.VisualEffects)}");
++            writer.WriteLine(
++                $"5 - Áudio: {format(preferences.AudioEnabled)}");
+             writer.WriteLine("0 - Voltar");
+             writer.Write("Opção: ");
+ 
+@@ -61,6 +63,10 @@
+                     preferences.VisualEffects = !preferences.VisualEffects;
+                     break;
+ 
++                case "5":
++                    preferences.AudioEnabled = !preferences.AudioEnabled;
++                    break;
++
+                 case "0":
+                     return new ScreenTransition(ScreenState.MainMenu);
+ 
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -1,3 +1,4 @@
++using TicTacToe.Audio;
+ using TicTacToe.Presentation;
+ using TicTacToe.Presentation.Navigation;
+ using TicTacToe.Presentation.Screens;
+@@ -29,13 +30,17 @@
+         ConsoleGameInput game_input = new(reader, writer);
+         IVisualFeedbackService visual_feedback =
+             new VisualFeedbackService(board_renderer);
++        IAudioService audio_service =
++            new AudioServiceSelector(writer).select(
++                preferences.AudioEnabled);
+ 
+         ConsoleGameOutput game_output = new(
+             writer,
+             board_renderer,
+             theme,
+             art_catalog,
+-            visual_feedback);
++            visual_feedback,
++            audio_service);
+ 
+         IMatchSessionRunner match_session_runner =
+             new ConsoleMatchSessionRunner(
+diff --git a/tests/TicTacToe.Tests/Audio/AudioServiceSelectorTests.cs b/tests/TicTacToe.Tests/Audio/AudioServiceSelectorTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Audio/AudioServiceSelectorTests.cs
+@@ -0,0 +1,74 @@
++using TicTacToe.Audio;
++using Xunit;
++
++namespace TicTacToe.Tests.Audio;
++
++public class AudioServiceSelectorTests
++{
++    [Fact]
++    public void select_should_return_silent_service_when_disabled()
++    {
++        RecordingAudioService windows = new();
++        RecordingAudioService terminal = new();
++        SilentAudioService silent = new();
++
++        AudioServiceSelector selector = new(
++            () => true,
++            () => windows,
++            () => terminal,
++            () => silent);
++
++        IAudioService selected =
++            selector.select(audio_enabled: false);
++
++        Assert.Same(silent, selected);
++    }
++
++    [Fact]
++    public void select_should_use_windows_service_on_windows()
++    {
++        RecordingAudioService windows = new();
++
++        AudioServiceSelector selector = new(
++            () => true,
++            () => windows,
++            () => new RecordingAudioService(),
++            () => new SilentAudioService());
++
++        IAudioService selected =
++            selector.select(audio_enabled: true);
++
++        selected.play(AudioCue.Menu);
++
++        Assert.Equal([AudioCue.Menu], windows.Cues);
++    }
++
++    [Fact]
++    public void select_should_use_terminal_service_outside_windows()
++    {
++        RecordingAudioService terminal = new();
++
++        AudioServiceSelector selector = new(
++            () => false,
++            () => new RecordingAudioService(),
++            () => terminal,
++            () => new SilentAudioService());
++
++        IAudioService selected =
++            selector.select(audio_enabled: true);
++
++        selected.play(AudioCue.Move);
++
++        Assert.Equal([AudioCue.Move], terminal.Cues);
++    }
++
++    private sealed class RecordingAudioService : IAudioService
++    {
++        public List<AudioCue> Cues { get; } = [];
++
++        public void play(AudioCue cue)
++        {
++            Cues.Add(cue);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Audio/FallbackAudioServiceTests.cs b/tests/TicTacToe.Tests/Audio/FallbackAudioServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Audio/FallbackAudioServiceTests.cs
+@@ -0,0 +1,60 @@
++using TicTacToe.Audio;
++using Xunit;
++
++namespace TicTacToe.Tests.Audio;
++
++public class FallbackAudioServiceTests
++{
++    [Fact]
++    public void play_should_use_fallback_after_primary_failure()
++    {
++        ThrowingAudioService primary = new();
++        RecordingAudioService fallback = new();
++        FallbackAudioService service = new(
++            primary,
++            fallback);
++
++        service.play(AudioCue.Victory);
++        service.play(AudioCue.Move);
++
++        Assert.Equal(1, primary.CallCount);
++        Assert.Equal(
++            [AudioCue.Victory, AudioCue.Move],
++            fallback.Cues);
++    }
++
++    [Fact]
++    public void play_should_ignore_recoverable_fallback_failure()
++    {
++        FallbackAudioService service = new(
++            new ThrowingAudioService(),
++            new ThrowingAudioService());
++
++        Exception? exception = Record.Exception(
++            () => service.play(AudioCue.InvalidMove));
++
++        Assert.Null(exception);
++    }
++
++    private sealed class ThrowingAudioService : IAudioService
++    {
++        public int CallCount { get; private set; }
++
++        public void play(AudioCue cue)
++        {
++            CallCount++;
++            throw new InvalidOperationException(
++                "Dispositivo indisponível.");
++        }
++    }
++
++    private sealed class RecordingAudioService : IAudioService
++    {
++        public List<AudioCue> Cues { get; } = [];
++
++        public void play(AudioCue cue)
++        {
++            Cues.Add(cue);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Audio/TerminalBellAudioServiceTests.cs b/tests/TicTacToe.Tests/Audio/TerminalBellAudioServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Audio/TerminalBellAudioServiceTests.cs
+@@ -0,0 +1,29 @@
++using TicTacToe.Audio;
++using Xunit;
++
++namespace TicTacToe.Tests.Audio;
++
++public class TerminalBellAudioServiceTests
++{
++    [Fact]
++    public void play_should_write_terminal_bell_without_audio_device()
++    {
++        StringWriter writer = new();
++        TerminalBellAudioService service = new(writer);
++
++        service.play(AudioCue.Move);
++
++        Assert.Equal("\a", writer.ToString());
++    }
++
++    [Fact]
++    public void silent_service_should_not_produce_output_or_failure()
++    {
++        SilentAudioService service = new();
++
++        Exception? exception = Record.Exception(
++            () => service.play(AudioCue.Defeat));
++
++        Assert.Null(exception);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs b/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
+--- a/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
++++ b/tests/TicTacToe.Tests/Presentation/SettingsScreenTests.cs
+@@ -19,7 +19,7 @@
+         StringReader reader = new(
+             string.Join(
+                 Environment.NewLine,
+-                ["1", "2", "3", "4", "0", string.Empty]));
++                ["1", "2", "3", "4", "5", "0", string.Empty]));
+         SettingsScreen screen = new(
+             reader,
+             new StringWriter());
+@@ -31,5 +31,6 @@
+         Assert.True(preferences.UseAnsiColors);
+         Assert.True(preferences.ClearScreen);
+         Assert.False(preferences.VisualEffects);
++        Assert.False(preferences.AudioEnabled);
+     }
+ }

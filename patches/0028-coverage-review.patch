@@ -1,0 +1,713 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,21 @@
+ 
+ ### Added
+ 
++- Configuração Cobertura para `coverlet.collector`.
++- Scripts PowerShell e Bash para execução e resumo de cobertura.
++- Classificação estrutural dos testes em unitários, integração local e
++  validação de publicação.
++- Testes para perfis de publicação e ramos críticos remanescentes.
++- `docs/12-testes.md`.
++
++### Changed
++
++- Revisão de cobertura passou a priorizar invariantes e fronteiras externas,
++  sem estabelecer porcentagem isolada como meta.
++
++
++### Added
++
+ - Namespace `Composition` com módulos explícitos para configuração, persistência,
+   apresentação e telas.
+ - Testes arquiteturais para fronteiras públicas do domínio.
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -138,6 +138,7 @@
+ | [`docs/09-correcao-fronteiras-arquiteturais.md`](docs/09-correcao-fronteiras-arquiteturais.md) | Correção de dependências e fronteiras. |
+ | [`docs/10-inteligencia-artificial.md`](docs/10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
+ | [`docs/11-experimentacao.md`](docs/11-experimentacao.md) | Plano formal de experimentação. |
++| [`docs/12-testes.md`](docs/12-testes.md) | Estratégia, classificação e cobertura dos testes. |
+ | [`docs/14-limitacoes.md`](docs/14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
+ | [`docs/15-audio.md`](docs/15-audio.md) | Serviços de áudio e fallback. |
+ | [`docs/16-apresentacao-console.md`](docs/16-apresentacao-console.md) | Entrada, saída e renderização Console. |
+diff --git a/docs/12-testes.md b/docs/12-testes.md
+new file mode 100644
+--- /dev/null
++++ b/docs/12-testes.md
+@@ -0,0 +1,175 @@
++# Estratégia de testes e cobertura
++
++## 1. Objetivo
++
++A estratégia de testes prioriza invariantes, ramos críticos e fronteiras
++externas. Cobertura de linhas e ramos é usada como instrumento diagnóstico, não
++como meta isolada.
++
++Uma porcentagem elevada não comprova correção quando casos relevantes,
++alternâncias ou falhas permanecem sem exercício.
++
++## 2. Pirâmide aplicada
++
++A suíte combina três classes.
++
++```mermaid
++flowchart TD
++    A[Validação de publicação] --> B[Integração local]
++    B --> C[Testes unitários]
++    C --> D[Domínio, regras e Strategies]
++    B --> E[JSON, CSV e recuperação]
++    A --> F[Perfis e conteúdo do pacote]
++```
++
++A base unitária é maior e rápida. Integrações locais exercitam arquivos reais
++somente em diretórios temporários. Validações de publicação verificam perfis e
++pacotes sem versionar binários.
++
++## 3. Classificação
++
++### Unitários
++
++Incluem:
++
++- objetos de valor e enumerações;
++- `Board`, `GameRules`, `GameEvaluation` e `Match`;
++- Strategies e resolução de Strategy;
++- `MatchController`;
++- serviços de apresentação com `TextReader` e `TextWriter`;
++- áudio com serviços simulados;
++- compatibilidade com detectores injetáveis;
++- modo automático com atraso imediato;
++- experimentação com temporizador e repositórios em memória.
++
++### Integração local
++
++Incluem:
++
++- configurações JSON;
++- histórico e estatísticas;
++- quarentena de arquivos corrompidos;
++- recuperação entre histórico e estatísticas;
++- exportação CSV;
++- repositórios experimentais JSON e CSV;
++- validação de codificação e substituição por arquivo temporário.
++
++Esses testes usam `Path.GetTempPath()` e removem os dados ao final.
++
++### Validação de publicação
++
++Incluem:
++
++- quatro arquivos `.pubxml`;
++- RID e modo autocontido;
++- ausência de single-file, trimming e ReadyToRun;
++- conteúdo obrigatório do `.csproj`;
++- `PublishPackageVerifier`;
++- scripts de inspeção dos pacotes.
++
++## 4. Matriz de cobertura funcional
++
++| Área | Evidência principal |
++|---|---|
++| domínio | `BoardTests`, `BoardPositionTests`, `MoveTests` |
++| regras | `GameRulesTests`, `GameEvaluationTests` |
++| agregado | `MatchTests`, `MatchBoardBoundaryTests` |
++| Strategies | testes Random, Heuristic e Minimax |
++| resolução | `ComputerMoveStrategyResolverTests` |
++| aplicação | `MatchControllerTests`, `DefaultMoveSelectorTests` |
++| apresentação | entrada, saída, renderer, telas e navegação |
++| configuração reativa | áudio, animação e `SettingsScreenTests` |
++| persistência | repositórios, mapper, calculadora e serviço |
++| corrupção | `JsonCorruptionQuarantineTests` |
++| CSV | `CsvWriterTests` e `CsvExportersTests` |
++| automático | setup, runner, cancelamento e retorno |
++| experimento | sementes, alternância, falhas e métricas |
++| falhas externas | reporters, rollback e isolamento |
++| compatibilidade | capacidades, modo compatível e áudio |
++| publicação | `PublishProfileTests` e verificador de pacote |
++
++## 5. Cobertura observada
++
++O ambiente usado para gerar este patch não dispõe do SDK .NET. Portanto, nenhum
++percentual foi registrado como se tivesse sido observado.
++
++Para produzir a evidência real:
++
++```powershell
++.\scripts\test-coverage.ps1
++```
++
++ou:
++
++```bash
++./scripts/test-coverage.sh
++```
++
++O resultado Cobertura fica em:
++
++```text
++artifacts/coverage/**/coverage.cobertura.xml
++```
++
++Após a execução, registrar no relatório de release:
++
++- linhas cobertas e válidas;
++- ramos cobertos e válidos;
++- classes com ramos críticos não exercitados;
++- testes acrescentados em resposta às lacunas;
++- limitações do coletor.
++
++## 6. Processo de revisão da cobertura
++
++O fluxo abaixo evita otimização cega de percentual.
++
++```mermaid
++flowchart LR
++    A[Executar suíte] --> B[Gerar Cobertura XML]
++    B --> C[Identificar classes e ramos sem exercício]
++    C --> D{Ramo crítico?}
++    D -- Sim --> E[Adicionar teste comportamental]
++    D -- Não --> F[Registrar justificativa]
++    E --> A
++    F --> G[Revisar na release]
++```
++
++Prioridade é dada a falhas de persistência, invariantes do agregado,
++alternâncias experimentais, recuperação e compatibilidade.
++
++## 7. Lacunas tratadas nesta etapa
++
++Foram adicionados testes para:
++
++- quarentena de `statistics.json`;
++- encerramento do lote após falha quando `ContinueOnFailure` é falso;
++- retorno seguro do modo automático após falha de persistência;
++- diretórios ausentes ou vazios nas configurações;
++- estrutura dos quatro perfis de publicação;
++- conteúdo obrigatório do projeto publicado.
++
++## 8. Restrições de qualidade
++
++A suíte evita:
++
++- `Thread.Sleep` e tempo real;
++- leitura do Console físico;
++- dispositivos de áudio;
++- estado global compartilhado;
++- arquivos permanentes;
++- caminhos absolutos de uma máquina específica;
++- aleatoriedade sem semente;
++- formatação dependente da cultura corrente;
++- snapshots extensos.
++
++Quando texto exato é testado, ele representa um contrato pequeno, como cabeçalho
++CSV ou fallback de interface.
++
++## 9. Limitações
++
++- cobertura não detecta assertivas fracas;
++- reflexão em testes arquiteturais não substitui análise estática completa;
++- testes temporários não reproduzem todos os sistemas de arquivos;
++- publicação real ainda deve ser executada em Windows e Linux;
++- Console, beep e terminal bell exigem validação manual;
++- relatórios podem variar conforme SDK e coletor.
+diff --git a/docs/README.md b/docs/README.md
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -17,6 +17,7 @@
+ | [09-correcao-fronteiras-arquiteturais.md](09-correcao-fronteiras-arquiteturais.md) | Correção de dependências e fronteiras. |
+ | [10-inteligencia-artificial.md](10-inteligencia-artificial.md) | Strategies Random, Heuristic e Minimax. |
+ | [11-experimentacao.md](11-experimentacao.md) | Plano formal de experimentação. |
++| [12-testes.md](12-testes.md) | Estratégia, classificação e cobertura dos testes. |
+ | [14-limitacoes.md](14-limitacoes.md) | Compatibilidade e limitações multiplataforma. |
+ | [15-audio.md](15-audio.md) | Serviços de áudio e fallback. |
+ | [16-apresentacao-console.md](16-apresentacao-console.md) | Entrada, saída e renderização Console. |
+diff --git a/scripts/test-coverage.ps1 b/scripts/test-coverage.ps1
+new file mode 100644
+--- /dev/null
++++ b/scripts/test-coverage.ps1
+@@ -0,0 +1,47 @@
++param(
++    [string]$Configuration = "Release"
++)
++
++$ErrorActionPreference = "Stop"
++$results = Join-Path $PSScriptRoot "..\artifacts\coverage"
++
++if (Test-Path $results) {
++    Remove-Item $results -Recurse -Force
++}
++
++New-Item -ItemType Directory -Path $results -Force | Out-Null
++
++dotnet test `
++    (Join-Path $PSScriptRoot "..\TicTacToe.sln") `
++    --configuration $Configuration `
++    --collect "XPlat Code Coverage" `
++    --settings (Join-Path $PSScriptRoot "..\tests\coverage.runsettings") `
++    --results-directory $results
++
++$report = Get-ChildItem `
++    $results `
++    -Filter "coverage.cobertura.xml" `
++    -File `
++    -Recurse |
++    Select-Object -First 1
++
++if ($null -eq $report) {
++    throw "O relatório coverage.cobertura.xml não foi encontrado."
++}
++
++[xml]$coverage = Get-Content $report.FullName
++$root = $coverage.coverage
++
++[pscustomobject]@{
++    Report = $report.FullName
++    LineRate = [double]::Parse(
++        $root.'line-rate',
++        [Globalization.CultureInfo]::InvariantCulture)
++    BranchRate = [double]::Parse(
++        $root.'branch-rate',
++        [Globalization.CultureInfo]::InvariantCulture)
++    LinesCovered = [int]$root.'lines-covered'
++    LinesValid = [int]$root.'lines-valid'
++    BranchesCovered = [int]$root.'branches-covered'
++    BranchesValid = [int]$root.'branches-valid'
++}
+diff --git a/scripts/test-coverage.sh b/scripts/test-coverage.sh
+new file mode 100755
+--- /dev/null
++++ b/scripts/test-coverage.sh
+@@ -0,0 +1,34 @@
++#!/usr/bin/env bash
++set -euo pipefail
++
++configuration="${1:-Release}"
++root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
++results="$root/artifacts/coverage"
++
++rm -rf "$results"
++mkdir -p "$results"
++
++dotnet test "$root/TicTacToe.sln"   --configuration "$configuration"   --collect "XPlat Code Coverage"   --settings "$root/tests/coverage.runsettings"   --results-directory "$results"
++
++report="$(find "$results" -name coverage.cobertura.xml -type f | head -n 1)"
++
++if [[ -z "$report" ]]; then
++  echo "O relatório coverage.cobertura.xml não foi encontrado." >&2
++  exit 1
++fi
++
++python3 - "$report" <<'PY'
++import sys
++import xml.etree.ElementTree as ET
++
++path = sys.argv[1]
++root = ET.parse(path).getroot()
++
++print(f"Report: {path}")
++print(f"LineRate: {root.attrib.get('line-rate', '0')}")
++print(f"BranchRate: {root.attrib.get('branch-rate', '0')}")
++print(f"LinesCovered: {root.attrib.get('lines-covered', '0')}")
++print(f"LinesValid: {root.attrib.get('lines-valid', '0')}")
++print(f"BranchesCovered: {root.attrib.get('branches-covered', '0')}")
++print(f"BranchesValid: {root.attrib.get('branches-valid', '0')}")
++PY
+diff --git a/tests/README.md b/tests/README.md
+new file mode 100644
+--- /dev/null
++++ b/tests/README.md
+@@ -0,0 +1,48 @@
++# Estratégia e classificação dos testes
++
++## 1. Classificação
++
++A classificação é estrutural e baseada no tipo de dependência exercitada.
++
++| Classe | Localização principal | Característica |
++|---|---|---|
++| unitário | `Domain/`, `AI/`, partes de `Application/`, `Audio/`, `Presentation/` e `Compatibility/` | memória, contratos simulados e nenhuma fronteira persistente |
++| integração local | `Persistence/` e repositórios experimentais | combina componentes reais usando diretórios temporários |
++| validação de publicação | `Publication/` e scripts de `scripts/` | inspeciona perfis e conteúdo de pacotes publicados |
++
++Algumas pastas possuem testes de mais de uma classe. A classificação é definida
++pelo comportamento do teste, não apenas pelo namespace.
++
++## 2. Restrições
++
++A suíte não deve depender de:
++
++- relógio real;
++- Console físico;
++- dispositivo de áudio;
++- ordem global;
++- arquivos permanentes;
++- caminhos absolutos fixos;
++- pseudoaleatoriedade sem semente;
++- cultura corrente;
++- snapshots extensos sem justificativa.
++
++## 3. Execução
++
++Suíte completa:
++
++```bash
++dotnet test TicTacToe.sln --configuration Release
++```
++
++Cobertura:
++
++```powershell
++.\scripts\test-coverage.ps1
++```
++
++```bash
++./scripts/test-coverage.sh
++```
++
++Os relatórios são gerados em `artifacts/coverage/` e não são versionados.
+diff --git a/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs b/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
+--- a/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
++++ b/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
+@@ -58,6 +58,28 @@
+         Assert.False(result.Metrics[1].Failed);
+         Assert.Equal(1, result.Summary.FailedRuns);
+         Assert.Equal(2, repository.SaveCount);
++    }
++
++
++    [Fact]
++    public void run_should_stop_after_failure_when_continuation_is_disabled()
++    {
++        MemoryRepository repository = new();
++        ExperimentController controller = create_controller(
++            new FailingOnceFactory(),
++            repository);
++        ExperimentConfiguration configuration =
++            create_configuration(match_count: 3) with
++            {
++                ContinueOnFailure = false
++            };
++
++        ExperimentResult result = controller.run(configuration);
++
++        Assert.Single(result.Metrics);
++        Assert.True(result.Metrics[0].Failed);
++        Assert.Equal(1, result.Summary.FailedRuns);
++        Assert.Equal(1, repository.SaveCount);
+     }
+ 
+     [Fact]
+diff --git a/tests/TicTacToe.Tests/Persistence/JsonCorruptionQuarantineTests.cs b/tests/TicTacToe.Tests/Persistence/JsonCorruptionQuarantineTests.cs
+--- a/tests/TicTacToe.Tests/Persistence/JsonCorruptionQuarantineTests.cs
++++ b/tests/TicTacToe.Tests/Persistence/JsonCorruptionQuarantineTests.cs
+@@ -49,6 +49,25 @@
+                 "matches.json.corrupt-*"));
+     }
+ 
++
++    [Fact]
++    public void statistics_should_quarantine_invalid_json()
++    {
++        Directory.CreateDirectory(directory);
++        string path = Path.Combine(directory, "statistics.json");
++        File.WriteAllText(path, "{ invalid");
++
++        MatchStatisticsRecord statistics =
++            new JsonMatchStatisticsRepository(path).load();
++
++        Assert.Equal(0, statistics.TotalMatches);
++        Assert.False(File.Exists(path));
++        Assert.Single(
++            Directory.GetFiles(
++                directory,
++                "statistics.json.corrupt-*"));
++    }
++
+     public void Dispose()
+     {
+         if (Directory.Exists(directory))
+diff --git a/tests/TicTacToe.Tests/Persistence/SettingsValidatorTests.cs b/tests/TicTacToe.Tests/Persistence/SettingsValidatorTests.cs
+--- a/tests/TicTacToe.Tests/Persistence/SettingsValidatorTests.cs
++++ b/tests/TicTacToe.Tests/Persistence/SettingsValidatorTests.cs
+@@ -18,6 +18,43 @@
+         Assert.Empty(result.Errors);
+     }
+ 
++
++    [Fact]
++    public void validate_should_reject_missing_directories()
++    {
++        ApplicationSettings settings =
++            ApplicationSettings.create_default();
++        settings.Directories = null!;
++
++        SettingsValidationResult result =
++            new SettingsValidator().validate(settings);
++
++        Assert.False(result.IsValid);
++        Assert.Contains(
++            "Directories deve ser informado.",
++            result.Errors);
++    }
++
++    [Fact]
++    public void validate_should_reject_empty_relative_directories()
++    {
++        ApplicationSettings settings =
++            ApplicationSettings.create_default();
++        settings.Directories.Data = " ";
++        settings.Directories.Exports = string.Empty;
++
++        SettingsValidationResult result =
++            new SettingsValidator().validate(settings);
++
++        Assert.False(result.IsValid);
++        Assert.Contains(
++            "Directories.Data não pode ser vazio.",
++            result.Errors);
++        Assert.Contains(
++            "Directories.Exports não pode ser vazio.",
++            result.Errors);
++    }
++
+     [Fact]
+     public void validate_should_reject_invalid_delay_directory_and_strategy()
+     {
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticMatchRunnerTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticMatchRunnerTests.cs
+--- a/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticMatchRunnerTests.cs
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/AutomaticMatchRunnerTests.cs
+@@ -68,6 +68,36 @@
+         Assert.Empty(result.Match.Moves);
+     }
+ 
++
++    [Fact]
++    public void run_should_report_persistence_failure_and_return_result()
++    {
++        RecordingFailureReporter reporter = new();
++        PresentationPreferences preferences = new(
++            visual_effects: false,
++            animation_delay_milliseconds: 0);
++        AutomaticMatchRunner runner = new(
++            new StringWriter(),
++            new RecordingGameOutput(),
++            new ImmediateDelayService(),
++            preferences,
++            new MoveStrategyFactory(),
++            new ContinueControl(),
++            new FailingPersistenceService(),
++            reporter);
++
++        AutomaticMatchResult result = runner.run(
++            new AutomaticMatchConfiguration(
++                StrategyKind.Minimax,
++                StrategyKind.Minimax,
++                7,
++                PersistMatch: true));
++
++        Assert.False(result.WasCancelled);
++        Assert.Equal(GameState.Finished, result.Match.State);
++        Assert.Equal(1, reporter.CallCount);
++    }
++
+     private static AutomaticMatchRunner create_runner(
+         IAutomaticModeControl control,
+         IMatchPersistenceService? persistence)
+@@ -108,6 +138,33 @@
+         public void show_result(Match match) { }
+     }
+ 
++
++    private sealed class FailingPersistenceService
++        : IMatchPersistenceService
++    {
++        public MatchRecord persist(
++            MatchPersistenceContext context)
++        {
++            throw new InfrastructureOperationException(
++                "gravar",
++                "Falha controlada.",
++                new IOException("Disco indisponível."));
++        }
++    }
++
++    private sealed class RecordingFailureReporter
++        : IExternalFailureReporter
++    {
++        public int CallCount { get; private set; }
++
++        public void report(
++            string context,
++            Exception exception)
++        {
++            CallCount++;
++        }
++    }
++
+     private sealed class RecordingPersistenceService
+         : IMatchPersistenceService
+     {
+diff --git a/tests/TicTacToe.Tests/Publication/PublishProfileTests.cs b/tests/TicTacToe.Tests/Publication/PublishProfileTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Publication/PublishProfileTests.cs
+@@ -0,0 +1,123 @@
++using System.Xml.Linq;
++using Xunit;
++
++namespace TicTacToe.Tests.Publication;
++
++public class PublishProfileTests
++{
++    private static readonly string project_root =
++        find_project_root();
++
++    public static IEnumerable<object[]> profiles()
++    {
++        yield return
++        [
++            "win-x64-framework-dependent.pubxml",
++            "win-x64",
++            "false"
++        ];
++        yield return
++        [
++            "win-x64-self-contained.pubxml",
++            "win-x64",
++            "true"
++        ];
++        yield return
++        [
++            "linux-x64-framework-dependent.pubxml",
++            "linux-x64",
++            "false"
++        ];
++        yield return
++        [
++            "linux-x64-self-contained.pubxml",
++            "linux-x64",
++            "true"
++        ];
++    }
++
++    [Theory]
++    [MemberData(nameof(profiles))]
++    public void profile_should_define_expected_runtime_and_safe_options(
++        string file_name,
++        string runtime_identifier,
++        string self_contained)
++    {
++        string path = Path.Combine(
++            project_root,
++            "src",
++            "TicTacToe.Console",
++            "Properties",
++            "PublishProfiles",
++            file_name);
++        XDocument document = XDocument.Load(path);
++
++        Assert.Equal(
++            runtime_identifier,
++            get_property(document, "RuntimeIdentifier"));
++        Assert.Equal(
++            self_contained,
++            get_property(document, "SelfContained"));
++        Assert.Equal(
++            "false",
++            get_property(document, "PublishSingleFile"));
++        Assert.Equal(
++            "false",
++            get_property(document, "PublishTrimmed"));
++        Assert.Equal(
++            "false",
++            get_property(document, "PublishReadyToRun"));
++        Assert.Equal(
++            "Release",
++            get_property(document, "Configuration"));
++    }
++
++    [Fact]
++    public void project_should_publish_required_distribution_files()
++    {
++        string path = Path.Combine(
++            project_root,
++            "src",
++            "TicTacToe.Console",
++            "TicTacToe.Console.csproj");
++        XDocument document = XDocument.Load(path);
++        string xml = document.ToString();
++
++        Assert.Contains("CITATION.cff", xml);
++        Assert.Contains("README-PUBLISH.md", xml);
++        Assert.Contains("settings.example.json", xml);
++        Assert.Contains("CopyToPublishDirectory", xml);
++    }
++
++    private static string get_property(
++        XDocument document,
++        string name)
++    {
++        return document
++            .Descendants(name)
++            .Single()
++            .Value;
++    }
++
++    private static string find_project_root()
++    {
++        DirectoryInfo? current = new(
++            AppContext.BaseDirectory);
++
++        while (current is not null)
++        {
++            if (File.Exists(
++                    Path.Combine(
++                        current.FullName,
++                        "TicTacToe.sln")))
++            {
++                return current.FullName;
++            }
++
++            current = current.Parent;
++        }
++
++        throw new DirectoryNotFoundException(
++            "A raiz do projeto não foi encontrada.");
++    }
++}
+diff --git a/tests/coverage.runsettings b/tests/coverage.runsettings
+new file mode 100644
+--- /dev/null
++++ b/tests/coverage.runsettings
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<RunSettings>
++  <DataCollectionRunSettings>
++    <DataCollectors>
++      <DataCollector friendlyName="XPlat Code Coverage">
++        <Configuration>
++          <Format>cobertura</Format>
++          <Include>[TicTacToe.Console]*</Include>
++          <Exclude>
++            [TicTacToe.Console]TicTacToe.Program,
++            [TicTacToe.Console]*.Properties.*
++          </Exclude>
++          <ExcludeByFile>
++            **/obj/**,
++            **/*.g.cs,
++            **/*.AssemblyInfo.cs
++          </ExcludeByFile>
++          <IncludeTestAssembly>false</IncludeTestAssembly>
++          <SingleHit>false</SingleHit>
++          <UseSourceLink>true</UseSourceLink>
++          <DeterministicReport>true</DeterministicReport>
++          <SkipAutoProps>false</SkipAutoProps>
++        </Configuration>
++      </DataCollector>
++    </DataCollectors>
++  </DataCollectionRunSettings>
++</RunSettings>

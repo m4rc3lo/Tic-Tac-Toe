@@ -1,0 +1,1667 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,25 @@
+ 
+ ### Added
+ 
++- Quarentena de arquivos JSON inválidos antes da recuperação.
++- Exceções de infraestrutura com identificador diagnóstico seguro.
++- Recuperação das estatísticas a partir do histórico.
++- Reporters testáveis para falhas externas e experimentais.
++- Detecção opcional de ciclos de navegação.
++- Testes de falhas controladas nas fronteiras externas.
++- `docs/25-robustez-fronteiras-externas.md`.
++
++### Changed
++
++- Falhas de persistência deixaram de encerrar telas de partida.
++- Repositórios experimentais passaram a falhar de forma isolada.
++- Fallback de áudio passou a capturar apenas falhas operacionais.
++- `ScreenManager` deixou de impor limite padrão às sessões reais.
++- Créditos passaram a usar fallback também em falhas de leitura.
++
++
++### Added
++
+ - `ExperimentController` para confrontos IA contra IA em lote.
+ - Política determinística de sementes e alternância independente.
+ - Contrato opcional `ISearchMetricsProvider`.
+diff --git a/docs/11-experimentacao.md b/docs/11-experimentacao.md
+--- a/docs/11-experimentacao.md
++++ b/docs/11-experimentacao.md
+@@ -271,10 +271,11 @@
+ Com `ContinueOnFailure = true`, o lote continua. Com
+ `ContinueOnFailure = false`, o lote termina após salvar a execução que falhou.
+ 
+-Falhas de um repositório durante `save_progress` não são convertidas em uma
+-métrica de execução pelo código atual; elas interrompem a persistência do lote.
+-Esse comportamento deve ser considerado uma limitação de infraestrutura e
+-revisto na etapa de robustez das fronteiras externas.
++Falhas de um repositório durante `save_progress` não são convertidas em
++métricas de execução. Elas são enviadas a
++`IExperimentInfrastructureReporter`, e os demais repositórios ainda são
++executados. Assim, uma falha de JSON não impede a tentativa de exportação CSV,
++ou vice-versa.
+ 
+ ## 14. Procedimento experimental
+ 
+diff --git a/docs/25-robustez-fronteiras-externas.md b/docs/25-robustez-fronteiras-externas.md
+new file mode 100644
+--- /dev/null
++++ b/docs/25-robustez-fronteiras-externas.md
+@@ -0,0 +1,94 @@
++
++# Robustez das fronteiras externas
++
++## 1. Objetivo
++
++Esta etapa fortalece arquivos, configurações, persistência, áudio, créditos,
++navegação e experimentação sem transferir regras de infraestrutura para o
++domínio.
++
++As mensagens públicas usam um identificador diagnóstico e não exibem caminhos,
++conteúdo de arquivos ou dados pessoais.
++
++## 2. Classificação de falhas
++
++`InfrastructureOperationException` representa falhas operacionais de leitura,
++gravação, permissão e substituição.
++
++```mermaid
++flowchart LR
++    A[IOException ou acesso negado] --> B[Repositório]
++    B --> C[InfrastructureOperationException]
++    C --> D[Runner ou tela]
++    D --> E[Mensagem segura]
++    C -. causa preservada .-> F[Diagnóstico técnico]
++```
++
++A causa permanece em `InnerException`, enquanto a apresentação mostra apenas a
++mensagem pública e o `DiagnosticId`.
++
++## 3. Quarentena JSON
++
++JSON inválido é movido antes da recuperação.
++
++```mermaid
++sequenceDiagram
++    participant Repository as Repositório
++    participant Original as JSON original
++    participant Quarantine as Quarentena
++    participant Safe as Valor seguro
++
++    Repository->>Original: ler e desserializar
++    Original--xRepository: conteúdo inválido
++    Repository->>Quarantine: mover arquivo original
++    Repository->>Safe: criar recuperação
++    Safe-->>Repository: valor padrão ou vazio
++```
++
++O padrão é `arquivo.json.corrupt-data-guid`. Configurações recebem valores
++padrão; histórico e estatísticas retornam estruturas seguras.
++
++## 4. Consistência de partidas e estatísticas
++
++O histórico é a fonte autoritativa. No início da aplicação,
++`MatchPersistenceRecoveryService` recalcula `statistics.json`.
++
++```mermaid
++flowchart TD
++    A[Carregar matches.json] --> B[Recalcular estatísticas]
++    B --> C[Substituir statistics.json]
++    C --> D[Iniciar navegação]
++    B -. falha .-> E[Informar diagnóstico e continuar]
++```
++
++Isso recupera divergências causadas por interrupção entre as duas gravações.
++
++## 5. Navegação e persistência
++
++Os runners capturam apenas falhas de infraestrutura da persistência. A partida
++concluída permanece disponível e a navegação continua.
++
++A aplicação real não possui limite global de transições. Testes podem usar
++`TransitionLimitCycleDetector` ou o construtor com `max_transitions`.
++
++## 6. Resultados experimentais
++
++Cada repositório experimental é isolado. Uma falha no JSON não impede a
++tentativa de CSV. A falha é enviada a
++`IExperimentInfrastructureReporter` e não altera a métrica da partida.
++
++## 7. Áudio, CSV e créditos
++
++`FallbackAudioService` captura somente `IOException`,
++`UnauthorizedAccessException`, `PlatformNotSupportedException` e
++`ObjectDisposedException`. Falhas inesperadas de programação são propagadas.
++
++CSV converte falhas de escrita em `InfrastructureOperationException`.
++`CitationMetadataLoader` usa fallback também quando o arquivo existe, mas não
++pode ser lido.
++
++## 8. Testes
++
++A suíte cobre quarentena, recuperação de estatísticas, isolamento experimental,
++mensagens sem dados sensíveis, áudio operacional e inesperado e detecção
++explícita de ciclos.
+diff --git a/src/TicTacToe.Console/Application/ExperimentController.cs b/src/TicTacToe.Console/Application/ExperimentController.cs
+--- a/src/TicTacToe.Console/Application/ExperimentController.cs
++++ b/src/TicTacToe.Console/Application/ExperimentController.cs
+@@ -14,13 +14,15 @@
+     private readonly IExperimentTimerFactory timer_factory;
+     private readonly IReadOnlyList<IExperimentResultRepository> repositories;
+     private readonly IMatchPersistenceService? match_persistence_service;
++    private readonly IExperimentInfrastructureReporter infrastructure_reporter;
+ 
+     public ExperimentController(
+         IExperimentStrategyFactory strategy_factory,
+         ISeedSequence seed_sequence,
+         IExperimentTimerFactory timer_factory,
+         IEnumerable<IExperimentResultRepository> repositories,
+-        IMatchPersistenceService? match_persistence_service = null)
++        IMatchPersistenceService? match_persistence_service = null,
++        IExperimentInfrastructureReporter? infrastructure_reporter = null)
+     {
+         ArgumentNullException.ThrowIfNull(strategy_factory);
+         ArgumentNullException.ThrowIfNull(seed_sequence);
+@@ -32,6 +34,8 @@
+         this.timer_factory = timer_factory;
+         this.repositories = repositories.ToArray();
+         this.match_persistence_service = match_persistence_service;
++        this.infrastructure_reporter = infrastructure_reporter ??
++            new NullExperimentInfrastructureReporter();
+     }
+ 
+     public ExperimentResult run(ExperimentConfiguration configuration)
+@@ -189,8 +193,28 @@
+ 
+         foreach (IExperimentResultRepository repository in repositories)
+         {
+-            repository.save(configuration.OutputDirectory, result);
+-        }
++            try
++            {
++                repository.save(
++                    configuration.OutputDirectory,
++                    result);
++            }
++            catch (Exception exception)
++                when (is_infrastructure_failure(exception))
++            {
++                infrastructure_reporter.report(
++                    repository.GetType().Name,
++                    exception);
++            }
++        }
++    }
++
++    private static bool is_infrastructure_failure(
++        Exception exception)
++    {
++        return exception is InfrastructureOperationException
++            or IOException
++            or UnauthorizedAccessException;
+     }
+ 
+     private static ExperimentResult create_result(
+diff --git a/src/TicTacToe.Console/Application/IExperimentInfrastructureReporter.cs b/src/TicTacToe.Console/Application/IExperimentInfrastructureReporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/IExperimentInfrastructureReporter.cs
+@@ -0,0 +1,12 @@
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Recebe falhas de infraestrutura da persistência experimental.
++/// </summary>
++public interface IExperimentInfrastructureReporter
++{
++    void report(
++        string repository_name,
++        Exception exception);
++}
+diff --git a/src/TicTacToe.Console/Application/NullExperimentInfrastructureReporter.cs b/src/TicTacToe.Console/Application/NullExperimentInfrastructureReporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/NullExperimentInfrastructureReporter.cs
+@@ -0,0 +1,15 @@
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Ignora notificações quando não há canal diagnóstico.
++/// </summary>
++public sealed class NullExperimentInfrastructureReporter
++    : IExperimentInfrastructureReporter
++{
++    public void report(
++        string repository_name,
++        Exception exception)
++    {
++    }
++}
+diff --git a/src/TicTacToe.Console/Audio/FallbackAudioService.cs b/src/TicTacToe.Console/Audio/FallbackAudioService.cs
+--- a/src/TicTacToe.Console/Audio/FallbackAudioService.cs
++++ b/src/TicTacToe.Console/Audio/FallbackAudioService.cs
+@@ -1,18 +1,14 @@
++
+ namespace TicTacToe.Audio;
+ 
+ /// <summary>
+-/// Protege a aplicação contra falhas da implementação primária de áudio.
++/// Protege a aplicação contra falhas operacionais do áudio.
+ /// </summary>
+ public sealed class FallbackAudioService : IAudioService
+ {
+     private readonly IAudioService fallback_service;
+     private IAudioService active_service;
+ 
+-    /// <summary>
+-    /// Inicializa o serviço resiliente.
+-    /// </summary>
+-    /// <param name="primary_service">Implementação preferencial.</param>
+-    /// <param name="fallback_service">Implementação usada após falha.</param>
+     public FallbackAudioService(
+         IAudioService primary_service,
+         IAudioService fallback_service)
+@@ -24,14 +20,14 @@
+         this.fallback_service = fallback_service;
+     }
+ 
+-    /// <inheritdoc />
+     public void play(AudioCue cue)
+     {
+         try
+         {
+             active_service.play(cue);
+         }
+-        catch (Exception)
++        catch (Exception exception)
++            when (is_expected_audio_failure(exception))
+         {
+             active_service = fallback_service;
+ 
+@@ -39,10 +35,19 @@
+             {
+                 fallback_service.play(cue);
+             }
+-            catch (Exception)
++            catch (Exception fallback_exception)
++                when (is_expected_audio_failure(fallback_exception))
+             {
+-                // Áudio é recurso opcional e nunca encerra a aplicação.
+             }
+         }
+     }
++
++    private static bool is_expected_audio_failure(
++        Exception exception)
++    {
++        return exception is IOException
++            or UnauthorizedAccessException
++            or PlatformNotSupportedException
++            or ObjectDisposedException;
++    }
+ }
+diff --git a/src/TicTacToe.Console/ConsoleApplication.cs b/src/TicTacToe.Console/ConsoleApplication.cs
+--- a/src/TicTacToe.Console/ConsoleApplication.cs
++++ b/src/TicTacToe.Console/ConsoleApplication.cs
+@@ -64,8 +64,23 @@
+             art_catalog,
+             visual_feedback,
+             audio_service);
++        MatchPersistenceComponents persistence_components =
++            create_match_persistence(settings);
+         IMatchPersistenceService persistence_service =
+-            create_match_persistence(settings);
++            persistence_components.PersistenceService;
++        IExternalFailureReporter failure_reporter =
++            new TextExternalFailureReporter(writer);
++
++        try
++        {
++            persistence_components.RecoveryService.recover();
++        }
++        catch (InfrastructureOperationException exception)
++        {
++            failure_reporter.report(
++                "As estatísticas não puderam ser recuperadas.",
++                exception);
++        }
+         IMoveStrategyFactory strategy_factory =
+             new MoveStrategyFactory();
+         IMatchSessionRunner match_runner =
+@@ -75,7 +90,8 @@
+                 animation_service,
+                 preferences,
+                 persistence_service,
+-                strategy_factory);
++                strategy_factory,
++                failure_reporter);
+         IAutomaticModeControl mode_control =
+             new ConsoleAutomaticModeControl(
+                 writer,
+@@ -88,7 +104,8 @@
+                 preferences,
+                 strategy_factory,
+                 mode_control,
+-                persistence_service);
++                persistence_service,
++                failure_reporter);
+         CitationMetadata citation_metadata =
+             new CitationMetadataLoader().load(
+                 Path.Combine(
+@@ -127,19 +144,33 @@
+             context);
+     }
+ 
+-    private static IMatchPersistenceService create_match_persistence(
++    private static MatchPersistenceComponents create_match_persistence(
+         ApplicationSettings settings)
+     {
+         string data_directory = Path.Combine(
+             AppContext.BaseDirectory,
+             settings.Directories.Data);
++        IMatchHistoryRepository history_repository =
++            new JsonMatchHistoryRepository(
++                Path.Combine(data_directory, "matches.json"));
++        IMatchStatisticsRepository statistics_repository =
++            new JsonMatchStatisticsRepository(
++                Path.Combine(data_directory, "statistics.json"));
++        MatchStatisticsCalculator calculator = new();
+ 
+-        return new MatchPersistenceService(
+-            new JsonMatchHistoryRepository(
+-                Path.Combine(data_directory, "matches.json")),
+-            new JsonMatchStatisticsRepository(
+-                Path.Combine(data_directory, "statistics.json")),
+-            new MatchRecordMapper(),
+-            new MatchStatisticsCalculator());
++        return new MatchPersistenceComponents(
++            new MatchPersistenceService(
++                history_repository,
++                statistics_repository,
++                new MatchRecordMapper(),
++                calculator),
++            new MatchPersistenceRecoveryService(
++                history_repository,
++                statistics_repository,
++                calculator));
+     }
++
++    private sealed record MatchPersistenceComponents(
++        IMatchPersistenceService PersistenceService,
++        IMatchPersistenceRecoveryService RecoveryService);
+ }
+diff --git a/src/TicTacToe.Console/Persistence/Csv/CsvWriter.cs b/src/TicTacToe.Console/Persistence/Csv/CsvWriter.cs
+--- a/src/TicTacToe.Console/Persistence/Csv/CsvWriter.cs
++++ b/src/TicTacToe.Console/Persistence/Csv/CsvWriter.cs
+@@ -66,6 +66,20 @@
+                 path,
+                 overwrite: true);
+         }
++        catch (IOException exception)
++        {
++            throw new InfrastructureOperationException(
++                "exportar CSV",
++                "Não foi possível gravar o arquivo de exportação.",
++                exception);
++        }
++        catch (UnauthorizedAccessException exception)
++        {
++            throw new InfrastructureOperationException(
++                "exportar CSV",
++                "Não foi possível gravar o arquivo de exportação.",
++                exception);
++        }
+         finally
+         {
+             if (File.Exists(temporary_path))
+diff --git a/src/TicTacToe.Console/Persistence/IMatchPersistenceRecoveryService.cs b/src/TicTacToe.Console/Persistence/IMatchPersistenceRecoveryService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/IMatchPersistenceRecoveryService.cs
+@@ -0,0 +1,10 @@
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Define a recuperação da consistência entre histórico e estatísticas.
++/// </summary>
++public interface IMatchPersistenceRecoveryService
++{
++    MatchStatisticsRecord recover();
++}
+diff --git a/src/TicTacToe.Console/Persistence/InfrastructureOperationException.cs b/src/TicTacToe.Console/Persistence/InfrastructureOperationException.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/InfrastructureOperationException.cs
+@@ -0,0 +1,25 @@
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa uma falha operacional de infraestrutura com contexto seguro.
++/// </summary>
++public sealed class InfrastructureOperationException : Exception
++{
++    public InfrastructureOperationException(
++        string operation,
++        string user_message,
++        Exception inner_exception)
++        : base(user_message, inner_exception)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(operation);
++        ArgumentException.ThrowIfNullOrWhiteSpace(user_message);
++
++        Operation = operation;
++        DiagnosticId = Guid.NewGuid();
++    }
++
++    public string Operation { get; }
++
++    public Guid DiagnosticId { get; }
++}
+diff --git a/src/TicTacToe.Console/Persistence/JsonCorruptionQuarantine.cs b/src/TicTacToe.Console/Persistence/JsonCorruptionQuarantine.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/JsonCorruptionQuarantine.cs
+@@ -0,0 +1,27 @@
++
++using System.Globalization;
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Preserva arquivos JSON inválidos antes da recuperação.
++/// </summary>
++internal static class JsonCorruptionQuarantine
++{
++    public static string? preserve(string path)
++    {
++        if (!File.Exists(path))
++        {
++            return null;
++        }
++
++        string timestamp = DateTimeOffset.UtcNow.ToString(
++            "yyyyMMddTHHmmssfffZ",
++            CultureInfo.InvariantCulture);
++        string quarantine_path =
++            $"{path}.corrupt-{timestamp}-{Guid.NewGuid():N}";
++
++        File.Move(path, quarantine_path);
++        return quarantine_path;
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/JsonFileStore.cs b/src/TicTacToe.Console/Persistence/JsonFileStore.cs
+--- a/src/TicTacToe.Console/Persistence/JsonFileStore.cs
++++ b/src/TicTacToe.Console/Persistence/JsonFileStore.cs
+@@ -1,3 +1,4 @@
++
+ using System.Text;
+ using System.Text.Json;
+ using System.Text.Json.Serialization;
+@@ -33,26 +34,26 @@
+                 return default_value;
+             }
+ 
+-            string json = File.ReadAllText(
+-                path,
+-                Encoding.UTF8);
++            string json = File.ReadAllText(path, Encoding.UTF8);
++            T? value = JsonSerializer.Deserialize<T>(
++                json,
++                serializer_options);
+ 
+-            return JsonSerializer.Deserialize<T>(
+-                       json,
+-                       serializer_options)
+-                   ?? default_value;
++            return value is null
++                ? quarantine_and_return_default(path, default_value)
++                : value;
+         }
+         catch (JsonException)
+         {
+-            return default_value;
++            return quarantine_and_return_default(path, default_value);
+         }
+-        catch (IOException)
++        catch (IOException exception)
+         {
+-            return default_value;
++            throw create_exception("ler JSON", exception);
+         }
+-        catch (UnauthorizedAccessException)
++        catch (UnauthorizedAccessException exception)
+         {
+-            return default_value;
++            throw create_exception("ler JSON", exception);
+         }
+     }
+ 
+@@ -64,17 +65,16 @@
+         ArgumentNullException.ThrowIfNull(value);
+ 
+         string? directory = Path.GetDirectoryName(path);
+-
+-        if (!string.IsNullOrWhiteSpace(directory))
+-        {
+-            Directory.CreateDirectory(directory);
+-        }
+-
+         string temporary_path =
+             $"{path}.tmp-{Guid.NewGuid():N}";
+ 
+         try
+         {
++            if (!string.IsNullOrWhiteSpace(directory))
++            {
++                Directory.CreateDirectory(directory);
++            }
++
+             string json = JsonSerializer.Serialize(
+                 value,
+                 serializer_options);
+@@ -82,20 +82,69 @@
+             File.WriteAllText(
+                 temporary_path,
+                 json,
+-                new UTF8Encoding(
+-                    encoderShouldEmitUTF8Identifier: false));
++                new UTF8Encoding(false));
+ 
+             File.Move(
+                 temporary_path,
+                 path,
+                 overwrite: true);
+         }
++        catch (IOException exception)
++        {
++            throw create_exception("gravar JSON", exception);
++        }
++        catch (UnauthorizedAccessException exception)
++        {
++            throw create_exception("gravar JSON", exception);
++        }
+         finally
+         {
+-            if (File.Exists(temporary_path))
++            try
+             {
+-                File.Delete(temporary_path);
++                if (File.Exists(temporary_path))
++                {
++                    File.Delete(temporary_path);
++                }
++            }
++            catch (IOException)
++            {
++            }
++            catch (UnauthorizedAccessException)
++            {
+             }
+         }
+     }
++
++    private static T quarantine_and_return_default<T>(
++        string path,
++        T default_value)
++    {
++        try
++        {
++            JsonCorruptionQuarantine.preserve(path);
++            return default_value;
++        }
++        catch (IOException exception)
++        {
++            throw create_exception(
++                "preservar JSON inválido",
++                exception);
++        }
++        catch (UnauthorizedAccessException exception)
++        {
++            throw create_exception(
++                "preservar JSON inválido",
++                exception);
++        }
++    }
++
++    private static InfrastructureOperationException create_exception(
++        string operation,
++        Exception exception)
++    {
++        return new InfrastructureOperationException(
++            operation,
++            "Não foi possível acessar um arquivo de dados.",
++            exception);
++    }
+ }
+diff --git a/src/TicTacToe.Console/Persistence/JsonSettingsRepository.cs b/src/TicTacToe.Console/Persistence/JsonSettingsRepository.cs
+--- a/src/TicTacToe.Console/Persistence/JsonSettingsRepository.cs
++++ b/src/TicTacToe.Console/Persistence/JsonSettingsRepository.cs
+@@ -1,3 +1,5 @@
++
++using System.Text;
+ using System.Text.Json;
+ using System.Text.Json.Serialization;
+ 
+@@ -12,9 +14,6 @@
+     private readonly SettingsValidator validator;
+     private readonly JsonSerializerOptions serializer_options;
+ 
+-    /// <summary>
+-    /// Inicializa o repositório para o arquivo informado.
+-    /// </summary>
+     public JsonSettingsRepository(
+         string settings_path,
+         SettingsValidator validator)
+@@ -33,7 +32,6 @@
+         };
+     }
+ 
+-    /// <inheritdoc />
+     public ApplicationSettings load()
+     {
+         if (!File.Exists(settings_path))
+@@ -46,39 +44,36 @@
+ 
+         try
+         {
+-            string json = File.ReadAllText(settings_path);
++            string json = File.ReadAllText(
++                settings_path,
++                Encoding.UTF8);
+             ApplicationSettings? settings =
+                 JsonSerializer.Deserialize<ApplicationSettings>(
+                     json,
+                     serializer_options);
+ 
+-            if (settings is null)
++            if (settings is null ||
++                !validator.validate(settings).IsValid)
+             {
+-                return recover_defaults();
++                return recover_invalid_file();
+             }
+ 
+-            SettingsValidationResult result =
+-                validator.validate(settings);
+-
+-            return result.IsValid
+-                ? settings
+-                : recover_defaults();
++            return settings;
+         }
+         catch (JsonException)
+         {
+-            return recover_defaults();
++            return recover_invalid_file();
+         }
+-        catch (IOException)
++        catch (IOException exception)
+         {
+-            return ApplicationSettings.create_default();
++            throw create_exception("ler configurações", exception);
+         }
+-        catch (UnauthorizedAccessException)
++        catch (UnauthorizedAccessException exception)
+         {
+-            return ApplicationSettings.create_default();
++            throw create_exception("ler configurações", exception);
+         }
+     }
+ 
+-    /// <inheritdoc />
+     public void save(ApplicationSettings settings)
+     {
+         ArgumentNullException.ThrowIfNull(settings);
+@@ -94,52 +89,87 @@
+         }
+ 
+         string? directory = Path.GetDirectoryName(settings_path);
+-
+-        if (!string.IsNullOrEmpty(directory))
+-        {
+-            Directory.CreateDirectory(directory);
+-        }
+-
+         string temporary_path =
+             settings_path + ".tmp-" + Guid.NewGuid().ToString("N");
+ 
+         try
+         {
++            if (!string.IsNullOrEmpty(directory))
++            {
++                Directory.CreateDirectory(directory);
++            }
++
+             string json = JsonSerializer.Serialize(
+                 settings,
+                 serializer_options);
+ 
+-            File.WriteAllText(temporary_path, json);
++            File.WriteAllText(
++                temporary_path,
++                json,
++                new UTF8Encoding(false));
+             File.Move(
+                 temporary_path,
+                 settings_path,
+                 overwrite: true);
+         }
++        catch (IOException exception)
++        {
++            throw create_exception("gravar configurações", exception);
++        }
++        catch (UnauthorizedAccessException exception)
++        {
++            throw create_exception("gravar configurações", exception);
++        }
+         finally
+         {
+-            if (File.Exists(temporary_path))
++            try
+             {
+-                File.Delete(temporary_path);
++                if (File.Exists(temporary_path))
++                {
++                    File.Delete(temporary_path);
++                }
++            }
++            catch (IOException)
++            {
++            }
++            catch (UnauthorizedAccessException)
++            {
+             }
+         }
+     }
+ 
+-    private ApplicationSettings recover_defaults()
++    private ApplicationSettings recover_invalid_file()
+     {
++        try
++        {
++            JsonCorruptionQuarantine.preserve(settings_path);
++        }
++        catch (IOException exception)
++        {
++            throw create_exception(
++                "preservar configurações inválidas",
++                exception);
++        }
++        catch (UnauthorizedAccessException exception)
++        {
++            throw create_exception(
++                "preservar configurações inválidas",
++                exception);
++        }
++
+         ApplicationSettings defaults =
+             ApplicationSettings.create_default();
+-
+-        try
+-        {
+-            save(defaults);
+-        }
+-        catch (IOException)
+-        {
+-        }
+-        catch (UnauthorizedAccessException)
+-        {
+-        }
+-
++        save(defaults);
+         return defaults;
+     }
++
++    private static InfrastructureOperationException create_exception(
++        string operation,
++        Exception exception)
++    {
++        return new InfrastructureOperationException(
++            operation,
++            "Não foi possível acessar as configurações da aplicação.",
++            exception);
++    }
+ }
+diff --git a/src/TicTacToe.Console/Persistence/MatchPersistenceRecoveryService.cs b/src/TicTacToe.Console/Persistence/MatchPersistenceRecoveryService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/MatchPersistenceRecoveryService.cs
+@@ -0,0 +1,38 @@
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Recalcula estatísticas a partir da fonte autoritativa de partidas.
++/// </summary>
++public sealed class MatchPersistenceRecoveryService
++    : IMatchPersistenceRecoveryService
++{
++    private readonly IMatchHistoryRepository history_repository;
++    private readonly IMatchStatisticsRepository statistics_repository;
++    private readonly MatchStatisticsCalculator calculator;
++
++    public MatchPersistenceRecoveryService(
++        IMatchHistoryRepository history_repository,
++        IMatchStatisticsRepository statistics_repository,
++        MatchStatisticsCalculator calculator)
++    {
++        ArgumentNullException.ThrowIfNull(history_repository);
++        ArgumentNullException.ThrowIfNull(statistics_repository);
++        ArgumentNullException.ThrowIfNull(calculator);
++
++        this.history_repository = history_repository;
++        this.statistics_repository = statistics_repository;
++        this.calculator = calculator;
++    }
++
++    public MatchStatisticsRecord recover()
++    {
++        IReadOnlyList<MatchRecord> history =
++            history_repository.load_all();
++        MatchStatisticsRecord statistics =
++            calculator.calculate(history);
++
++        statistics_repository.save(statistics);
++        return statistics;
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/MatchPersistenceService.cs b/src/TicTacToe.Console/Persistence/MatchPersistenceService.cs
+--- a/src/TicTacToe.Console/Persistence/MatchPersistenceService.cs
++++ b/src/TicTacToe.Console/Persistence/MatchPersistenceService.cs
+@@ -1,3 +1,4 @@
++
+ namespace TicTacToe.Persistence;
+ 
+ /// <summary>
+@@ -37,20 +38,43 @@
+         MatchRecord[] updated_history =
+             [.. previous_history, record];
+ 
+-        history_repository.replace_all(updated_history);
+-
+         try
+         {
+-            MatchStatisticsRecord statistics =
+-                calculator.calculate(updated_history);
+-
+-            statistics_repository.save(statistics);
++            history_repository.replace_all(updated_history);
++            statistics_repository.save(
++                calculator.calculate(updated_history));
+             return record;
+         }
+-        catch
++        catch (Exception exception)
++            when (is_infrastructure_failure(exception))
+         {
+-            history_repository.replace_all(previous_history);
+-            throw;
++            try
++            {
++                history_repository.replace_all(previous_history);
++            }
++            catch (Exception rollback_exception)
++                when (is_infrastructure_failure(rollback_exception))
++            {
++                throw new InfrastructureOperationException(
++                    "persistir partida e restaurar histórico",
++                    "Não foi possível salvar a partida nem restaurar integralmente os dados anteriores.",
++                    new AggregateException(
++                        exception,
++                        rollback_exception));
++            }
++
++            throw new InfrastructureOperationException(
++                "persistir partida",
++                "A partida terminou, mas não foi possível salvá-la.",
++                exception);
+         }
+     }
++
++    private static bool is_infrastructure_failure(
++        Exception exception)
++    {
++        return exception is InfrastructureOperationException
++            or IOException
++            or UnauthorizedAccessException;
++    }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs b/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
+--- a/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
++++ b/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
+@@ -16,7 +16,20 @@
+             return create_fallback();
+         }
+ 
+-        string[] lines = File.ReadAllLines(path);
++        string[] lines;
++
++        try
++        {
++            lines = File.ReadAllLines(path);
++        }
++        catch (IOException)
++        {
++            return create_fallback();
++        }
++        catch (UnauthorizedAccessException)
++        {
++            return create_fallback();
++        }
+ 
+         string title = get_scalar(lines, "title") ?? "Tic-Tac-Toe Console AI";
+         string version = get_scalar(lines, "version") ?? "desconhecida";
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchRunner.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchRunner.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/AutomaticMatchRunner.cs
+@@ -19,6 +19,7 @@
+     private readonly IMoveStrategyFactory strategy_factory;
+     private readonly IAutomaticModeControl mode_control;
+     private readonly IMatchPersistenceService? persistence_service;
++    private readonly IExternalFailureReporter failure_reporter;
+ 
+     public AutomaticMatchRunner(
+         TextWriter writer,
+@@ -27,7 +28,8 @@
+         PresentationPreferences preferences,
+         IMoveStrategyFactory strategy_factory,
+         IAutomaticModeControl mode_control,
+-        IMatchPersistenceService? persistence_service = null)
++        IMatchPersistenceService? persistence_service = null,
++        IExternalFailureReporter? failure_reporter = null)
+     {
+         ArgumentNullException.ThrowIfNull(writer);
+         ArgumentNullException.ThrowIfNull(game_output);
+@@ -43,6 +45,8 @@
+         this.strategy_factory = strategy_factory;
+         this.mode_control = mode_control;
+         this.persistence_service = persistence_service;
++        this.failure_reporter = failure_reporter ??
++            new NullExternalFailureReporter();
+     }
+ 
+     public AutomaticMatchResult run(
+@@ -103,12 +107,21 @@
+ 
+             if (configuration.PersistMatch)
+             {
+-                persistence_service?.persist(
+-                    create_persistence_context(
+-                        completed_match,
+-                        configuration,
+-                        started_at,
+-                        stopwatch.Elapsed));
++                try
++                {
++                    persistence_service?.persist(
++                        create_persistence_context(
++                            completed_match,
++                            configuration,
++                            started_at,
++                            stopwatch.Elapsed));
++                }
++                catch (InfrastructureOperationException exception)
++                {
++                    failure_reporter.report(
++                        "A demonstração não pôde ser registrada.",
++                        exception);
++                }
+             }
+ 
+             return new AutomaticMatchResult(
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+@@ -18,6 +18,7 @@
+     private readonly PresentationPreferences preferences;
+     private readonly IMatchPersistenceService? persistence_service;
+     private readonly IMoveStrategyFactory strategy_factory;
++    private readonly IExternalFailureReporter failure_reporter;
+ 
+     /// <summary>
+     /// Inicializa o executor de sessões sem persistência externa.
+@@ -36,7 +37,8 @@
+             new PresentationPreferences(
+                 visual_effects: false),
+             persistence_service: null,
+-            strategy_factory: new MoveStrategyFactory())
++            strategy_factory: new MoveStrategyFactory(),
++            failure_reporter: new NullExternalFailureReporter())
+     {
+     }
+ 
+@@ -54,7 +56,8 @@
+             animation_service,
+             preferences,
+             persistence_service: null,
+-            strategy_factory: new MoveStrategyFactory())
++            strategy_factory: new MoveStrategyFactory(),
++            failure_reporter: new NullExternalFailureReporter())
+     {
+     }
+ 
+@@ -67,7 +70,8 @@
+         IAnimationService animation_service,
+         PresentationPreferences preferences,
+         IMatchPersistenceService? persistence_service,
+-        IMoveStrategyFactory? strategy_factory = null)
++        IMoveStrategyFactory? strategy_factory = null,
++        IExternalFailureReporter? failure_reporter = null)
+     {
+         ArgumentNullException.ThrowIfNull(game_input);
+         ArgumentNullException.ThrowIfNull(game_output);
+@@ -80,6 +84,8 @@
+         this.preferences = preferences;
+         this.persistence_service = persistence_service;
+         this.strategy_factory = strategy_factory ?? new MoveStrategyFactory();
++        this.failure_reporter = failure_reporter ??
++            new NullExternalFailureReporter();
+     }
+ 
+     /// <inheritdoc />
+@@ -128,15 +134,24 @@
+ 
+         stopwatch.Stop();
+ 
+-        persistence_service?.persist(
+-            new MatchPersistenceContext(
+-                completed_match,
+-                started_at,
+-                started_at + stopwatch.Elapsed,
+-                "Human",
+-                configuration.OpponentStrategy.ToString(),
+-                configuration.RandomSeed,
+-                get_application_version()));
++        try
++        {
++            persistence_service?.persist(
++                new MatchPersistenceContext(
++                    completed_match,
++                    started_at,
++                    started_at + stopwatch.Elapsed,
++                    "Human",
++                    configuration.OpponentStrategy.ToString(),
++                    configuration.RandomSeed,
++                    get_application_version()));
++        }
++        catch (InfrastructureOperationException exception)
++        {
++            failure_reporter.report(
++                "A partida não pôde ser registrada.",
++                exception);
++        }
+ 
+         return completed_match;
+     }
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/IExternalFailureReporter.cs b/src/TicTacToe.Console/Presentation/Navigation/IExternalFailureReporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/IExternalFailureReporter.cs
+@@ -0,0 +1,12 @@
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Apresenta falhas externas sem expor dados sensíveis.
++/// </summary>
++public interface IExternalFailureReporter
++{
++    void report(
++        string context,
++        Exception exception);
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/INavigationCycleDetector.cs b/src/TicTacToe.Console/Presentation/Navigation/INavigationCycleDetector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/INavigationCycleDetector.cs
+@@ -0,0 +1,12 @@
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Observa transições para detectar ciclos em cenários controlados.
++/// </summary>
++public interface INavigationCycleDetector
++{
++    void observe(
++        ScreenState source,
++        ScreenState target);
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/NullExternalFailureReporter.cs b/src/TicTacToe.Console/Presentation/Navigation/NullExternalFailureReporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/NullExternalFailureReporter.cs
+@@ -0,0 +1,15 @@
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Ignora mensagens quando não há interface configurada.
++/// </summary>
++public sealed class NullExternalFailureReporter
++    : IExternalFailureReporter
++{
++    public void report(
++        string context,
++        Exception exception)
++    {
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ScreenManager.cs b/src/TicTacToe.Console/Presentation/Navigation/ScreenManager.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ScreenManager.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ScreenManager.cs
+@@ -1,33 +1,34 @@
++
+ namespace TicTacToe.Presentation.Navigation;
+ 
+ /// <summary>
+-/// Centraliza a execução e as transições da máquina de estados de apresentação.
++/// Centraliza a execução e as transições da máquina de estados.
+ /// </summary>
+ public sealed class ScreenManager
+ {
+     private readonly IReadOnlyDictionary<ScreenState, IScreen> screens;
+-    private readonly int max_transitions;
++    private readonly INavigationCycleDetector? cycle_detector;
+ 
+-    /// <summary>
+-    /// Inicializa o gerenciador com as telas disponíveis.
+-    /// </summary>
+-    /// <param name="screens">Telas indexadas por seus próprios estados.</param>
+-    /// <param name="max_transitions">
+-    /// Limite de segurança para detectar ciclos indevidos.
+-    /// </param>
++    public ScreenManager(
++        IEnumerable<IScreen> screens)
++        : this(screens, cycle_detector: null)
++    {
++    }
++
+     public ScreenManager(
+         IEnumerable<IScreen> screens,
+-        int max_transitions = 1000)
++        int max_transitions)
++        : this(
++            screens,
++            new TransitionLimitCycleDetector(max_transitions))
++    {
++    }
++
++    public ScreenManager(
++        IEnumerable<IScreen> screens,
++        INavigationCycleDetector? cycle_detector)
+     {
+         ArgumentNullException.ThrowIfNull(screens);
+-
+-        if (max_transitions <= 0)
+-        {
+-            throw new ArgumentOutOfRangeException(
+-                nameof(max_transitions),
+-                max_transitions,
+-                "O limite de transições deve ser maior que zero.");
+-        }
+ 
+         Dictionary<ScreenState, IScreen> screen_map = [];
+ 
+@@ -44,15 +45,9 @@
+         }
+ 
+         this.screens = screen_map;
+-        this.max_transitions = max_transitions;
++        this.cycle_detector = cycle_detector;
+     }
+ 
+-    /// <summary>
+-    /// Executa a máquina de estados até a tela de saída.
+-    /// </summary>
+-    /// <param name="initial_state">Estado inicial.</param>
+-    /// <param name="context">Contexto compartilhado.</param>
+-    /// <returns>Estado final, sempre <see cref="ScreenState.Exit"/>.</returns>
+     public ScreenState run(
+         ScreenState initial_state,
+         ScreenContext context)
+@@ -60,7 +55,6 @@
+         ArgumentNullException.ThrowIfNull(context);
+ 
+         ScreenState current_state = initial_state;
+-        int transition_count = 0;
+ 
+         while (true)
+         {
+@@ -72,16 +66,10 @@
+                 return ScreenState.Exit;
+             }
+ 
+-            transition_count++;
+-
+-            if (transition_count > max_transitions)
+-            {
+-                throw new InvalidOperationException(
+-                    "O limite de transições foi excedido. " +
+-                    "A navegação pode conter um ciclo indevido.");
+-            }
+-
+             get_screen(transition.Target);
++            cycle_detector?.observe(
++                current_state,
++                transition.Target);
+             current_state = transition.Target;
+         }
+     }
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/TextExternalFailureReporter.cs b/src/TicTacToe.Console/Presentation/Navigation/TextExternalFailureReporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/TextExternalFailureReporter.cs
+@@ -0,0 +1,39 @@
++
++using TicTacToe.Persistence;
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Escreve mensagens públicas e identificadores diagnósticos.
++/// </summary>
++public sealed class TextExternalFailureReporter
++    : IExternalFailureReporter
++{
++    private readonly TextWriter writer;
++
++    public TextExternalFailureReporter(TextWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    public void report(
++        string context,
++        Exception exception)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(context);
++        ArgumentNullException.ThrowIfNull(exception);
++
++        if (exception is InfrastructureOperationException failure)
++        {
++            writer.WriteLine(
++                $"{context} {failure.Message} " +
++                $"Diagnóstico: {failure.DiagnosticId:N}.");
++            return;
++        }
++
++        writer.WriteLine(
++            $"{context} Ocorreu uma falha externa. " +
++            "Consulte os registros técnicos.");
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/TransitionLimitCycleDetector.cs b/src/TicTacToe.Console/Presentation/Navigation/TransitionLimitCycleDetector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Presentation/Navigation/TransitionLimitCycleDetector.cs
+@@ -0,0 +1,39 @@
++
++namespace TicTacToe.Presentation.Navigation;
++
++/// <summary>
++/// Limita transições somente quando explicitamente configurado.
++/// </summary>
++public sealed class TransitionLimitCycleDetector
++    : INavigationCycleDetector
++{
++    private readonly int max_transitions;
++    private int transition_count;
++
++    public TransitionLimitCycleDetector(int max_transitions)
++    {
++        if (max_transitions <= 0)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(max_transitions),
++                max_transitions,
++                "O limite de transições deve ser maior que zero.");
++        }
++
++        this.max_transitions = max_transitions;
++    }
++
++    public void observe(
++        ScreenState source,
++        ScreenState target)
++    {
++        transition_count++;
++
++        if (transition_count > max_transitions)
++        {
++            throw new InvalidOperationException(
++                "O limite de transições de teste foi excedido. " +
++                "A navegação simulada pode conter um ciclo.");
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/SettingsScreen.cs
+@@ -1,3 +1,4 @@
++using TicTacToe.Persistence;
+ using TicTacToe.Presentation.Navigation;
+ 
+ namespace TicTacToe.Presentation.Screens;
+@@ -98,6 +99,12 @@
+             context.persist_presentation_preferences();
+             writer.WriteLine("Configurações salvas.");
+         }
++        catch (InfrastructureOperationException exception)
++        {
++            writer.WriteLine(
++                $"Não foi possível salvar as configurações. " +
++                $"Diagnóstico: {exception.DiagnosticId:N}.");
++        }
+         catch (IOException exception)
+         {
+             writer.WriteLine(
+diff --git a/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs b/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
+--- a/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
++++ b/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
+@@ -72,6 +72,27 @@
+ 
+         Assert.NotNull(result.Metrics[0].EvaluatedStates);
+         Assert.True(result.Metrics[0].EvaluatedStates > 0);
++    }
++
++    [Fact]
++    public void run_should_continue_when_one_result_repository_fails()
++    {
++        MemoryRepository healthy_repository = new();
++        RecordingInfrastructureReporter reporter = new();
++
++        ExperimentController controller = new(
++            new ExperimentStrategyFactory(),
++            new SequentialSeedSequence(),
++            new FakeTimerFactory(),
++            [new FailingRepository(), healthy_repository],
++            infrastructure_reporter: reporter);
++
++        ExperimentResult result = controller.run(
++            create_configuration(match_count: 2));
++
++        Assert.Equal(2, result.Metrics.Count);
++        Assert.Equal(2, healthy_repository.SaveCount);
++        Assert.Equal(2, reporter.CallCount);
+     }
+ 
+     private static ExperimentController create_controller(
+@@ -98,6 +119,30 @@
+             OutputDirectory: "ignored");
+     }
+ 
++    private sealed class FailingRepository
++        : IExperimentResultRepository
++    {
++        public void save(
++            string output_directory,
++            ExperimentResult result)
++        {
++            throw new IOException("Falha controlada.");
++        }
++    }
++
++    private sealed class RecordingInfrastructureReporter
++        : IExperimentInfrastructureReporter
++    {
++        public int CallCount { get; private set; }
++
++        public void report(
++            string repository_name,
++            Exception exception)
++        {
++            CallCount++;
++        }
++    }
++
+     private sealed class MemoryRepository : IExperimentResultRepository
+     {
+         public int SaveCount { get; private set; }
+diff --git a/tests/TicTacToe.Tests/Audio/FallbackAudioServiceTests.cs b/tests/TicTacToe.Tests/Audio/FallbackAudioServiceTests.cs
+--- a/tests/TicTacToe.Tests/Audio/FallbackAudioServiceTests.cs
++++ b/tests/TicTacToe.Tests/Audio/FallbackAudioServiceTests.cs
+@@ -36,6 +36,17 @@
+         Assert.Null(exception);
+     }
+ 
++    [Fact]
++    public void play_should_not_hide_unexpected_programming_failure()
++    {
++        FallbackAudioService service = new(
++            new UnexpectedFailureAudioService(),
++            new RecordingAudioService());
++
++        Assert.Throws<InvalidOperationException>(
++            () => service.play(AudioCue.Move));
++    }
++
+     private sealed class ThrowingAudioService : IAudioService
+     {
+         public int CallCount { get; private set; }
+@@ -43,8 +54,18 @@
+         public void play(AudioCue cue)
+         {
+             CallCount++;
++            throw new IOException(
++                "Dispositivo indisponível.");
++        }
++    }
++
++    private sealed class UnexpectedFailureAudioService
++        : IAudioService
++    {
++        public void play(AudioCue cue)
++        {
+             throw new InvalidOperationException(
+-                "Dispositivo indisponível.");
++                "Falha de programação.");
+         }
+     }
+ 
+diff --git a/tests/TicTacToe.Tests/Persistence/JsonCorruptionQuarantineTests.cs b/tests/TicTacToe.Tests/Persistence/JsonCorruptionQuarantineTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/JsonCorruptionQuarantineTests.cs
+@@ -0,0 +1,59 @@
++
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public sealed class JsonCorruptionQuarantineTests : IDisposable
++{
++    private readonly string directory = Path.Combine(
++        Path.GetTempPath(),
++        $"tictactoe-quarantine-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void settings_should_preserve_invalid_file_before_recovery()
++    {
++        Directory.CreateDirectory(directory);
++        string path = Path.Combine(directory, "settings.json");
++        File.WriteAllText(path, "{ invalid");
++
++        ApplicationSettings settings =
++            new JsonSettingsRepository(
++                path,
++                new SettingsValidator())
++            .load();
++
++        Assert.True(settings.UseUnicode);
++        Assert.True(File.Exists(path));
++        Assert.Single(
++            Directory.GetFiles(
++                directory,
++                "settings.json.corrupt-*"));
++    }
++
++    [Fact]
++    public void history_should_quarantine_invalid_json()
++    {
++        Directory.CreateDirectory(directory);
++        string path = Path.Combine(directory, "matches.json");
++        File.WriteAllText(path, "{ invalid");
++
++        IReadOnlyList<MatchRecord> records =
++            new JsonMatchHistoryRepository(path).load_all();
++
++        Assert.Empty(records);
++        Assert.False(File.Exists(path));
++        Assert.Single(
++            Directory.GetFiles(
++                directory,
++                "matches.json.corrupt-*"));
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(directory, recursive: true);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/MatchPersistenceRecoveryServiceTests.cs b/tests/TicTacToe.Tests/Persistence/MatchPersistenceRecoveryServiceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/MatchPersistenceRecoveryServiceTests.cs
+@@ -0,0 +1,77 @@
++
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public class MatchPersistenceRecoveryServiceTests
++{
++    [Fact]
++    public void recover_should_recalculate_statistics_from_history()
++    {
++        MatchRecord record = create_record();
++        MemoryHistoryRepository history = new([record]);
++        MemoryStatisticsRepository statistics = new();
++
++        MatchStatisticsRecord recovered =
++            new MatchPersistenceRecoveryService(
++                history,
++                statistics,
++                new MatchStatisticsCalculator())
++            .recover();
++
++        Assert.Equal(1, recovered.TotalMatches);
++        Assert.Equal(recovered, statistics.Value);
++    }
++
++    private static MatchRecord create_record()
++    {
++        DateTimeOffset now = DateTimeOffset.UtcNow;
++
++        return new MatchRecord(
++            Guid.NewGuid(),
++            now,
++            now,
++            0,
++            new MatchParticipantRecord("A", "Computer", "X", "Minimax"),
++            new MatchParticipantRecord("B", "Computer", "O", "Random"),
++            Array.Empty<MatchMoveRecord>(),
++            "Draw",
++            Array.Empty<BoardPositionRecord>(),
++            1,
++            "1.8.0");
++    }
++
++    private sealed class MemoryHistoryRepository
++        : IMatchHistoryRepository
++    {
++        private readonly IReadOnlyList<MatchRecord> records;
++
++        public MemoryHistoryRepository(
++            IReadOnlyList<MatchRecord> records)
++        {
++            this.records = records;
++        }
++
++        public IReadOnlyList<MatchRecord> load_all() => records;
++
++        public void replace_all(
++            IReadOnlyList<MatchRecord> matches)
++        {
++        }
++    }
++
++    private sealed class MemoryStatisticsRepository
++        : IMatchStatisticsRepository
++    {
++        public MatchStatisticsRecord Value { get; private set; } =
++            MatchStatisticsRecord.empty();
++
++        public MatchStatisticsRecord load() => Value;
++
++        public void save(MatchStatisticsRecord statistics)
++        {
++            Value = statistics;
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/MatchPersistenceServiceTests.cs b/tests/TicTacToe.Tests/Persistence/MatchPersistenceServiceTests.cs
+--- a/tests/TicTacToe.Tests/Persistence/MatchPersistenceServiceTests.cs
++++ b/tests/TicTacToe.Tests/Persistence/MatchPersistenceServiceTests.cs
+@@ -34,8 +34,11 @@
+             history,
+             statistics);
+ 
+-        Assert.Throws<IOException>(
+-            () => service.persist(create_context()));
++        InfrastructureOperationException exception =
++            Assert.Throws<InfrastructureOperationException>(
++                () => service.persist(create_context()));
++
++        Assert.IsType<IOException>(exception.InnerException);
+ 
+         Assert.Single(history.Records);
+         Assert.Equal(previous.Id, history.Records[0].Id);
+diff --git a/tests/TicTacToe.Tests/Presentation/Navigation/TextExternalFailureReporterTests.cs b/tests/TicTacToe.Tests/Presentation/Navigation/TextExternalFailureReporterTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/Navigation/TextExternalFailureReporterTests.cs
+@@ -0,0 +1,30 @@
++
++using TicTacToe.Persistence;
++using TicTacToe.Presentation.Navigation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation.Navigation;
++
++public class TextExternalFailureReporterTests
++{
++    [Fact]
++    public void report_should_not_expose_inner_exception_message()
++    {
++        StringWriter writer = new();
++        InfrastructureOperationException exception = new(
++            "gravar",
++            "Não foi possível salvar.",
++            new IOException(
++                @"C:\Users\Pessoa\dado-secreto.json"));
++
++        new TextExternalFailureReporter(writer)
++            .report("Falha.", exception);
++
++        string output = writer.ToString();
++
++        Assert.Contains(
++            exception.DiagnosticId.ToString("N"),
++            output);
++        Assert.DoesNotContain("dado-secreto", output);
++    }
++}

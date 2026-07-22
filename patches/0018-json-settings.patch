@@ -1,0 +1,924 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -37,6 +37,22 @@
+ 
+ ## [Unreleased]
+ 
++### Added
++
++- `ApplicationSettings` e `ApplicationDirectories` com valores padrão.
++- `ISettingsRepository`, `JsonSettingsRepository` e `SettingsValidator`.
++- Persistência JSON com propriedades desconhecidas toleradas.
++- Gravação temporária seguida de substituição atômica.
++- Recuperação segura para arquivo ausente, JSON inválido ou valores inválidos.
++- Testes em diretórios temporários.
++- `docs/20-configuracoes-json.md`.
++
++### Changed
++
++- `Program.Main` passou a carregar `data/settings.json` antes da composição.
++- Atraso configurado passou a controlar animações da apresentação.
++
++
+ ## [1.7.0] - 2026-07-17
+ 
+ ### Added
+diff --git a/docs/20-configuracoes-json.md b/docs/20-configuracoes-json.md
+new file mode 100644
+--- /dev/null
++++ b/docs/20-configuracoes-json.md
+@@ -0,0 +1,152 @@
++# Configurações JSON
++
++## 1. Finalidade
++
++Esta etapa introduz persistência de configurações sem adicionar dependências ao
++domínio. `ApplicationSettings` pertence à fronteira de configuração e é
++convertido para `PresentationPreferences` no ponto de composição.
++
++Quando o arquivo está ausente ou inválido, a aplicação recupera valores padrão
++seguros e continua a execução.
++
++## 2. Modelo e repositório
++
++A estrutura separa modelo, validação e persistência.
++
++```mermaid
++classDiagram
++    class ApplicationSettings {
++        +bool UseUnicode
++        +bool UseAnsiColors
++        +bool AnimationsEnabled
++        +bool AudioEnabled
++        +int AnimationDelayMilliseconds
++        +ApplicationDirectories Directories
++        +string DefaultStrategy
++        +int RandomSeed
++    }
++
++    class ApplicationDirectories {
++        +string Data
++        +string Exports
++    }
++
++    class ISettingsRepository {
++        <<interface>>
++        +load() ApplicationSettings
++        +save(settings)
++    }
++
++    class JsonSettingsRepository
++    class SettingsValidator
++    class SettingsValidationResult
++
++    ApplicationSettings *-- ApplicationDirectories
++    ISettingsRepository <|.. JsonSettingsRepository
++    JsonSettingsRepository --> SettingsValidator
++    SettingsValidator --> SettingsValidationResult
++```
++
++O repositório usa apenas `System.Text.Json`, preservando a política de
++dependências mínimas do projeto.
++
++## 3. Valores padrão
++
++Os padrões iniciais são:
++
++| Configuração | Valor |
++|---|---|
++| Unicode | habilitado |
++| cores ANSI | desabilitadas |
++| animações | habilitadas |
++| áudio | habilitado |
++| atraso-base | 40 ms |
++| dados | `data` |
++| exportações | `exports` |
++| Strategy padrão | `Minimax` |
++| semente | ausente |
++
++Os diretórios configurados são relativos ao diretório da aplicação. Caminhos
++absolutos são rejeitados pelo validador.
++
++## 4. Leitura e recuperação
++
++O fluxo de leitura diferencia ausência, JSON inválido e valores inválidos.
++
++```mermaid
++flowchart TD
++    A[load] --> B{Arquivo existe?}
++    B -- Não --> C[Criar padrões]
++    C --> D[Salvar arquivo]
++    D --> R[Retornar padrões]
++    B -- Sim --> E[Deserializar JSON]
++    E --> F{JSON válido?}
++    F -- Não --> G[Recuperar padrões]
++    F -- Sim --> H[Validar propriedades reconhecidas]
++    H --> I{Valores válidos?}
++    I -- Não --> G
++    I -- Sim --> J[Retornar configuração]
++    G --> K[Tentar substituir arquivo]
++    K --> R
++```
++
++Propriedades desconhecidas são ignoradas. Essa escolha permite que versões
++mais antigas leiam arquivos produzidos por versões futuras sem falhar apenas
++pela presença de novos campos.
++
++## 5. Gravação temporária e substituição
++
++`save` cria o diretório pai, serializa em um arquivo temporário único e depois
++usa substituição com sobrescrita.
++
++```mermaid
++sequenceDiagram
++    participant Caller
++    participant Repository as JsonSettingsRepository
++    participant Validator as SettingsValidator
++    participant FileSystem
++
++    Caller->>Repository: save(settings)
++    Repository->>Validator: validate(settings)
++    Validator-->>Repository: resultado válido
++    Repository->>FileSystem: criar diretório
++    Repository->>FileSystem: escrever arquivo temporário
++    Repository->>FileSystem: mover temporário sobre settings.json
++    Repository->>FileSystem: remover temporário residual
++```
++
++O arquivo anterior somente é substituído depois que o conteúdo novo foi
++completamente escrito.
++
++## 6. Configurações reconhecidas
++
++O validador verifica:
++
++- atraso entre `0` e `5000` milissegundos;
++- diretórios não vazios e relativos;
++- Strategy entre `Random`, `Heuristic` e `Minimax`;
++- presença do objeto de diretórios.
++
++A semente é opcional e aceita qualquer valor de `int`.
++
++## 7. Integração
++
++`Program.Main` carrega `data/settings.json` antes de compor tema, animação e
++áudio. `PresentationPreferences.from_settings` converte os campos relevantes.
++
++O atraso configurado passa a ser utilizado pelo texto progressivo e pelo
++indicador de análise da IA.
++
++## 8. Testes
++
++Os testes criam diretórios únicos sob o diretório temporário do sistema e os
++removem ao final. Eles verificam:
++
++- criação de diretório e arquivo ausente;
++- valores padrão;
++- JSON sintaticamente inválido;
++- valores reconhecidos inválidos;
++- propriedades desconhecidas;
++- substituição do arquivo existente;
++- remoção de temporários;
++- validação independente.
+diff --git a/src/TicTacToe.Console/Persistence/ApplicationDirectories.cs b/src/TicTacToe.Console/Persistence/ApplicationDirectories.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/ApplicationDirectories.cs
+@@ -0,0 +1,17 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Agrupa os diretórios configuráveis utilizados pela aplicação.
++/// </summary>
++public sealed class ApplicationDirectories
++{
++    /// <summary>
++    /// Diretório para dados persistidos.
++    /// </summary>
++    public string Data { get; set; } = "data";
++
++    /// <summary>
++    /// Diretório para exportações.
++    /// </summary>
++    public string Exports { get; set; } = "exports";
++}
+diff --git a/src/TicTacToe.Console/Persistence/ApplicationSettings.cs b/src/TicTacToe.Console/Persistence/ApplicationSettings.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/ApplicationSettings.cs
+@@ -0,0 +1,60 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa as configurações persistentes da aplicação.
++/// </summary>
++public sealed class ApplicationSettings
++{
++    /// <summary>
++    /// Obtém ou define se caracteres Unicode devem ser utilizados.
++    /// </summary>
++    public bool UseUnicode { get; set; } = true;
++
++    /// <summary>
++    /// Obtém ou define se sequências de cores ANSI devem ser utilizadas.
++    /// </summary>
++    public bool UseAnsiColors { get; set; }
++
++    /// <summary>
++    /// Obtém ou define se animações e efeitos visuais estão habilitados.
++    /// </summary>
++    public bool AnimationsEnabled { get; set; } = true;
++
++    /// <summary>
++    /// Obtém ou define se sinais sonoros estão habilitados.
++    /// </summary>
++    public bool AudioEnabled { get; set; } = true;
++
++    /// <summary>
++    /// Obtém ou define o atraso-base das animações em milissegundos.
++    /// </summary>
++    public int AnimationDelayMilliseconds { get; set; } = 40;
++
++    /// <summary>
++    /// Obtém ou define se o terminal pode ser limpo entre telas.
++    /// </summary>
++    public bool ClearScreen { get; set; }
++
++    /// <summary>
++    /// Obtém ou define os diretórios utilizados pela aplicação.
++    /// </summary>
++    public ApplicationDirectories Directories { get; set; } = new();
++
++    /// <summary>
++    /// Obtém ou define a Strategy padrão: Random, Heuristic ou Minimax.
++    /// </summary>
++    public string DefaultStrategy { get; set; } = "Minimax";
++
++    /// <summary>
++    /// Obtém ou define a semente pseudoaleatória opcional.
++    /// </summary>
++    public int? RandomSeed { get; set; }
++
++    /// <summary>
++    /// Cria uma nova configuração com os valores padrão do projeto.
++    /// </summary>
++    public static ApplicationSettings create_default()
++    {
++        return new ApplicationSettings();
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/ISettingsRepository.cs b/src/TicTacToe.Console/Persistence/ISettingsRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/ISettingsRepository.cs
+@@ -0,0 +1,17 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Define leitura e gravação das configurações da aplicação.
++/// </summary>
++public interface ISettingsRepository
++{
++    /// <summary>
++    /// Carrega configurações válidas ou valores padrão seguros.
++    /// </summary>
++    ApplicationSettings load();
++
++    /// <summary>
++    /// Valida e persiste as configurações.
++    /// </summary>
++    void save(ApplicationSettings settings);
++}
+diff --git a/src/TicTacToe.Console/Persistence/JsonSettingsRepository.cs b/src/TicTacToe.Console/Persistence/JsonSettingsRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/JsonSettingsRepository.cs
+@@ -0,0 +1,145 @@
++using System.Text.Json;
++using System.Text.Json.Serialization;
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Persiste configurações JSON com recuperação segura e gravação atômica.
++/// </summary>
++public sealed class JsonSettingsRepository : ISettingsRepository
++{
++    private readonly string settings_path;
++    private readonly SettingsValidator validator;
++    private readonly JsonSerializerOptions serializer_options;
++
++    /// <summary>
++    /// Inicializa o repositório para o arquivo informado.
++    /// </summary>
++    public JsonSettingsRepository(
++        string settings_path,
++        SettingsValidator validator)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(settings_path);
++        ArgumentNullException.ThrowIfNull(validator);
++
++        this.settings_path = Path.GetFullPath(settings_path);
++        this.validator = validator;
++        serializer_options = new JsonSerializerOptions
++        {
++            PropertyNameCaseInsensitive = true,
++            PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
++            WriteIndented = true,
++            UnmappedMemberHandling = JsonUnmappedMemberHandling.Skip
++        };
++    }
++
++    /// <inheritdoc />
++    public ApplicationSettings load()
++    {
++        if (!File.Exists(settings_path))
++        {
++            ApplicationSettings defaults =
++                ApplicationSettings.create_default();
++            save(defaults);
++            return defaults;
++        }
++
++        try
++        {
++            string json = File.ReadAllText(settings_path);
++            ApplicationSettings? settings =
++                JsonSerializer.Deserialize<ApplicationSettings>(
++                    json,
++                    serializer_options);
++
++            if (settings is null)
++            {
++                return recover_defaults();
++            }
++
++            SettingsValidationResult result =
++                validator.validate(settings);
++
++            return result.IsValid
++                ? settings
++                : recover_defaults();
++        }
++        catch (JsonException)
++        {
++            return recover_defaults();
++        }
++        catch (IOException)
++        {
++            return ApplicationSettings.create_default();
++        }
++        catch (UnauthorizedAccessException)
++        {
++            return ApplicationSettings.create_default();
++        }
++    }
++
++    /// <inheritdoc />
++    public void save(ApplicationSettings settings)
++    {
++        ArgumentNullException.ThrowIfNull(settings);
++
++        SettingsValidationResult validation =
++            validator.validate(settings);
++
++        if (!validation.IsValid)
++        {
++            throw new ArgumentException(
++                string.Join(" ", validation.Errors),
++                nameof(settings));
++        }
++
++        string? directory = Path.GetDirectoryName(settings_path);
++
++        if (!string.IsNullOrEmpty(directory))
++        {
++            Directory.CreateDirectory(directory);
++        }
++
++        string temporary_path =
++            settings_path + ".tmp-" + Guid.NewGuid().ToString("N");
++
++        try
++        {
++            string json = JsonSerializer.Serialize(
++                settings,
++                serializer_options);
++
++            File.WriteAllText(temporary_path, json);
++            File.Move(
++                temporary_path,
++                settings_path,
++                overwrite: true);
++        }
++        finally
++        {
++            if (File.Exists(temporary_path))
++            {
++                File.Delete(temporary_path);
++            }
++        }
++    }
++
++    private ApplicationSettings recover_defaults()
++    {
++        ApplicationSettings defaults =
++            ApplicationSettings.create_default();
++
++        try
++        {
++            save(defaults);
++        }
++        catch (IOException)
++        {
++        }
++        catch (UnauthorizedAccessException)
++        {
++        }
++
++        return defaults;
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/SettingsValidationResult.cs b/src/TicTacToe.Console/Persistence/SettingsValidationResult.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/SettingsValidationResult.cs
+@@ -0,0 +1,10 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa o resultado imutável da validação de configurações.
++/// </summary>
++/// <param name="IsValid">Indica se todos os valores são válidos.</param>
++/// <param name="Errors">Erros encontrados.</param>
++public sealed record SettingsValidationResult(
++    bool IsValid,
++    IReadOnlyList<string> Errors);
+diff --git a/src/TicTacToe.Console/Persistence/SettingsValidator.cs b/src/TicTacToe.Console/Persistence/SettingsValidator.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/SettingsValidator.cs
+@@ -0,0 +1,74 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Valida valores reconhecidos antes do uso ou da persistência.
++/// </summary>
++public sealed class SettingsValidator
++{
++    private static readonly string[] supported_strategies =
++        ["Random", "Heuristic", "Minimax"];
++
++    /// <summary>
++    /// Valida a configuração informada.
++    /// </summary>
++    public SettingsValidationResult validate(ApplicationSettings settings)
++    {
++        ArgumentNullException.ThrowIfNull(settings);
++
++        List<string> errors = [];
++
++        if (settings.AnimationDelayMilliseconds < 0 ||
++            settings.AnimationDelayMilliseconds > 5000)
++        {
++            errors.Add(
++                "AnimationDelayMilliseconds deve estar entre 0 e 5000.");
++        }
++
++        if (settings.Directories is null)
++        {
++            errors.Add("Directories deve ser informado.");
++        }
++        else
++        {
++            validate_directory(
++                settings.Directories.Data,
++                "Directories.Data",
++                errors);
++            validate_directory(
++                settings.Directories.Exports,
++                "Directories.Exports",
++                errors);
++        }
++
++        if (string.IsNullOrWhiteSpace(settings.DefaultStrategy) ||
++            !supported_strategies.Contains(
++                settings.DefaultStrategy,
++                StringComparer.OrdinalIgnoreCase))
++        {
++            errors.Add(
++                "DefaultStrategy deve ser Random, Heuristic ou Minimax.");
++        }
++
++        return new SettingsValidationResult(
++            errors.Count == 0,
++            errors.AsReadOnly());
++    }
++
++    private static void validate_directory(
++        string? directory,
++        string property_name,
++        ICollection<string> errors)
++    {
++        if (string.IsNullOrWhiteSpace(directory))
++        {
++            errors.Add($"{property_name} não pode ser vazio.");
++            return;
++        }
++
++        if (Path.IsPathRooted(directory))
++        {
++            errors.Add(
++                $"{property_name} deve ser relativo ao diretório da aplicação.");
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Presentation/AnimatedMoveSelector.cs b/src/TicTacToe.Console/Presentation/AnimatedMoveSelector.cs
+--- a/src/TicTacToe.Console/Presentation/AnimatedMoveSelector.cs
++++ b/src/TicTacToe.Console/Presentation/AnimatedMoveSelector.cs
+@@ -10,16 +10,30 @@
+ {
+     private readonly IMoveSelector inner_selector;
+     private readonly IAnimationService animation_service;
++    private readonly PresentationPreferences preferences;
+ 
+     public AnimatedMoveSelector(
+         IMoveSelector inner_selector,
+         IAnimationService animation_service)
++        : this(
++            inner_selector,
++            animation_service,
++            new PresentationPreferences())
++    {
++    }
++
++    public AnimatedMoveSelector(
++        IMoveSelector inner_selector,
++        IAnimationService animation_service,
++        PresentationPreferences preferences)
+     {
+         ArgumentNullException.ThrowIfNull(inner_selector);
+         ArgumentNullException.ThrowIfNull(animation_service);
++        ArgumentNullException.ThrowIfNull(preferences);
+ 
+         this.inner_selector = inner_selector;
+         this.animation_service = animation_service;
++        this.preferences = preferences;
+     }
+ 
+     public BoardPosition select_move(
+@@ -34,7 +48,8 @@
+             animation_service.show_analysis_indicator(
+                 $"{player.Name} está analisando",
+                 frame_count: 4,
+-                frame_delay: TimeSpan.FromMilliseconds(80));
++                frame_delay: TimeSpan.FromMilliseconds(
++                    preferences.AnimationDelayMilliseconds));
+         }
+ 
+         return inner_selector.select_move(match, player);
+diff --git a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+--- a/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
++++ b/src/TicTacToe.Console/Presentation/Navigation/ConsoleMatchSessionRunner.cs
+@@ -12,6 +12,7 @@
+     private readonly IGameInput game_input;
+     private readonly IGameOutput game_output;
+     private readonly IAnimationService animation_service;
++    private readonly PresentationPreferences preferences;
+ 
+     /// <summary>
+     /// Inicializa o executor de sessões.
+@@ -28,22 +29,27 @@
+                 TextWriter.Null,
+                 new ImmediateDelayService(),
+                 new PresentationPreferences(
+-                    visual_effects: false)))
++                    visual_effects: false)),
++            new PresentationPreferences(
++                visual_effects: false))
+     {
+     }
+ 
+     public ConsoleMatchSessionRunner(
+         IGameInput game_input,
+         IGameOutput game_output,
+-        IAnimationService animation_service)
++        IAnimationService animation_service,
++        PresentationPreferences preferences)
+     {
+         ArgumentNullException.ThrowIfNull(game_input);
+         ArgumentNullException.ThrowIfNull(game_output);
+         ArgumentNullException.ThrowIfNull(animation_service);
++        ArgumentNullException.ThrowIfNull(preferences);
+ 
+         this.game_input = game_input;
+         this.game_output = game_output;
+         this.animation_service = animation_service;
++        this.preferences = preferences;
+     }
+ 
+     /// <inheritdoc />
+@@ -66,7 +72,8 @@
+                 new DefaultMoveSelector(
+                     game_input,
+                     strategy_resolver),
+-                animation_service);
++                animation_service,
++                preferences);
+ 
+         MatchController controller = new(
+             move_selector,
+diff --git a/src/TicTacToe.Console/Presentation/PresentationPreferences.cs b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+--- a/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
++++ b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+@@ -1,3 +1,5 @@
++using TicTacToe.Persistence;
++
+ namespace TicTacToe.Presentation;
+ 
+ /// <summary>
+@@ -17,13 +19,15 @@
+         bool use_unicode = true,
+         bool clear_screen = false,
+         bool visual_effects = true,
+-        bool audio_enabled = true)
++        bool audio_enabled = true,
++        int animation_delay_milliseconds = 40)
+     {
+         UseAnsiColors = use_ansi_colors;
+         UseUnicode = use_unicode;
+         ClearScreen = clear_screen;
+         VisualEffects = visual_effects;
+         AudioEnabled = audio_enabled;
++        AnimationDelayMilliseconds = animation_delay_milliseconds;
+     }
+ 
+     public bool UseAnsiColors { get; set; }
+@@ -38,4 +42,27 @@
+     /// Obtém ou define se sinais sonoros estão habilitados.
+     /// </summary>
+     public bool AudioEnabled { get; set; }
++
++    /// <summary>
++    /// Obtém ou define o atraso-base das animações em milissegundos.
++    /// </summary>
++    public int AnimationDelayMilliseconds { get; set; }
++
++    /// <summary>
++    /// Converte configurações persistidas para preferências de apresentação.
++    /// </summary>
++    public static PresentationPreferences from_settings(
++        ApplicationSettings settings)
++    {
++        ArgumentNullException.ThrowIfNull(settings);
++
++        return new PresentationPreferences(
++            use_ansi_colors: settings.UseAnsiColors,
++            use_unicode: settings.UseUnicode,
++            clear_screen: settings.ClearScreen,
++            visual_effects: settings.AnimationsEnabled,
++            audio_enabled: settings.AudioEnabled,
++            animation_delay_milliseconds:
++                settings.AnimationDelayMilliseconds);
++    }
+ }
+diff --git a/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+--- a/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
++++ b/src/TicTacToe.Console/Presentation/Screens/SplashScreen.cs
+@@ -46,7 +46,8 @@
+             {
+                 animation_service.write_progressive(
+                     theme.colorize_accent(line),
+-                    TimeSpan.FromMilliseconds(8));
++                    TimeSpan.FromMilliseconds(
++                        theme.Preferences.AnimationDelayMilliseconds));
+             }
+         }
+         else
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+--- a/src/TicTacToe.Console/Program.cs
++++ b/src/TicTacToe.Console/Program.cs
+@@ -1,4 +1,5 @@
+ using TicTacToe.Audio;
++using TicTacToe.Persistence;
+ using TicTacToe.Presentation;
+ using TicTacToe.Presentation.Navigation;
+ using TicTacToe.Presentation.Screens;
+@@ -15,7 +16,18 @@
+         TextReader reader = global::System.Console.In;
+         TextWriter writer = global::System.Console.Out;
+ 
+-        PresentationPreferences preferences = new();
++        string settings_path = Path.Combine(
++            AppContext.BaseDirectory,
++            "data",
++            "settings.json");
++        ISettingsRepository settings_repository =
++            new JsonSettingsRepository(
++                settings_path,
++                new SettingsValidator());
++        ApplicationSettings settings =
++            settings_repository.load();
++        PresentationPreferences preferences =
++            PresentationPreferences.from_settings(settings);
+         ConsoleTheme theme = new(preferences);
+         AsciiArtCatalog art_catalog = new();
+         IAnimationService animation_service =
+@@ -46,7 +58,8 @@
+             new ConsoleMatchSessionRunner(
+                 game_input,
+                 game_output,
+-                animation_service);
++                animation_service,
++                preferences);
+ 
+         CitationMetadata citation_metadata =
+             new CitationMetadataLoader().load(
+diff --git a/tests/TicTacToe.Tests/Persistence/JsonSettingsRepositoryTests.cs b/tests/TicTacToe.Tests/Persistence/JsonSettingsRepositoryTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/JsonSettingsRepositoryTests.cs
+@@ -0,0 +1,139 @@
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public class JsonSettingsRepositoryTests
++{
++    [Fact]
++    public void load_should_create_directory_and_defaults_when_file_is_missing()
++    {
++        using TemporaryDirectory directory = new();
++        string path = Path.Combine(
++            directory.Path,
++            "nested",
++            "settings.json");
++        JsonSettingsRepository repository = create_repository(path);
++
++        ApplicationSettings settings = repository.load();
++
++        Assert.True(File.Exists(path));
++        Assert.True(settings.UseUnicode);
++        Assert.Equal("Minimax", settings.DefaultStrategy);
++    }
++
++    [Fact]
++    public void load_should_recover_from_invalid_json()
++    {
++        using TemporaryDirectory directory = new();
++        string path = Path.Combine(directory.Path, "settings.json");
++        File.WriteAllText(path, "{ invalid json }");
++        JsonSettingsRepository repository = create_repository(path);
++
++        ApplicationSettings settings = repository.load();
++
++        Assert.Equal(40, settings.AnimationDelayMilliseconds);
++        Assert.Contains("defaultStrategy", File.ReadAllText(path));
++    }
++
++    [Fact]
++    public void load_should_ignore_unknown_properties()
++    {
++        using TemporaryDirectory directory = new();
++        string path = Path.Combine(directory.Path, "settings.json");
++        File.WriteAllText(
++            path,
++            """
++            {
++              "useUnicode": false,
++              "unknownFutureProperty": "preserved compatibility",
++              "defaultStrategy": "Heuristic",
++              "directories": {
++                "data": "data",
++                "exports": "exports"
++              }
++            }
++            """);
++        JsonSettingsRepository repository = create_repository(path);
++
++        ApplicationSettings settings = repository.load();
++
++        Assert.False(settings.UseUnicode);
++        Assert.Equal("Heuristic", settings.DefaultStrategy);
++    }
++
++    [Fact]
++    public void save_should_replace_file_and_remove_temporary_file()
++    {
++        using TemporaryDirectory directory = new();
++        string path = Path.Combine(directory.Path, "settings.json");
++        JsonSettingsRepository repository = create_repository(path);
++        ApplicationSettings settings =
++            ApplicationSettings.create_default();
++        settings.RandomSeed = 2026;
++
++        repository.save(settings);
++        settings.RandomSeed = 42;
++        repository.save(settings);
++
++        string json = File.ReadAllText(path);
++        Assert.Contains("42", json);
++        Assert.Empty(Directory.GetFiles(
++            directory.Path,
++            "*.tmp-*",
++            SearchOption.AllDirectories));
++    }
++
++    [Fact]
++    public void load_should_recover_from_recognized_but_invalid_values()
++    {
++        using TemporaryDirectory directory = new();
++        string path = Path.Combine(directory.Path, "settings.json");
++        File.WriteAllText(
++            path,
++            """
++            {
++              "animationDelayMilliseconds": -10,
++              "defaultStrategy": "Unknown",
++              "directories": {
++                "data": "data",
++                "exports": "exports"
++              }
++            }
++            """);
++        JsonSettingsRepository repository = create_repository(path);
++
++        ApplicationSettings settings = repository.load();
++
++        Assert.Equal(40, settings.AnimationDelayMilliseconds);
++        Assert.Equal("Minimax", settings.DefaultStrategy);
++    }
++
++    private static JsonSettingsRepository create_repository(string path)
++    {
++        return new JsonSettingsRepository(
++            path,
++            new SettingsValidator());
++    }
++
++    private sealed class TemporaryDirectory : IDisposable
++    {
++        public TemporaryDirectory()
++        {
++            Path = System.IO.Path.Combine(
++                System.IO.Path.GetTempPath(),
++                "tic-tac-toe-tests-" + Guid.NewGuid().ToString("N"));
++            Directory.CreateDirectory(Path);
++        }
++
++        public string Path { get; }
++
++        public void Dispose()
++        {
++            if (Directory.Exists(Path))
++            {
++                Directory.Delete(Path, recursive: true);
++            }
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/SettingsValidatorTests.cs b/tests/TicTacToe.Tests/Persistence/SettingsValidatorTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/SettingsValidatorTests.cs
+@@ -0,0 +1,38 @@
++using TicTacToe.Persistence;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public class SettingsValidatorTests
++{
++    [Fact]
++    public void validate_should_accept_default_settings()
++    {
++        SettingsValidator validator = new();
++
++        SettingsValidationResult result =
++            validator.validate(
++                ApplicationSettings.create_default());
++
++        Assert.True(result.IsValid);
++        Assert.Empty(result.Errors);
++    }
++
++    [Fact]
++    public void validate_should_reject_invalid_delay_directory_and_strategy()
++    {
++        ApplicationSettings settings =
++            ApplicationSettings.create_default();
++        settings.AnimationDelayMilliseconds = 6000;
++        settings.DefaultStrategy = "Other";
++        settings.Directories.Data = Path.GetPathRoot(
++            Environment.CurrentDirectory) ?? "/";
++        SettingsValidator validator = new();
++
++        SettingsValidationResult result =
++            validator.validate(settings);
++
++        Assert.False(result.IsValid);
++        Assert.True(result.Errors.Count >= 3);
++    }
++}

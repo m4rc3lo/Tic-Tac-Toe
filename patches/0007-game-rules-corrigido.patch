@@ -1,0 +1,616 @@
+diff --git a/src/TicTacToe.Console/Domain/GameEvaluation.cs b/src/TicTacToe.Console/Domain/GameEvaluation.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/GameEvaluation.cs
+@@ -0,0 +1,70 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Representa o resultado da avaliação das regras sobre um tabuleiro.
++/// </summary>
++public sealed class GameEvaluation
++{
++    private static readonly IReadOnlyList<BoardPosition> empty_positions =
++        Array.Empty<BoardPosition>();
++
++    /// <summary>
++    /// Inicializa uma nova avaliação de partida.
++    /// </summary>
++    /// <param name="result">Resultado identificado no tabuleiro.</param>
++    /// <param name="winning_positions">
++    /// Posições que formam a sequência vencedora, quando houver.
++    /// </param>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando uma vitória não possui exatamente três posições ou quando
++    /// um resultado sem vitória recebe posições vencedoras.
++    /// </exception>
++    public GameEvaluation(
++        GameResult result,
++        IEnumerable<BoardPosition>? winning_positions = null)
++    {
++        BoardPosition[] positions = winning_positions?.ToArray()
++            ?? Array.Empty<BoardPosition>();
++
++        bool is_win = result is GameResult.XWins or GameResult.OWins;
++
++        if (is_win && positions.Length != BoardPosition.BoardSize)
++        {
++            throw new ArgumentException(
++                "Uma vitória deve possuir exatamente três posições vencedoras.",
++                nameof(winning_positions));
++        }
++
++        if (!is_win && positions.Length != 0)
++        {
++            throw new ArgumentException(
++                "Resultados sem vitória não podem possuir posições vencedoras.",
++                nameof(winning_positions));
++        }
++
++        Result = result;
++        WinningPositions = positions.Length == 0
++            ? empty_positions
++            : Array.AsReadOnly(positions);
++    }
++
++    /// <summary>
++    /// Obtém o resultado identificado.
++    /// </summary>
++    public GameResult Result { get; }
++
++    /// <summary>
++    /// Obtém as posições que formam a sequência vencedora.
++    /// </summary>
++    public IReadOnlyList<BoardPosition> WinningPositions { get; }
++
++    /// <summary>
++    /// Obtém um valor que indica se a partida ainda está em andamento.
++    /// </summary>
++    public bool IsInProgress => Result == GameResult.None;
++
++    /// <summary>
++    /// Obtém um valor que indica se a avaliação representa uma vitória.
++    /// </summary>
++    public bool HasWinner => Result is GameResult.XWins or GameResult.OWins;
++}
+diff --git a/src/TicTacToe.Console/Domain/GameRules.cs b/src/TicTacToe.Console/Domain/GameRules.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Domain/GameRules.cs
+@@ -0,0 +1,61 @@
++namespace TicTacToe.Domain;
++
++/// <summary>
++/// Avalia as regras do jogo da velha sem modificar o tabuleiro recebido.
++/// </summary>
++public static class GameRules
++{
++    private static readonly BoardPosition[][] winning_sequences =
++    [
++        [new BoardPosition(0, 0), new BoardPosition(0, 1), new BoardPosition(0, 2)],
++        [new BoardPosition(1, 0), new BoardPosition(1, 1), new BoardPosition(1, 2)],
++        [new BoardPosition(2, 0), new BoardPosition(2, 1), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 0), new BoardPosition(1, 0), new BoardPosition(2, 0)],
++        [new BoardPosition(0, 1), new BoardPosition(1, 1), new BoardPosition(2, 1)],
++        [new BoardPosition(0, 2), new BoardPosition(1, 2), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 0), new BoardPosition(1, 1), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 2), new BoardPosition(1, 1), new BoardPosition(2, 0)]
++    ];
++
++    /// <summary>
++    /// Avalia o tabuleiro e identifica vitória, empate ou partida em andamento.
++    /// </summary>
++    /// <param name="board">Tabuleiro a ser avaliado.</param>
++    /// <returns>
++    /// Resultado consolidado e, em caso de vitória, a sequência vencedora.
++    /// </returns>
++    /// <exception cref="ArgumentNullException">
++    /// Lançada quando o tabuleiro informado é nulo.
++    /// </exception>
++    public static GameEvaluation evaluate(Board board)
++    {
++        ArgumentNullException.ThrowIfNull(board);
++
++        foreach (BoardPosition[] sequence in winning_sequences)
++        {
++            Symbol first_symbol = board.get_symbol(sequence[0]);
++
++            if (first_symbol == Symbol.Empty)
++            {
++                continue;
++            }
++
++            bool all_equal = sequence
++                .Skip(1)
++                .All(position => board.get_symbol(position) == first_symbol);
++
++            if (all_equal)
++            {
++                GameResult result = first_symbol == Symbol.X
++                    ? GameResult.XWins
++                    : GameResult.OWins;
++
++                return new GameEvaluation(result, sequence);
++            }
++        }
++
++        return board.IsFull
++            ? new GameEvaluation(GameResult.Draw)
++            : new GameEvaluation(GameResult.None);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/GameRulesTests.cs b/tests/TicTacToe.Tests/Domain/GameRulesTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Domain/GameRulesTests.cs
+@@ -0,0 +1,286 @@
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Domain;
++
++/// <summary>
++/// Verifica vitória, empate, partida em andamento e falsos positivos.
++/// </summary>
++public class GameRulesTests
++{
++    /// <summary>
++    /// Confirma a detecção de vitória em qualquer linha.
++    /// </summary>
++    [Theory]
++    [InlineData(0)]
++    [InlineData(1)]
++    [InlineData(2)]
++    public void evaluate_should_detect_row_win(int row)
++    {
++        BoardPosition[] positions =
++        [
++            new BoardPosition(row, 0),
++            new BoardPosition(row, 1),
++            new BoardPosition(row, 2)
++        ];
++
++        Board board = create_board_with_sequence(Symbol.X, positions);
++
++        GameEvaluation evaluation = GameRules.evaluate(board);
++
++        Assert.Equal(GameResult.XWins, evaluation.Result);
++        Assert.Equal(positions, evaluation.WinningPositions);
++    }
++
++    /// <summary>
++    /// Confirma a detecção de vitória em qualquer coluna.
++    /// </summary>
++    [Theory]
++    [InlineData(0)]
++    [InlineData(1)]
++    [InlineData(2)]
++    public void evaluate_should_detect_column_win(int column)
++    {
++        BoardPosition[] positions =
++        [
++            new BoardPosition(0, column),
++            new BoardPosition(1, column),
++            new BoardPosition(2, column)
++        ];
++
++        Board board = create_board_with_sequence(Symbol.O, positions);
++
++        GameEvaluation evaluation = GameRules.evaluate(board);
++
++        Assert.Equal(GameResult.OWins, evaluation.Result);
++        Assert.Equal(positions, evaluation.WinningPositions);
++    }
++
++    /// <summary>
++    /// Confirma a detecção da diagonal principal.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_detect_main_diagonal_win()
++    {
++        BoardPosition[] positions =
++        [
++            new BoardPosition(0, 0),
++            new BoardPosition(1, 1),
++            new BoardPosition(2, 2)
++        ];
++
++        GameEvaluation evaluation = GameRules.evaluate(
++            create_board_with_sequence(Symbol.X, positions));
++
++        Assert.Equal(GameResult.XWins, evaluation.Result);
++        Assert.Equal(positions, evaluation.WinningPositions);
++    }
++
++    /// <summary>
++    /// Confirma a detecção da diagonal secundária.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_detect_secondary_diagonal_win()
++    {
++        BoardPosition[] positions =
++        [
++            new BoardPosition(0, 2),
++            new BoardPosition(1, 1),
++            new BoardPosition(2, 0)
++        ];
++
++        GameEvaluation evaluation = GameRules.evaluate(
++            create_board_with_sequence(Symbol.O, positions));
++
++        Assert.Equal(GameResult.OWins, evaluation.Result);
++        Assert.Equal(positions, evaluation.WinningPositions);
++    }
++
++    /// <summary>
++    /// Confirma que um tabuleiro completo sem vencedor é empate.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_detect_draw()
++    {
++        Board board = create_board(
++            [
++                Symbol.X, Symbol.O, Symbol.X,
++                Symbol.X, Symbol.O, Symbol.O,
++                Symbol.O, Symbol.X, Symbol.X
++            ]);
++
++        GameEvaluation evaluation = GameRules.evaluate(board);
++
++        Assert.Equal(GameResult.Draw, evaluation.Result);
++        Assert.False(evaluation.HasWinner);
++        Assert.False(evaluation.IsInProgress);
++        Assert.Empty(evaluation.WinningPositions);
++    }
++
++    /// <summary>
++    /// Confirma que um tabuleiro vazio representa partida em andamento.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_report_empty_board_as_in_progress()
++    {
++        GameEvaluation evaluation = GameRules.evaluate(new Board());
++
++        Assert.Equal(GameResult.None, evaluation.Result);
++        Assert.True(evaluation.IsInProgress);
++        Assert.Empty(evaluation.WinningPositions);
++    }
++
++    /// <summary>
++    /// Confirma que um tabuleiro parcial sem vencedor permanece em andamento.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_report_partial_board_as_in_progress()
++    {
++        Board board = create_board(
++            [
++                Symbol.X, Symbol.O, Symbol.Empty,
++                Symbol.Empty, Symbol.X, Symbol.Empty,
++                Symbol.O, Symbol.Empty, Symbol.Empty
++            ]);
++
++        Assert.True(GameRules.evaluate(board).IsInProgress);
++    }
++
++    /// <summary>
++    /// Confirma que duas marcas e uma casa vazia não formam vitória.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_not_report_incomplete_line_as_win()
++    {
++        Board board = create_board(
++            [
++                Symbol.X, Symbol.X, Symbol.Empty,
++                Symbol.O, Symbol.Empty, Symbol.Empty,
++                Symbol.Empty, Symbol.O, Symbol.Empty
++            ]);
++
++        Assert.Equal(GameResult.None, GameRules.evaluate(board).Result);
++    }
++
++    /// <summary>
++    /// Confirma que símbolos mistos não formam vitória.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_not_report_mixed_line_as_win()
++    {
++        Board board = create_board(
++            [
++                Symbol.X, Symbol.O, Symbol.X,
++                Symbol.Empty, Symbol.Empty, Symbol.Empty,
++                Symbol.Empty, Symbol.Empty, Symbol.Empty
++            ]);
++
++        Assert.Equal(GameResult.None, GameRules.evaluate(board).Result);
++    }
++
++    /// <summary>
++    /// Confirma que uma sequência vazia não forma vitória.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_not_report_empty_sequence_as_win()
++    {
++        Board board = create_board(
++            [
++                Symbol.X, Symbol.O, Symbol.Empty,
++                Symbol.O, Symbol.X, Symbol.Empty,
++                Symbol.Empty, Symbol.Empty, Symbol.Empty
++            ]);
++
++        Assert.Equal(GameResult.None, GameRules.evaluate(board).Result);
++    }
++
++    /// <summary>
++    /// Confirma que a avaliação não modifica o tabuleiro.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_not_modify_board()
++    {
++        Board board = create_board(
++            [
++                Symbol.X, Symbol.X, Symbol.X,
++                Symbol.O, Symbol.O, Symbol.Empty,
++                Symbol.Empty, Symbol.Empty, Symbol.Empty
++            ]);
++
++        Symbol[] before = snapshot(board);
++
++        GameRules.evaluate(board);
++
++        Assert.Equal(before, snapshot(board));
++        Assert.Equal(5, board.OccupiedCount);
++    }
++
++    /// <summary>
++    /// Confirma que um tabuleiro nulo é rejeitado.
++    /// </summary>
++    [Fact]
++    public void evaluate_should_reject_null_board()
++    {
++        Assert.Throws<ArgumentNullException>(
++            () => GameRules.evaluate(null!));
++    }
++
++    private static Board create_board_with_sequence(
++        Symbol symbol,
++        IReadOnlyList<BoardPosition> positions)
++    {
++        Board board = new();
++        int turn_number = 1;
++
++        foreach (BoardPosition position in positions)
++        {
++            board.apply_move(new Move(position, symbol, turn_number));
++            turn_number++;
++        }
++
++        return board;
++    }
++
++    private static Board create_board(IReadOnlyList<Symbol> symbols)
++    {
++        Board board = new();
++        int turn_number = 1;
++
++        for (int index = 0; index < symbols.Count; index++)
++        {
++            Symbol symbol = symbols[index];
++
++            if (symbol == Symbol.Empty)
++            {
++                continue;
++            }
++
++            board.apply_move(
++                new Move(
++                    new BoardPosition(
++                        index / BoardPosition.BoardSize,
++                        index % BoardPosition.BoardSize),
++                    symbol,
++                    turn_number));
++
++            turn_number++;
++        }
++
++        return board;
++    }
++
++    private static Symbol[] snapshot(Board board)
++    {
++        List<Symbol> symbols = [];
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0; column < BoardPosition.BoardSize; column++)
++            {
++                symbols.Add(board.get_symbol(new BoardPosition(row, column)));
++            }
++        }
++
++        return symbols.ToArray();
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Domain/GameEvaluationTests.cs b/tests/TicTacToe.Tests/Domain/GameEvaluationTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Domain/GameEvaluationTests.cs
+@@ -0,0 +1,57 @@
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Domain;
++
++/// <summary>
++/// Verifica as invariantes de <see cref="GameEvaluation"/>.
++/// </summary>
++public class GameEvaluationTests
++{
++    /// <summary>
++    /// Confirma que uma vitória exige exatamente três posições.
++    /// </summary>
++    [Fact]
++    public void constructor_should_require_three_positions_for_win()
++    {
++        Assert.Throws<ArgumentException>(
++            () => new GameEvaluation(
++                GameResult.XWins,
++                [new BoardPosition(0, 0)]));
++    }
++
++    /// <summary>
++    /// Confirma que empate não aceita posições vencedoras.
++    /// </summary>
++    [Fact]
++    public void constructor_should_reject_positions_for_draw()
++    {
++        Assert.Throws<ArgumentException>(
++            () => new GameEvaluation(
++                GameResult.Draw,
++                [
++                    new BoardPosition(0, 0),
++                    new BoardPosition(0, 1),
++                    new BoardPosition(0, 2)
++                ]));
++    }
++
++    /// <summary>
++    /// Confirma que a coleção de posições vencedoras é copiada.
++    /// </summary>
++    [Fact]
++    public void constructor_should_copy_winning_positions()
++    {
++        BoardPosition[] positions =
++        [
++            new BoardPosition(0, 0),
++            new BoardPosition(0, 1),
++            new BoardPosition(0, 2)
++        ];
++
++        GameEvaluation evaluation = new(GameResult.XWins, positions);
++        positions[0] = new BoardPosition(2, 2);
++
++        Assert.Equal(new BoardPosition(0, 0), evaluation.WinningPositions[0]);
++    }
++}
+diff --git a/docs/05-game-rules.md b/docs/05-game-rules.md
+new file mode 100644
+--- /dev/null
++++ b/docs/05-game-rules.md
+@@ -0,0 +1,103 @@
++# Regras de domínio
++
++## 1. Finalidade
++
++Este documento registra a implementação de `GameRules` e `GameEvaluation`. A avaliação é independente de Console, inteligência artificial, persistência e áudio.
++
++## 2. Responsabilidades
++
++`GameRules` recebe um `Board` e produz uma avaliação sem modificar o tabuleiro. São verificadas oito sequências possíveis:
++
++- três linhas;
++- três colunas;
++- diagonal principal;
++- diagonal secundária.
++
++A avaliação segue a precedência: vitória, empate e partida em andamento.
++
++## 3. Modelo
++
++O diagrama apresenta a relação entre tabuleiro, serviço de regras e resultado da avaliação.
++
++```mermaid
++classDiagram
++    class Board {
++        +bool IsFull
++        +get_symbol(position) Symbol
++    }
++
++    class GameRules {
++        <<static>>
++        +evaluate(board) GameEvaluation
++    }
++
++    class GameEvaluation {
++        +GameResult Result
++        +IReadOnlyList~BoardPosition~ WinningPositions
++        +bool IsInProgress
++        +bool HasWinner
++    }
++
++    class GameResult {
++        <<enumeration>>
++        None
++        XWins
++        OWins
++        Draw
++    }
++
++    class BoardPosition {
++        +int Row
++        +int Column
++    }
++
++    GameRules --> Board
++    GameRules --> GameEvaluation
++    GameEvaluation --> GameResult
++    GameEvaluation --> BoardPosition
++```
++
++`GameRules` apenas consulta o tabuleiro. `GameEvaluation` garante que vitórias tenham exatamente três posições e que empate ou partida em andamento não possuam sequência vencedora.
++
++## 4. Fluxo de avaliação
++
++O diagrama descreve a ordem usada para classificar um tabuleiro.
++
++```mermaid
++flowchart TD
++    start[Receber Board]
++    sequence[Verificar oito sequências]
++    winner{Existe sequência não vazia?}
++    full{Tabuleiro está completo?}
++    win[Retornar vitória e posições]
++    draw[Retornar empate]
++    progress[Retornar partida em andamento]
++
++    start --> sequence
++    sequence --> winner
++    winner -->|sim| win
++    winner -->|não| full
++    full -->|sim| draw
++    full -->|não| progress
++```
++
++A verificação de vitória ocorre antes do teste de tabuleiro completo. Assim, uma jogada que preenche a última casa e também completa uma sequência é classificada como vitória, não como empate.
++
++## 5. Critérios testados
++
++A suíte cobre:
++
++- todas as linhas;
++- todas as colunas;
++- ambas as diagonais;
++- vitória de `X`;
++- vitória de `O`;
++- empate;
++- tabuleiro vazio;
++- tabuleiro parcial;
++- sequências incompletas;
++- sequências com símbolos mistos;
++- linhas vazias;
++- preservação do tabuleiro;
++- rejeição de referência nula;
++- invariantes de `GameEvaluation`.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -48,6 +48,10 @@
+ - Testes básicos das invariantes e da igualdade dos objetos de valor.
+ - `Board` com armazenamento encapsulado, consulta de símbolos, casas livres, aplicação e desfazimento de jogadas.
+ - Testes completos do comportamento e das invariantes de `Board`.
++- `GameRules` para detecção de vitória, empate e partida em andamento.
++- `GameEvaluation` com resultado e sequência vencedora imutável.
++- Testes de linhas, colunas, diagonais, empates e falsos positivos.
++- `docs/05-game-rules.md` com diagramas e interpretação das regras.
+ 
+ ### Changed
+ 

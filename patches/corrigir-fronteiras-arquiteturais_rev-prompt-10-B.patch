@@ -1,0 +1,1811 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index ba87703..0425c4b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -40,6 +40,10 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ### Added
+ 
++- `IReadOnlyBoard` e `BoardView` para exposição segura do tabuleiro de `Match`.
++- `IComputerMoveStrategyResolver` e resolvedor configurável por símbolo.
++- Testes de fronteira do agregado, resolução de Strategy e propagação de falhas.
++- `docs/09-correcao-fronteiras-arquiteturais.md` com decisões e diagramas.
+ - Revisão documental após o Prompt 10, com datas na timeline e atualização do estado do projeto.
+ - Camada `Application` com controlador mínimo de partidas.
+ - Portas `IGameInput`, `IGameOutput` e `IMoveSelector`.
+@@ -47,6 +51,12 @@ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ - Testes do fluxo completo sem Console ou interação humana.
+ - `docs/07-fluxo-aplicacao.md` com componentes e sequência.
+ 
++### Changed
++
++- Dependência `Domain → AI` removida de `ComputerPlayer`.
++- Estratégias passaram a receber `IReadOnlyBoard`.
++- `MatchController` passou a capturar apenas falhas da aplicação de jogadas.
++
+ ## [1.3.0] - 2026-07-16
+ 
+ ### Added
+diff --git a/docs/03-arquitetura.md b/docs/03-arquitetura.md
+index a14e3a1..4468762 100644
+--- a/docs/03-arquitetura.md
++++ b/docs/03-arquitetura.md
+@@ -491,28 +491,20 @@ A arquitetura deverá ser revista quando ocorrer:
+ - divergência entre diagrama e código;
+ - dificuldade para executar o modo experimental sem efeitos periféricos.
+ 
+-## 19. Situação arquitetural após o Prompt 10
+-
+-A implementação disponível em 2026-07-16 materializa `Domain`, `AI` e parte de
+-`Application`. As portas `IGameInput`, `IGameOutput` e `IMoveSelector` já foram
+-introduzidas, enquanto apresentação, persistência e áudio ainda não possuem
+-implementações concretas.
+-
+-Existe uma divergência arquitetural a corrigir antes da expansão da inteligência
+-artificial: `Domain.ComputerPlayer` referencia `AI.IMoveStrategy`, ao mesmo tempo
+-em que o módulo `AI` depende de `Domain`. Embora os tipos estejam atualmente no
+-mesmo projeto .NET, essa relação constitui um ciclo conceitual `Domain ↔ AI` e
+-contraria a regra de que o domínio deve permanecer no centro.
+-
+-A correção recomendada é retirar a estratégia de `ComputerPlayer` e associar
+-participantes computacionais às estratégias na camada `Application`, por meio de
+-um seletor ou registro de estratégias. Alternativamente, a fronteira abstrata
+-precisaria ser reposicionada em um módulo interno que não dependa de `AI`.
+-
+-Outro ponto de atenção é a exposição pública de `Match.Board`. Como `Board`
+-também expõe `apply_move` e `undo_move`, consumidores externos podem modificar o
+-tabuleiro sem atualizar histórico, turno, estado e resultado. Antes de
+-persistência ou Minimax, recomenda-se introduzir uma visão somente para leitura
+-do tabuleiro e restringir as operações mutáveis ao agregado e às simulações
+-controladas.
++## 19. Correções arquiteturais após o Prompt 10
+ 
++Em 2026-07-16, a etapa corretiva removeu a dependência de `Domain` para `AI`.
++`ComputerPlayer` voltou a representar somente um participante computacional, e
++a associação de estratégias passou para `Application` por meio de
++`IComputerMoveStrategyResolver`.
++
++O agregado `Match` mantém seu `Board` mutável como detalhe privado e expõe uma
++instância de `IReadOnlyBoard` implementada por `BoardView`. Dessa forma,
++consumidores não podem aplicar ou desfazer jogadas sem passar pelo agregado.
++
++`MatchController` também restringe o tratamento de `InvalidOperationException`
++à aplicação da jogada. Falhas de entrada, seleção ou saída não são convertidas
++em mensagens de posição inválida.
++
++Os detalhes e diagramas desta correção estão registrados em
++`docs/09-correcao-fronteiras-arquiteturais.md`.
+diff --git a/legacy/Atualizacao.cs b/legacy/Atualizacao.cs
+index 18b9ea5..3334406 100644
+--- a/legacy/Atualizacao.cs
++++ b/legacy/Atualizacao.cs
+@@ -1,136 +1,136 @@
+-﻿/* 
+- * User: m4rc3lo
+- * Date: 12/10/2019 
+- */
+-using System;
+-namespace TTT
+-{
+-	// classe de controle auxiliar para o jogo
+-	public static class Atualizacao
+-	{
+-		//verifica posição livre
+-		public static bool eh_livre(char[,] t, int n)
+-		{
+-			bool resposta = false;
+-			switch (n)
+-			{
+-				case 1:
+-					if (t[0,0] == '-')
+-						resposta = true;
+-					break;
+-				
+-				case 2:
+-					if (t[0,1] == '-')
+-						resposta = true;
+-					break;
+-				case 3:
+-					if (t[0,2] == '-')
+-						resposta = true;
+-					break;
+-				case 4:
+-					if (t[1,0] == '-')
+-						resposta = true;
+-					break;
+-				case 5:
+-					if (t[1,1] == '-')
+-						resposta = true;
+-					break;
+-				case 6:
+-					if (t[1,2] == '-')
+-						resposta = true;
+-					break;
+-				case 7:
+-					if (t[2,0] == '-')
+-						resposta = true;
+-					break;
+-				case 8:
+-					if (t[2,1] == '-')
+-						resposta = true;
+-					break;
+-				case 9:
+-					if (t[2,2] == '-')
+-						resposta = true;
+-					break;
+-			}
+-			return resposta;
+-		}
+-
+-		//verifica vitória
+-		public static char eh_vitoria(char[,] t)
+-		{
+-			char x = 'X', o = 'O', e = '-';
+-			int contx = 0;
+-			int conty = 0;
+-
+-			//linha
+-			for (int linha = 0 ; linha < 3 ; linha++ ) 
+-			{
+-				if ((t[linha,0] == x) && (t[linha,1] == x) && (t[linha,2] == x))
+-					contx++;
+-				else if ((t[linha,0] == o) && (t[linha,1] == o) && (t[linha,2] == o))
+-					conty++;
+-			}
+-			
+-			//coluna
+-			for (int coluna = 0 ; coluna < 3 ; coluna++ ) 
+-			{
+-				if ((t[0, coluna] == x) && (t[1, coluna] == x) && (t[2,coluna] == x))
+-					contx++;
+-				else if ((t[0,coluna] == o) && (t[1,coluna] == o) && (t[2,coluna] == o))
+-					conty++;
+-			}
+-			
+-			//diagonais
+-			if ((t[0,0] == x) && (t[1,1] == x) && (t[2,2] == x))
+-				contx++;
+-			else if ((t[2,0] == x) && (t[1,1] == x) && (t[0,2] == x))
+-				contx++;
+-			else if ((t[0,0] == o) && (t[1,1] == o) && (t[2,2] == o))
+-				conty++;
+-			else if ((t[2,0] == o) && (t[1,1] == o) && (t[0,2] == o))
+-				conty++;
+-
+-			if (contx > 0)
+-				return x;
+-			else if (conty > 0)
+-				return o;
+-			else
+-				return e;
+-		}
+-
+-		// efetiva altereação na representação do tabuleiro
+-		public static void set_jogada(Pessoa j, char[,] t, int p)
+-		{
+-			switch (p)
+-			{
+-				case 1:
+-					t[0,0] = j.get_simbolo();
+-					break;
+-				case 2:
+-					t[0,1] = j.get_simbolo();
+-					break;
+-				case 3:
+-					t[0,2] = j.get_simbolo();
+-					break;
+-				case 4:
+-					t[1,0] = j.get_simbolo();
+-					break;
+-				case 5:
+-					t[1,1] = j.get_simbolo();
+-					break;
+-				case 6:
+-					t[1,2] = j.get_simbolo();
+-					break;
+-				case 7:
+-					t[2,0] = j.get_simbolo();
+-					break;
+-				case 8:
+-					t[2,1] = j.get_simbolo();
+-					break;
+-				case 9:
+-					t[2,2] = j.get_simbolo();
+-					break;
+-			}
+-		}
+-	}
+-}
++﻿/*
++ * User: m4rc3lo
++ * Date: 12/10/2019
++ */
++using System;
++namespace TTT
++{
++	// classe de controle auxiliar para o jogo
++	public static class Atualizacao
++	{
++		//verifica posição livre
++		public static bool eh_livre(char[,] t, int n)
++		{
++			bool resposta = false;
++			switch (n)
++			{
++				case 1:
++					if (t[0,0] == '-')
++						resposta = true;
++					break;
++
++				case 2:
++					if (t[0,1] == '-')
++						resposta = true;
++					break;
++				case 3:
++					if (t[0,2] == '-')
++						resposta = true;
++					break;
++				case 4:
++					if (t[1,0] == '-')
++						resposta = true;
++					break;
++				case 5:
++					if (t[1,1] == '-')
++						resposta = true;
++					break;
++				case 6:
++					if (t[1,2] == '-')
++						resposta = true;
++					break;
++				case 7:
++					if (t[2,0] == '-')
++						resposta = true;
++					break;
++				case 8:
++					if (t[2,1] == '-')
++						resposta = true;
++					break;
++				case 9:
++					if (t[2,2] == '-')
++						resposta = true;
++					break;
++			}
++			return resposta;
++		}
++
++		//verifica vitória
++		public static char eh_vitoria(char[,] t)
++		{
++			char x = 'X', o = 'O', e = '-';
++			int contx = 0;
++			int conty = 0;
++
++			//linha
++			for (int linha = 0 ; linha < 3 ; linha++ )
++			{
++				if ((t[linha,0] == x) && (t[linha,1] == x) && (t[linha,2] == x))
++					contx++;
++				else if ((t[linha,0] == o) && (t[linha,1] == o) && (t[linha,2] == o))
++					conty++;
++			}
++
++			//coluna
++			for (int coluna = 0 ; coluna < 3 ; coluna++ )
++			{
++				if ((t[0, coluna] == x) && (t[1, coluna] == x) && (t[2,coluna] == x))
++					contx++;
++				else if ((t[0,coluna] == o) && (t[1,coluna] == o) && (t[2,coluna] == o))
++					conty++;
++			}
++
++			//diagonais
++			if ((t[0,0] == x) && (t[1,1] == x) && (t[2,2] == x))
++				contx++;
++			else if ((t[2,0] == x) && (t[1,1] == x) && (t[0,2] == x))
++				contx++;
++			else if ((t[0,0] == o) && (t[1,1] == o) && (t[2,2] == o))
++				conty++;
++			else if ((t[2,0] == o) && (t[1,1] == o) && (t[0,2] == o))
++				conty++;
++
++			if (contx > 0)
++				return x;
++			else if (conty > 0)
++				return o;
++			else
++				return e;
++		}
++
++		// efetiva altereação na representação do tabuleiro
++		public static void set_jogada(Pessoa j, char[,] t, int p)
++		{
++			switch (p)
++			{
++				case 1:
++					t[0,0] = j.get_simbolo();
++					break;
++				case 2:
++					t[0,1] = j.get_simbolo();
++					break;
++				case 3:
++					t[0,2] = j.get_simbolo();
++					break;
++				case 4:
++					t[1,0] = j.get_simbolo();
++					break;
++				case 5:
++					t[1,1] = j.get_simbolo();
++					break;
++				case 6:
++					t[1,2] = j.get_simbolo();
++					break;
++				case 7:
++					t[2,0] = j.get_simbolo();
++					break;
++				case 8:
++					t[2,1] = j.get_simbolo();
++					break;
++				case 9:
++					t[2,2] = j.get_simbolo();
++					break;
++			}
++		}
++	}
++}
+diff --git a/legacy/Desenho.cs b/legacy/Desenho.cs
+index 6409e07..c91975a 100644
+--- a/legacy/Desenho.cs
++++ b/legacy/Desenho.cs
+@@ -1,110 +1,110 @@
+-﻿/*
+- * User: m4rc3lo
+- * Date: 12/10/2019
+- * Time: 00:42 
+- */
+-using System;
+-
+-namespace TTT
+-{
+-	//representacao e desenho do tabuleiro
+-	public class Desenho
+-	{
+-		//data
+-		private static DateTime data;
+-		//construtor vazio
+-		public Desenho()
+-		{
+-			data = DateTime.Now;
+-		}
+-		// mostra tela inicial
+-		public static void apresentacao ()
+-		{
+-			Console.ForegroundColor = ConsoleColor.Magenta;
+-			Console.WriteLine("--------------------------------------------------");
+-			Console.WriteLine("Jogo: Tic Tac Toy");
+-			Console.WriteLine(data);
+-			Console.WriteLine("--------------------------------------------------");
+-			Console.ResetColor();
+-		}
+-		
+-		// mostra pessoa a iniciar
+-		public static void mostra_first(Pessoa j1, Pessoa j2)
+-		{
+-			if (j1.get_first())
+-			{
+-				Console.WriteLine(" ");
+-				Console.WriteLine("Primeira pessoa a jogar: " + j1.get_nome());
+-				Console.WriteLine("Simbolo: " + j1.get_simbolo());
+-			}
+-			else
+-			{
+-				Console.WriteLine(" ");
+-				Console.WriteLine("Primeira pessoa a jogar: " + j2.get_nome());
+-				Console.WriteLine("Simbolo: " + j2.get_simbolo());
+-			}
+-			Console.WriteLine("Precione uma tecla para ler as instrucoes");
+-			Console.ReadKey(true);
+-			Console.Clear();
+-		}
+-		
+-		// mostra tabuleiro no terminal
+-		public static void desenha_tabuleiro(char[,] tabuleiro)
+-		{
+-			Console.WriteLine("----------------------------------------------------");
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[0,0], tabuleiro[0,1], tabuleiro[0,2]);
+-			Console.WriteLine("_____|_____|_____ ");
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine("  {0}  |  {1}  |  in{2}", tabuleiro[1,0], tabuleiro[1,1], tabuleiro[1,2]);
+-			Console.WriteLine("_____|_____|_____ ");
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[2,0], tabuleiro[2,1], tabuleiro[2,2]);
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine("----------------------------------------------------");
+-			Console.WriteLine(" ");
+-		}
+-		
+-		public static void instrucoes()
+-		{
+-			//variavel local - não é o mesmo que guarda as jogadas
+-			char[][] tabuleiro = new char[3][];
+-			tabuleiro[0] = new char[3] {'1','2','3'};
+-			tabuleiro[1] = new char[3] {'4','5','6'};
+-			tabuleiro[2] = new char[3] {'7','8','9'};
+-			
+-			Console.ForegroundColor = ConsoleColor.Magenta;  //muda cor do texto
+-			Console.WriteLine("Utilize o teclado numerico para ecolher a casa no tabuleiro");
+-			Console.WriteLine(" Posições válidas: 1,2,3,4,5,6,7,8,9.\n");
+-			
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[0][0], tabuleiro[0][1], tabuleiro[0][2]);
+-			Console.WriteLine("_____|_____|_____ ");
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[1][0], tabuleiro[1][1], tabuleiro[1][2]);
+-			Console.WriteLine("_____|_____|_____ ");
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[2][0], tabuleiro[2][1], tabuleiro[2][2]);
+-			Console.WriteLine("     |     |      ");
+-			Console.WriteLine(" ");
+-			
+-			Console.WriteLine("Pressione uma tecla para inciar o jogo");
+-			Console.ReadKey(true);
+-			Console.Clear();
+-		}
+-		
+-		public static void mostra_resultado( Pessoa p )
+-		{
+-			Console.Clear();
+-			Console.WriteLine(" -------------------------- FIM  --------------------------");
+-			Console.WriteLine("Pessoa ganhadora: " + p.get_nome() + " / Simbolo:  " + p.get_simbolo());
+-		}
+-		
+-		public static void mostra_empate()
+-		{
+-			Console.Clear();
+-			Console.WriteLine(" -------------------------- FIM  --------------------------");
+-			Console.WriteLine("------------------------ EMPATE ------------------------");
+-		}
+-	}
+-}
++﻿/*
++ * User: m4rc3lo
++ * Date: 12/10/2019
++ * Time: 00:42
++ */
++using System;
++
++namespace TTT
++{
++	//representacao e desenho do tabuleiro
++	public class Desenho
++	{
++		//data
++		private static DateTime data;
++		//construtor vazio
++		public Desenho()
++		{
++			data = DateTime.Now;
++		}
++		// mostra tela inicial
++		public static void apresentacao ()
++		{
++			Console.ForegroundColor = ConsoleColor.Magenta;
++			Console.WriteLine("--------------------------------------------------");
++			Console.WriteLine("Jogo: Tic Tac Toy");
++			Console.WriteLine(data);
++			Console.WriteLine("--------------------------------------------------");
++			Console.ResetColor();
++		}
++
++		// mostra pessoa a iniciar
++		public static void mostra_first(Pessoa j1, Pessoa j2)
++		{
++			if (j1.get_first())
++			{
++				Console.WriteLine(" ");
++				Console.WriteLine("Primeira pessoa a jogar: " + j1.get_nome());
++				Console.WriteLine("Simbolo: " + j1.get_simbolo());
++			}
++			else
++			{
++				Console.WriteLine(" ");
++				Console.WriteLine("Primeira pessoa a jogar: " + j2.get_nome());
++				Console.WriteLine("Simbolo: " + j2.get_simbolo());
++			}
++			Console.WriteLine("Precione uma tecla para ler as instrucoes");
++			Console.ReadKey(true);
++			Console.Clear();
++		}
++
++		// mostra tabuleiro no terminal
++		public static void desenha_tabuleiro(char[,] tabuleiro)
++		{
++			Console.WriteLine("----------------------------------------------------");
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[0,0], tabuleiro[0,1], tabuleiro[0,2]);
++			Console.WriteLine("_____|_____|_____ ");
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine("  {0}  |  {1}  |  in{2}", tabuleiro[1,0], tabuleiro[1,1], tabuleiro[1,2]);
++			Console.WriteLine("_____|_____|_____ ");
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[2,0], tabuleiro[2,1], tabuleiro[2,2]);
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine("----------------------------------------------------");
++			Console.WriteLine(" ");
++		}
++
++		public static void instrucoes()
++		{
++			//variavel local - não é o mesmo que guarda as jogadas
++			char[][] tabuleiro = new char[3][];
++			tabuleiro[0] = new char[3] {'1','2','3'};
++			tabuleiro[1] = new char[3] {'4','5','6'};
++			tabuleiro[2] = new char[3] {'7','8','9'};
++
++			Console.ForegroundColor = ConsoleColor.Magenta;  //muda cor do texto
++			Console.WriteLine("Utilize o teclado numerico para ecolher a casa no tabuleiro");
++			Console.WriteLine(" Posições válidas: 1,2,3,4,5,6,7,8,9.\n");
++
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[0][0], tabuleiro[0][1], tabuleiro[0][2]);
++			Console.WriteLine("_____|_____|_____ ");
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[1][0], tabuleiro[1][1], tabuleiro[1][2]);
++			Console.WriteLine("_____|_____|_____ ");
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine("  {0}  |  {1}  |  {2}", tabuleiro[2][0], tabuleiro[2][1], tabuleiro[2][2]);
++			Console.WriteLine("     |     |      ");
++			Console.WriteLine(" ");
++
++			Console.WriteLine("Pressione uma tecla para inciar o jogo");
++			Console.ReadKey(true);
++			Console.Clear();
++		}
++
++		public static void mostra_resultado( Pessoa p )
++		{
++			Console.Clear();
++			Console.WriteLine(" -------------------------- FIM  --------------------------");
++			Console.WriteLine("Pessoa ganhadora: " + p.get_nome() + " / Simbolo:  " + p.get_simbolo());
++		}
++
++		public static void mostra_empate()
++		{
++			Console.Clear();
++			Console.WriteLine(" -------------------------- FIM  --------------------------");
++			Console.WriteLine("------------------------ EMPATE ------------------------");
++		}
++	}
++}
+diff --git a/legacy/Entrada.cs b/legacy/Entrada.cs
+index c6aa992..8693252 100644
+--- a/legacy/Entrada.cs
++++ b/legacy/Entrada.cs
+@@ -1,65 +1,65 @@
+-﻿/*
+- * User: m4rc3lo
+- * Date: 13/10/2019
+- * Time: 10:43
+- */
+-using System;
+-namespace TTT
+-{
+-	//classe para receber as entradas de dados
+-	public class Entrada
+-	{
+-		//construtuor vazio
+-		public Entrada() { }
+-		
+-		//seta nome das pessoas jogando
+-		public static void get_nomes(Pessoa j1, Pessoa j2 )
+-		{
+-			//variavel local (escopo da funcao / nao da classe)
+-			string nome_temp = "";
+-			Console.WriteLine(" ");
+-			Console.WriteLine("Digite o nome 1: ");
+-			nome_temp =Console.ReadLine();
+-			j1.set_nome(nome_temp); //acessa mebro do objeto de tipo Pessoa
+-			
+-			Console.WriteLine("Digite o nome 2: ");
+-			nome_temp = Console.ReadLine();
+-			j2.set_nome(nome_temp);
+-		}
+-
+-		//garante uma jogada válida
+-		//retorna a posição no tabuleiro
+-		public static int pega_jogada(Pessoa j, char [,] t)
+-		{
+-			//variáveis locais
+-			string jogada;
+-			int valor;
+-			bool valor_ok = false;
+-			bool livre_ok = false;
+-			bool controle = true;
+-
+-			do // repeticão 
+-			{	
+-				Console.WriteLine(j.get_nome() + ": digitite sua jogada");
+-				jogada = Console.ReadLine();
+-				valor = Convert.ToInt16(jogada); //converte para inteiro
+-
+-				if (valor >= 1 && valor <= 9) // testa numero válido
+-				{
+-					valor_ok = true;
+-					if (Atualizacao.eh_livre(t, valor)) //testa posição livre
+-						livre_ok = true;
+-					else
+-						Console.WriteLine("Digite uma posição desocupada");					
+-				}
+-				else
+-					Console.WriteLine("Digite um valor de posição válida");
+-
+-				if (valor_ok && livre_ok) 
+-					controle = false;
+-
+-			} while (controle); // fim da repetição
+-			return valor; //retorna uma movimento válido
+-		}
+-	}
+-}
++﻿/*
++ * User: m4rc3lo
++ * Date: 13/10/2019
++ * Time: 10:43
++ */
++using System;
++namespace TTT
++{
++	//classe para receber as entradas de dados
++	public class Entrada
++	{
++		//construtuor vazio
++		public Entrada() { }
++
++		//seta nome das pessoas jogando
++		public static void get_nomes(Pessoa j1, Pessoa j2 )
++		{
++			//variavel local (escopo da funcao / nao da classe)
++			string nome_temp = "";
++			Console.WriteLine(" ");
++			Console.WriteLine("Digite o nome 1: ");
++			nome_temp =Console.ReadLine();
++			j1.set_nome(nome_temp); //acessa mebro do objeto de tipo Pessoa
++
++			Console.WriteLine("Digite o nome 2: ");
++			nome_temp = Console.ReadLine();
++			j2.set_nome(nome_temp);
++		}
++
++		//garante uma jogada válida
++		//retorna a posição no tabuleiro
++		public static int pega_jogada(Pessoa j, char [,] t)
++		{
++			//variáveis locais
++			string jogada;
++			int valor;
++			bool valor_ok = false;
++			bool livre_ok = false;
++			bool controle = true;
++
++			do // repeticão
++			{
++				Console.WriteLine(j.get_nome() + ": digitite sua jogada");
++				jogada = Console.ReadLine();
++				valor = Convert.ToInt16(jogada); //converte para inteiro
++
++				if (valor >= 1 && valor <= 9) // testa numero válido
++				{
++					valor_ok = true;
++					if (Atualizacao.eh_livre(t, valor)) //testa posição livre
++						livre_ok = true;
++					else
++						Console.WriteLine("Digite uma posição desocupada");
++				}
++				else
++					Console.WriteLine("Digite um valor de posição válida");
++
++				if (valor_ok && livre_ok)
++					controle = false;
++
++			} while (controle); // fim da repetição
++			return valor; //retorna uma movimento válido
++		}
++	}
++}
+diff --git a/legacy/Jogador.cs b/legacy/Jogador.cs
+index b7fefc1..500cd09 100644
+--- a/legacy/Jogador.cs
++++ b/legacy/Jogador.cs
+@@ -1,60 +1,60 @@
+-﻿/*
+- * User: m4rc3lo
+- * Date: 13/10/2019
+- * Time: 10:39
+- */
+-using System;
+-namespace TTT
+-{
+-	//classe para representar uma pessoa jogando
+-	public class Pessoa
+-	{
+-		//variaveis de instancia
+-		private string nome;
+-		private char simbolo;
+-		private bool first;
+-		private bool turno;
+-		
+-		//construtor
+-		public Pessoa()
+-		{
+-			nome = " ";
+-			simbolo = ' ';
+-			first = false;
+-			turno = false;
+-		}
+-		//acesso as variaveis de isntancia
+-		public void set_nome(string n)
+-		{
+-			nome = n;
+-		}
+-		public void set_simbolo(char s)
+-		{
+-			simbolo = s;
+-		}
+-		public void set_turno(bool t)
+-		{
+-			turno = t;
+-		}
+-		public void set_first(bool f)
+-		{
+-			first = f;
+-		}
+-		public char get_simbolo()
+-		{
+-			return simbolo;
+-		}
+-		public string get_nome()
+-		{
+-			return nome;
+-		}
+-		public bool get_turno()
+-		{
+-			return turno;
+-		}
+-		public bool get_first()
+-		{
+-			return first;
+-		}
+-	}
+-}
++﻿/*
++ * User: m4rc3lo
++ * Date: 13/10/2019
++ * Time: 10:39
++ */
++using System;
++namespace TTT
++{
++	//classe para representar uma pessoa jogando
++	public class Pessoa
++	{
++		//variaveis de instancia
++		private string nome;
++		private char simbolo;
++		private bool first;
++		private bool turno;
++
++		//construtor
++		public Pessoa()
++		{
++			nome = " ";
++			simbolo = ' ';
++			first = false;
++			turno = false;
++		}
++		//acesso as variaveis de isntancia
++		public void set_nome(string n)
++		{
++			nome = n;
++		}
++		public void set_simbolo(char s)
++		{
++			simbolo = s;
++		}
++		public void set_turno(bool t)
++		{
++			turno = t;
++		}
++		public void set_first(bool f)
++		{
++			first = f;
++		}
++		public char get_simbolo()
++		{
++			return simbolo;
++		}
++		public string get_nome()
++		{
++			return nome;
++		}
++		public bool get_turno()
++		{
++			return turno;
++		}
++		public bool get_first()
++		{
++			return first;
++		}
++	}
++}
+diff --git a/legacy/Jogo.cs b/legacy/Jogo.cs
+index 4f7b192..7f80959 100644
+--- a/legacy/Jogo.cs
++++ b/legacy/Jogo.cs
+@@ -1,158 +1,158 @@
+-﻿/*
+- * User: m4rc3lo
+- * Date: 12/10/2019
+- * Time: 01:31
+- */
+-using System;
+-namespace TTT
+-{
+-	//Classe para execucao e controle do jogo
+-	public class Jogo
+-	{
+-		// variável de instância (tem visibilidade em toda a classe)
+-		// abstrai o tabuleiro, tipo de dado: matrix de char
+-		private char[ , ] tabuleiro;
+-		
+-		private Pessoa pessoa1; 
+-		private Pessoa pessoa2;
+-		private char vencedor;
+-		
+-		//construtor da classe
+-		public Jogo()
+-		{
+-			//inicializacao da variavel (espaco em memoria)			
+-			tabuleiro = new char [3 , 3];
+-			pessoa1 = new Pessoa();
+-			pessoa2 = new Pessoa();
+-			vencedor = '-';
+-			
+-			//percorre cada posicao (linha x coluna)
+-			for (int linha = 0 ; linha < 3 ; linha++)
+-			{
+-				for (int coluna = 0 ; coluna < 3 ; coluna++)
+-				{
+-					tabuleiro [linha , coluna] = '-';
+-				}
+-			}
+-		}
+-		
+-		//sorteia qual pesso inicia o jogo (recebe X)
+-		public void sorteia_first ()
+-		{
+-			Random rand = new Random();
+-			int first = rand.Next(1,3);
+-			
+-			if (first == 1) 
+-			{
+-				pessoa1.set_simbolo('X');
+-				pessoa2.set_simbolo('O');
+-				pessoa1.set_first(true);
+-				pessoa1.set_turno(true);
+-			}
+-			else
+-			{
+-				pessoa1.set_simbolo('O');
+-				pessoa2.set_simbolo('X');
+-				pessoa2.set_first(true);
+-				pessoa2.set_turno(true);
+-			}
+-		}
+-		
+-		//nome e sorteio da primeira a jogar
+-		public void inicializa_game()
+-		{
+-			//define o nome das pessoas
+-			Desenho.apresentacao();
+-			Entrada.get_nomes(pessoa1, pessoa2);
+-			sorteia_first();//escolhe primeira pessoa a jogar
+-			//a primeira fica com o X
+-			Desenho.mostra_first(pessoa1,  pessoa2);
+-			Desenho.instrucoes();
+-		}
+-		
+-		//game loop - enquanto for possível jogar...
+-		public void start_game()
+-		{
+-			//variáveis locais a fução
+-			bool empate  = false;
+-			bool vitoria = false;
+-			//char vencedor = '-';
+-			int contador = 0;
+-			
+-			//enquanto não for vitória ou não for empate
+-			while (!(vitoria) && !(empate))
+-			{
+-				//variáveis locais ao escopo do while
+-				char eh_vitoria;
+-				int posicao = 0;
+-				
+-				//um jogador por turno
+-				if (pessoa1.get_turno())
+-				{
+-					Desenho.desenha_tabuleiro(tabuleiro);
+-					//pega a posicao da jogada escolhida
+-					posicao = Entrada.pega_jogada(pessoa1, tabuleiro);
+-					//passa o turno
+-					pessoa1.set_turno(false);
+-					pessoa2.set_turno(true);					
+-					Atualizacao.set_jogada(pessoa1, tabuleiro, posicao);
+-					eh_vitoria = Atualizacao.eh_vitoria(tabuleiro);
+-					Console.Clear();
+-					//caso alguem ganhe
+-					if (eh_vitoria == 'X')
+-					{		
+-						vitoria = true;
+-						vencedor = 'X';
+-					}
+-					else if (eh_vitoria == 'O')
+-					{
+-						vitoria = true;
+-						vencedor = 'O';
+-					}
+-					contador++; //controla quantidade de jogadas
+-				}
+-				else if (pessoa2.get_turno())
+-				{
+-					Desenho.desenha_tabuleiro(tabuleiro);
+-					posicao = Entrada.pega_jogada(pessoa2, tabuleiro);
+-					pessoa2.set_turno(false);
+-					pessoa1.set_turno(true);
+-					Atualizacao.set_jogada(pessoa2, tabuleiro, posicao);
+-					eh_vitoria = Atualizacao.eh_vitoria(tabuleiro);
+-					Console.Clear();
+-					
+-					if (eh_vitoria == 'X')
+-					{
+-						vitoria = true;
+-						vencedor = 'X';
+-					}
+-					else if (eh_vitoria == 'O')
+-					{
+-						vitoria = true;
+-						vencedor = 'O';
+-					}
+-					contador++;
+-				}
+-				
+-				if (contador >=9) // se não houver vitoria até o nono turmo
+-					empate = true;
+-			}//fim do while (vitoria ou empate)
+-		}//fim da função star_game()
+-		
+-		//encerra a partida
+-		public void end_game()
+-		{
+-			//verifica vencedor
+-			if(vencedor == pessoa1.get_simbolo()) 
+-				Desenho.mostra_resultado(pessoa1);
+-			else if (vencedor == pessoa2.get_simbolo())
+-				Desenho.mostra_resultado(pessoa2);
+-			else
+-				Desenho.mostra_empate();
+-			//mostra tabuleiro final
+-			Desenho.desenha_tabuleiro(tabuleiro);
+-			Console.Write("Precione qualquel tecla para encerrar! . . . ");
+-			Console.ReadKey(true);
+-		}
+-	}//fim do escopo da classe Jogo
+-}//fim do namespace
+\ No newline at end of file
++﻿/*
++ * User: m4rc3lo
++ * Date: 12/10/2019
++ * Time: 01:31
++ */
++using System;
++namespace TTT
++{
++	//Classe para execucao e controle do jogo
++	public class Jogo
++	{
++		// variável de instância (tem visibilidade em toda a classe)
++		// abstrai o tabuleiro, tipo de dado: matrix de char
++		private char[ , ] tabuleiro;
++
++		private Pessoa pessoa1;
++		private Pessoa pessoa2;
++		private char vencedor;
++
++		//construtor da classe
++		public Jogo()
++		{
++			//inicializacao da variavel (espaco em memoria)
++			tabuleiro = new char [3 , 3];
++			pessoa1 = new Pessoa();
++			pessoa2 = new Pessoa();
++			vencedor = '-';
++
++			//percorre cada posicao (linha x coluna)
++			for (int linha = 0 ; linha < 3 ; linha++)
++			{
++				for (int coluna = 0 ; coluna < 3 ; coluna++)
++				{
++					tabuleiro [linha , coluna] = '-';
++				}
++			}
++		}
++
++		//sorteia qual pesso inicia o jogo (recebe X)
++		public void sorteia_first ()
++		{
++			Random rand = new Random();
++			int first = rand.Next(1,3);
++
++			if (first == 1)
++			{
++				pessoa1.set_simbolo('X');
++				pessoa2.set_simbolo('O');
++				pessoa1.set_first(true);
++				pessoa1.set_turno(true);
++			}
++			else
++			{
++				pessoa1.set_simbolo('O');
++				pessoa2.set_simbolo('X');
++				pessoa2.set_first(true);
++				pessoa2.set_turno(true);
++			}
++		}
++
++		//nome e sorteio da primeira a jogar
++		public void inicializa_game()
++		{
++			//define o nome das pessoas
++			Desenho.apresentacao();
++			Entrada.get_nomes(pessoa1, pessoa2);
++			sorteia_first();//escolhe primeira pessoa a jogar
++			//a primeira fica com o X
++			Desenho.mostra_first(pessoa1,  pessoa2);
++			Desenho.instrucoes();
++		}
++
++		//game loop - enquanto for possível jogar...
++		public void start_game()
++		{
++			//variáveis locais a fução
++			bool empate  = false;
++			bool vitoria = false;
++			//char vencedor = '-';
++			int contador = 0;
++
++			//enquanto não for vitória ou não for empate
++			while (!(vitoria) && !(empate))
++			{
++				//variáveis locais ao escopo do while
++				char eh_vitoria;
++				int posicao = 0;
++
++				//um jogador por turno
++				if (pessoa1.get_turno())
++				{
++					Desenho.desenha_tabuleiro(tabuleiro);
++					//pega a posicao da jogada escolhida
++					posicao = Entrada.pega_jogada(pessoa1, tabuleiro);
++					//passa o turno
++					pessoa1.set_turno(false);
++					pessoa2.set_turno(true);
++					Atualizacao.set_jogada(pessoa1, tabuleiro, posicao);
++					eh_vitoria = Atualizacao.eh_vitoria(tabuleiro);
++					Console.Clear();
++					//caso alguem ganhe
++					if (eh_vitoria == 'X')
++					{
++						vitoria = true;
++						vencedor = 'X';
++					}
++					else if (eh_vitoria == 'O')
++					{
++						vitoria = true;
++						vencedor = 'O';
++					}
++					contador++; //controla quantidade de jogadas
++				}
++				else if (pessoa2.get_turno())
++				{
++					Desenho.desenha_tabuleiro(tabuleiro);
++					posicao = Entrada.pega_jogada(pessoa2, tabuleiro);
++					pessoa2.set_turno(false);
++					pessoa1.set_turno(true);
++					Atualizacao.set_jogada(pessoa2, tabuleiro, posicao);
++					eh_vitoria = Atualizacao.eh_vitoria(tabuleiro);
++					Console.Clear();
++
++					if (eh_vitoria == 'X')
++					{
++						vitoria = true;
++						vencedor = 'X';
++					}
++					else if (eh_vitoria == 'O')
++					{
++						vitoria = true;
++						vencedor = 'O';
++					}
++					contador++;
++				}
++
++				if (contador >=9) // se não houver vitoria até o nono turmo
++					empate = true;
++			}//fim do while (vitoria ou empate)
++		}//fim da função star_game()
++
++		//encerra a partida
++		public void end_game()
++		{
++			//verifica vencedor
++			if(vencedor == pessoa1.get_simbolo())
++				Desenho.mostra_resultado(pessoa1);
++			else if (vencedor == pessoa2.get_simbolo())
++				Desenho.mostra_resultado(pessoa2);
++			else
++				Desenho.mostra_empate();
++			//mostra tabuleiro final
++			Desenho.desenha_tabuleiro(tabuleiro);
++			Console.Write("Precione qualquel tecla para encerrar! . . . ");
++			Console.ReadKey(true);
++		}
++	}//fim do escopo da classe Jogo
++}//fim do namespace
+diff --git a/legacy/Program.cs b/legacy/Program.cs
+index d386ad2..d0f0ce4 100644
+--- a/legacy/Program.cs
++++ b/legacy/Program.cs
+@@ -1,32 +1,32 @@
+-﻿/*
+- * User: m4rc3lo
+- * Date: 11/10/2019
+- * Time: 14:49
+- */
+-using System;
+-
+-// organizacao e limitacaode escopo
+-namespace TTT
+-{
+-	//classe que define a funcao principal 
+-	class Program
+-	{
+-		//ponto de partida do programa
+-		public static void Main(string[] args)
+-		{
+-			//-------------------------------------------------------------------
+-			//declaracao de variaveis (objetos)
+-			Jogo obj_jogo = new Jogo();
+-			//-------------------------------------------------------------------
+-			//execucao do jogo
+-			obj_jogo.inicializa_game();
+-			obj_jogo.start_game();
+-			obj_jogo.end_game();
+-			//-------------------------------------------------------------------
+-			//finalizando execucao
+-			//Console.ForegroundColor = ConsoleColor.Magenta;
+-					
+-			//-------------------------------------------------------------------
+-		}// quanto esta funcao encerra o programa acaba
+-	}//fim da declaracao da classe
+-}//fim da declaracao de namespace
+\ No newline at end of file
++﻿/*
++ * User: m4rc3lo
++ * Date: 11/10/2019
++ * Time: 14:49
++ */
++using System;
++
++// organizacao e limitacaode escopo
++namespace TTT
++{
++	//classe que define a funcao principal
++	class Program
++	{
++		//ponto de partida do programa
++		public static void Main(string[] args)
++		{
++			//-------------------------------------------------------------------
++			//declaracao de variaveis (objetos)
++			Jogo obj_jogo = new Jogo();
++			//-------------------------------------------------------------------
++			//execucao do jogo
++			obj_jogo.inicializa_game();
++			obj_jogo.start_game();
++			obj_jogo.end_game();
++			//-------------------------------------------------------------------
++			//finalizando execucao
++			//Console.ForegroundColor = ConsoleColor.Magenta;
++
++			//-------------------------------------------------------------------
++		}// quanto esta funcao encerra o programa acaba
++	}//fim da declaracao da classe
++}//fim da declaracao de namespace
+diff --git a/src/TicTacToe.Console/AI/IMoveStrategy.cs b/src/TicTacToe.Console/AI/IMoveStrategy.cs
+index 98705d7..2333bcf 100644
+--- a/src/TicTacToe.Console/AI/IMoveStrategy.cs
++++ b/src/TicTacToe.Console/AI/IMoveStrategy.cs
+@@ -18,5 +18,5 @@ public interface IMoveStrategy
+     /// <param name="board">Tabuleiro consultado.</param>
+     /// <param name="symbol">Símbolo controlado pelo agente.</param>
+     /// <returns>Posição escolhida entre as casas disponíveis.</returns>
+-    BoardPosition choose_move(Board board, Symbol symbol);
++    BoardPosition choose_move(IReadOnlyBoard board, Symbol symbol);
+ }
+diff --git a/src/TicTacToe.Console/AI/RandomMoveStrategy.cs b/src/TicTacToe.Console/AI/RandomMoveStrategy.cs
+index a9f48ab..7ed0364 100644
+--- a/src/TicTacToe.Console/AI/RandomMoveStrategy.cs
++++ b/src/TicTacToe.Console/AI/RandomMoveStrategy.cs
+@@ -51,7 +51,7 @@ public sealed class RandomMoveStrategy : IMoveStrategy
+     /// <exception cref="InvalidOperationException">
+     /// Lançada quando o tabuleiro não possui casas livres.
+     /// </exception>
+-    public BoardPosition choose_move(Board board, Symbol symbol)
++    public BoardPosition choose_move(IReadOnlyBoard board, Symbol symbol)
+     {
+         ArgumentNullException.ThrowIfNull(board);
+ 
+diff --git a/src/TicTacToe.Console/Application/DefaultMoveSelector.cs b/src/TicTacToe.Console/Application/DefaultMoveSelector.cs
+index 3063a62..8798dbc 100644
+--- a/src/TicTacToe.Console/Application/DefaultMoveSelector.cs
++++ b/src/TicTacToe.Console/Application/DefaultMoveSelector.cs
+@@ -1,23 +1,33 @@
++using TicTacToe.AI;
+ using TicTacToe.Domain;
+ 
+ namespace TicTacToe.Application;
+ 
+ /// <summary>
+ /// Seleciona jogadas humanas pela porta de entrada e jogadas computacionais
+-/// pela estratégia associada ao participante.
++/// por uma Strategy resolvida na camada de aplicação.
+ /// </summary>
+ public sealed class DefaultMoveSelector : IMoveSelector
+ {
+     private readonly IGameInput game_input;
++    private readonly IComputerMoveStrategyResolver strategy_resolver;
+ 
+     /// <summary>
+     /// Inicializa o seletor padrão.
+     /// </summary>
+     /// <param name="game_input">Porta de entrada para participantes humanos.</param>
+-    public DefaultMoveSelector(IGameInput game_input)
++    /// <param name="strategy_resolver">
++    /// Serviço que associa participantes computacionais às estratégias.
++    /// </param>
++    public DefaultMoveSelector(
++        IGameInput game_input,
++        IComputerMoveStrategyResolver strategy_resolver)
+     {
+         ArgumentNullException.ThrowIfNull(game_input);
++        ArgumentNullException.ThrowIfNull(strategy_resolver);
++
+         this.game_input = game_input;
++        this.strategy_resolver = strategy_resolver;
+     }
+ 
+     /// <inheritdoc />
+@@ -35,10 +45,20 @@ public sealed class DefaultMoveSelector : IMoveSelector
+                 game_input.read_move(match, human_player),
+ 
+             ComputerPlayer computer_player =>
+-                computer_player.choose_move(match.Board),
++                choose_computer_move(match, computer_player),
+ 
+             _ => throw new NotSupportedException(
+                 $"O tipo de participante {player.GetType().Name} não é suportado.")
+         };
+     }
++
++    private BoardPosition choose_computer_move(
++        Match match,
++        ComputerPlayer player)
++    {
++        IMoveStrategy strategy =
++            strategy_resolver.resolve_strategy(player);
++
++        return strategy.choose_move(match.Board, player.Symbol);
++    }
+ }
+diff --git a/src/TicTacToe.Console/Application/MatchController.cs b/src/TicTacToe.Console/Application/MatchController.cs
+index bd49d76..f90db8d 100644
+--- a/src/TicTacToe.Console/Application/MatchController.cs
++++ b/src/TicTacToe.Console/Application/MatchController.cs
+@@ -64,7 +64,6 @@ public sealed class MatchController
+             try
+             {
+                 match.apply_move(position);
+-                game_output.show_match(match);
+             }
+             catch (InvalidOperationException exception)
+             {
+@@ -72,7 +71,11 @@ public sealed class MatchController
+                     current_player,
+                     position,
+                     exception.Message);
++
++                continue;
+             }
++
++            game_output.show_match(match);
+         }
+ 
+         game_output.show_result(match);
+diff --git a/src/TicTacToe.Console/Domain/Board.cs b/src/TicTacToe.Console/Domain/Board.cs
+index ed45272..3a8fe3c 100644
+--- a/src/TicTacToe.Console/Domain/Board.cs
++++ b/src/TicTacToe.Console/Domain/Board.cs
+@@ -8,7 +8,7 @@ namespace TicTacToe.Domain;
+ /// apresentação, inteligência artificial e persistência não fazem parte de sua
+ /// responsabilidade.
+ /// </remarks>
+-public sealed class Board
++public sealed class Board : IReadOnlyBoard
+ {
+     private readonly Symbol[,] cells;
+     private int occupied_count;
+diff --git a/src/TicTacToe.Console/Domain/ComputerPlayer.cs b/src/TicTacToe.Console/Domain/ComputerPlayer.cs
+index d980a7a..0fe02f2 100644
+--- a/src/TicTacToe.Console/Domain/ComputerPlayer.cs
++++ b/src/TicTacToe.Console/Domain/ComputerPlayer.cs
+@@ -1,13 +1,12 @@
+-using TicTacToe.AI;
+-
+ namespace TicTacToe.Domain;
+ 
+ /// <summary>
+-/// Representa um participante controlado por uma estratégia de jogada.
++/// Representa um participante controlado computacionalmente.
+ /// </summary>
+ /// <remarks>
+-/// A classe atua como contexto do padrão Strategy: mantém uma implementação de
+-/// <see cref="IMoveStrategy"/> e delega a ela a seleção de posições.
++/// A associação entre participante e estratégia pertence à camada de aplicação,
++/// preservando o domínio contra dependências da infraestrutura de inteligência
++/// artificial.
+ /// </remarks>
+ public sealed class ComputerPlayer : Player
+ {
+@@ -16,29 +15,8 @@ public sealed class ComputerPlayer : Player
+     /// </summary>
+     /// <param name="name">Nome de exibição.</param>
+     /// <param name="symbol">Símbolo controlado.</param>
+-    /// <param name="strategy">Estratégia utilizada para escolher jogadas.</param>
+-    public ComputerPlayer(
+-        string name,
+-        Symbol symbol,
+-        IMoveStrategy strategy)
++    public ComputerPlayer(string name, Symbol symbol)
+         : base(name, symbol)
+     {
+-        ArgumentNullException.ThrowIfNull(strategy);
+-        Strategy = strategy;
+-    }
+-
+-    /// <summary>
+-    /// Obtém a estratégia associada ao participante.
+-    /// </summary>
+-    public IMoveStrategy Strategy { get; }
+-
+-    /// <summary>
+-    /// Solicita à estratégia uma posição válida.
+-    /// </summary>
+-    /// <param name="board">Tabuleiro atual.</param>
+-    /// <returns>Posição selecionada pela estratégia.</returns>
+-    public BoardPosition choose_move(Board board)
+-    {
+-        return Strategy.choose_move(board, Symbol);
+     }
+ }
+diff --git a/src/TicTacToe.Console/Domain/GameRules.cs b/src/TicTacToe.Console/Domain/GameRules.cs
+index b3a765d..a9c0c37 100644
+--- a/src/TicTacToe.Console/Domain/GameRules.cs
++++ b/src/TicTacToe.Console/Domain/GameRules.cs
+@@ -27,7 +27,7 @@ public static class GameRules
+     /// <exception cref="ArgumentNullException">
+     /// Lançada quando o tabuleiro informado é nulo.
+     /// </exception>
+-    public static GameEvaluation evaluate(Board board)
++    public static GameEvaluation evaluate(IReadOnlyBoard board)
+     {
+         ArgumentNullException.ThrowIfNull(board);
+ 
+diff --git a/src/TicTacToe.Console/Domain/Match.cs b/src/TicTacToe.Console/Domain/Match.cs
+index 0905467..1dff283 100644
+--- a/src/TicTacToe.Console/Domain/Match.cs
++++ b/src/TicTacToe.Console/Domain/Match.cs
+@@ -10,6 +10,7 @@ namespace TicTacToe.Domain;
+ /// </remarks>
+ public sealed class Match
+ {
++    private readonly Board board;
+     private readonly List<Move> moves = [];
+     private IReadOnlyList<BoardPosition> winning_positions =
+         Array.Empty<BoardPosition>();
+@@ -40,7 +41,8 @@ public sealed class Match
+         FirstPlayer = first_player;
+         SecondPlayer = second_player;
+         CurrentPlayer = first_player;
+-        Board = new Board();
++        board = new Board();
++        Board = new BoardView(board);
+         State = GameState.InProgress;
+         Result = GameResult.None;
+     }
+@@ -48,7 +50,7 @@ public sealed class Match
+     /// <summary>
+     /// Obtém o tabuleiro da partida.
+     /// </summary>
+-    public Board Board { get; }
++    public IReadOnlyBoard Board { get; }
+ 
+     /// <summary>
+     /// Obtém o participante que inicia a partida.
+@@ -110,10 +112,10 @@ public sealed class Match
+             CurrentPlayer.Symbol,
+             moves.Count + 1);
+ 
+-        Board.apply_move(move);
++        board.apply_move(move);
+         moves.Add(move);
+ 
+-        GameEvaluation evaluation = GameRules.evaluate(Board);
++        GameEvaluation evaluation = GameRules.evaluate(board);
+         Result = evaluation.Result;
+         winning_positions = evaluation.WinningPositions;
+ 
+diff --git a/tests/TicTacToe.Tests/AI/ComputerPlayerStrategyTests.cs b/tests/TicTacToe.Tests/AI/ComputerPlayerStrategyTests.cs
+deleted file mode 100644
+index c261c92..0000000
+--- a/tests/TicTacToe.Tests/AI/ComputerPlayerStrategyTests.cs
++++ /dev/null
+@@ -1,61 +0,0 @@
+-using TicTacToe.AI;
+-using TicTacToe.Domain;
+-using Xunit;
+-
+-namespace TicTacToe.Tests.AI;
+-
+-/// <summary>
+-/// Verifica a delegação entre <see cref="ComputerPlayer"/> e sua estratégia.
+-/// </summary>
+-public class ComputerPlayerStrategyTests
+-{
+-    /// <summary>
+-    /// Confirma que o participante delega tabuleiro e símbolo à estratégia.
+-    /// </summary>
+-    [Fact]
+-    public void choose_move_should_delegate_to_strategy()
+-    {
+-        Board board = new();
+-        BoardPosition expected_position = new(2, 1);
+-        RecordingStrategy strategy = new(expected_position);
+-        ComputerPlayer player = new("CPU", Symbol.O, strategy);
+-
+-        BoardPosition selected_position = player.choose_move(board);
+-
+-        Assert.Equal(expected_position, selected_position);
+-        Assert.Same(board, strategy.ReceivedBoard);
+-        Assert.Equal(Symbol.O, strategy.ReceivedSymbol);
+-    }
+-
+-    /// <summary>
+-    /// Confirma que estratégia nula é rejeitada.
+-    /// </summary>
+-    [Fact]
+-    public void constructor_should_reject_null_strategy()
+-    {
+-        Assert.Throws<ArgumentNullException>(
+-            () => new ComputerPlayer("CPU", Symbol.O, null!));
+-    }
+-
+-    private sealed class RecordingStrategy : IMoveStrategy
+-    {
+-        private readonly BoardPosition position;
+-
+-        public RecordingStrategy(BoardPosition position)
+-        {
+-            this.position = position;
+-        }
+-
+-        public Board? ReceivedBoard { get; private set; }
+-
+-        public Symbol ReceivedSymbol { get; private set; }
+-
+-        public BoardPosition choose_move(Board board, Symbol symbol)
+-        {
+-            ReceivedBoard = board;
+-            ReceivedSymbol = symbol;
+-
+-            return position;
+-        }
+-    }
+-}
+diff --git a/tests/TicTacToe.Tests/Application/DefaultMoveSelectorTests.cs b/tests/TicTacToe.Tests/Application/DefaultMoveSelectorTests.cs
+index bf72c09..d27d9f9 100644
+--- a/tests/TicTacToe.Tests/Application/DefaultMoveSelectorTests.cs
++++ b/tests/TicTacToe.Tests/Application/DefaultMoveSelectorTests.cs
+@@ -18,12 +18,10 @@ public class DefaultMoveSelectorTests
+     {
+         BoardPosition expected_position = new(1, 2);
+         RecordingInput input = new(expected_position);
+-        DefaultMoveSelector selector = new(input);
++        RecordingResolver resolver = new(new RecordingStrategy(expected_position));
++        DefaultMoveSelector selector = new(input, resolver);
+         HumanPlayer human_player = new("Ana", Symbol.X);
+-        ComputerPlayer computer_player = new(
+-            "CPU",
+-            Symbol.O,
+-            new RandomMoveStrategy(1));
++        ComputerPlayer computer_player = new("CPU", Symbol.O);
+         Match match = new(human_player, computer_player);
+ 
+         BoardPosition selected_position =
+@@ -32,29 +30,30 @@ public class DefaultMoveSelectorTests
+         Assert.Equal(expected_position, selected_position);
+         Assert.Same(match, input.ReceivedMatch);
+         Assert.Same(human_player, input.ReceivedPlayer);
++        Assert.Null(resolver.ReceivedPlayer);
+     }
+ 
+     /// <summary>
+-    /// Confirma que participantes computacionais utilizam sua Strategy.
++    /// Confirma que participantes computacionais usam a Strategy resolvida.
+     /// </summary>
+     [Fact]
+-    public void select_move_should_use_strategy_for_computer_player()
++    public void select_move_should_use_resolved_computer_strategy()
+     {
+         BoardPosition expected_position = new(2, 0);
+         RecordingStrategy strategy = new(expected_position);
+-        ComputerPlayer computer_player = new(
+-            "CPU",
+-            Symbol.O,
+-            strategy);
++        RecordingResolver resolver = new(strategy);
++        ComputerPlayer computer_player = new("CPU", Symbol.O);
+         HumanPlayer human_player = new("Ana", Symbol.X);
+         Match match = new(human_player, computer_player);
+-        DefaultMoveSelector selector =
+-            new(new RecordingInput(new BoardPosition(0, 0)));
++        DefaultMoveSelector selector = new(
++            new RecordingInput(new BoardPosition(0, 0)),
++            resolver);
+ 
+         BoardPosition selected_position =
+             selector.select_move(match, computer_player);
+ 
+         Assert.Equal(expected_position, selected_position);
++        Assert.Same(computer_player, resolver.ReceivedPlayer);
+         Assert.Same(match.Board, strategy.ReceivedBoard);
+         Assert.Equal(Symbol.O, strategy.ReceivedSymbol);
+     }
+@@ -83,6 +82,25 @@ public class DefaultMoveSelectorTests
+         }
+     }
+ 
++    private sealed class RecordingResolver
++        : IComputerMoveStrategyResolver
++    {
++        private readonly IMoveStrategy strategy;
++
++        public RecordingResolver(IMoveStrategy strategy)
++        {
++            this.strategy = strategy;
++        }
++
++        public ComputerPlayer? ReceivedPlayer { get; private set; }
++
++        public IMoveStrategy resolve_strategy(ComputerPlayer player)
++        {
++            ReceivedPlayer = player;
++            return strategy;
++        }
++    }
++
+     private sealed class RecordingStrategy : IMoveStrategy
+     {
+         private readonly BoardPosition position;
+@@ -92,12 +110,12 @@ public class DefaultMoveSelectorTests
+             this.position = position;
+         }
+ 
+-        public Board? ReceivedBoard { get; private set; }
++        public IReadOnlyBoard? ReceivedBoard { get; private set; }
+ 
+         public Symbol ReceivedSymbol { get; private set; }
+ 
+         public BoardPosition choose_move(
+-            Board board,
++            IReadOnlyBoard board,
+             Symbol symbol)
+         {
+             ReceivedBoard = board;
+diff --git a/tests/TicTacToe.Tests/Application/MatchControllerTests.cs b/tests/TicTacToe.Tests/Application/MatchControllerTests.cs
+index 0d9d595..53865a6 100644
+--- a/tests/TicTacToe.Tests/Application/MatchControllerTests.cs
++++ b/tests/TicTacToe.Tests/Application/MatchControllerTests.cs
+@@ -75,17 +75,17 @@ public class MatchControllerTests
+     [Fact]
+     public void run_should_not_require_human_interaction()
+     {
+-        ComputerPlayer first_player = new(
+-            "CPU X",
+-            Symbol.X,
+-            new FirstAvailableStrategy());
+-        ComputerPlayer second_player = new(
+-            "CPU O",
+-            Symbol.O,
+-            new FirstAvailableStrategy());
++        ComputerPlayer first_player = new("CPU X", Symbol.X);
++        ComputerPlayer second_player = new("CPU O", Symbol.O);
+         Match match = new(first_player, second_player);
+-        DefaultMoveSelector selector =
+-            new(new FailingInput());
++        DefaultMoveSelector selector = new(
++            new FailingInput(),
++            new ConfiguredComputerMoveStrategyResolver(
++                new Dictionary<Symbol, IMoveStrategy>
++                {
++                    [Symbol.X] = new FirstAvailableStrategy(),
++                    [Symbol.O] = new FirstAvailableStrategy()
++                }));
+         RecordingOutput output = new();
+         MatchController controller = new(selector, output);
+ 
+@@ -97,6 +97,27 @@ public class MatchControllerTests
+         Assert.Single(output.Results);
+     }
+ 
++    /// <summary>
++    /// Confirma que falhas da saída não são tratadas como jogadas inválidas.
++    /// </summary>
++    [Fact]
++    public void run_should_propagate_output_failure()
++    {
++        Match match = create_match();
++        QueueMoveSelector selector = new(
++            [new BoardPosition(0, 0)]);
++        MatchController controller = new(
++            selector,
++            new FailingOutput());
++
++        InvalidOperationException exception =
++            Assert.Throws<InvalidOperationException>(
++                () => controller.run(match));
++
++        Assert.Equal("Falha de apresentação.", exception.Message);
++        Assert.Single(match.Moves);
++    }
++
+     /// <summary>
+     /// Confirma que partidas já encerradas são rejeitadas.
+     /// </summary>
+@@ -116,10 +137,7 @@ public class MatchControllerTests
+     {
+         return new Match(
+             new HumanPlayer("Ana", Symbol.X),
+-            new ComputerPlayer(
+-                "CPU",
+-                Symbol.O,
+-                new RandomMoveStrategy(1)));
++            new ComputerPlayer("CPU", Symbol.O));
+     }
+ 
+     private static Match create_finished_match()
+@@ -189,13 +207,42 @@ public class MatchControllerTests
+     private sealed class FirstAvailableStrategy : IMoveStrategy
+     {
+         public BoardPosition choose_move(
+-            Board board,
++            IReadOnlyBoard board,
+             Symbol symbol)
+         {
+             return board.get_available_positions()[0];
+         }
+     }
+ 
++    private sealed class FailingOutput : IGameOutput
++    {
++        private int show_count;
++
++        public void show_match(Match match)
++        {
++            show_count++;
++
++            if (show_count > 1)
++            {
++                throw new InvalidOperationException(
++                    "Falha de apresentação.");
++            }
++        }
++
++        public void show_invalid_move(
++            Player player,
++            BoardPosition position,
++            string message)
++        {
++            throw new InvalidOperationException(
++                "Uma falha de saída não deve virar jogada inválida.");
++        }
++
++        public void show_result(Match match)
++        {
++        }
++    }
++
+     private sealed class FailingInput : IGameInput
+     {
+         public BoardPosition read_move(
+diff --git a/tests/TicTacToe.Tests/Domain/MatchTests.cs b/tests/TicTacToe.Tests/Domain/MatchTests.cs
+index e1160ff..ad95414 100644
+--- a/tests/TicTacToe.Tests/Domain/MatchTests.cs
++++ b/tests/TicTacToe.Tests/Domain/MatchTests.cs
+@@ -1,4 +1,3 @@
+-using TicTacToe.AI;
+ using TicTacToe.Domain;
+ using Xunit;
+ 
+@@ -34,10 +33,7 @@ public class MatchTests
+     public void constructor_should_reject_equal_symbols()
+     {
+         HumanPlayer first_player = new("Ana", Symbol.X);
+-        ComputerPlayer second_player = new(
+-            "CPU",
+-            Symbol.X,
+-            new RandomMoveStrategy(1));
++        ComputerPlayer second_player = new("CPU", Symbol.X);
+ 
+         Assert.Throws<ArgumentException>(
+             () => new Match(first_player, second_player));
+@@ -252,9 +248,6 @@ public class MatchTests
+     {
+         return (
+             new HumanPlayer("Ana", Symbol.X),
+-            new ComputerPlayer(
+-                "CPU",
+-                Symbol.O,
+-                new RandomMoveStrategy(1)));
++            new ComputerPlayer("CPU", Symbol.O));
+     }
+ }
+diff --git a/tests/TicTacToe.Tests/Domain/PlayerTests.cs b/tests/TicTacToe.Tests/Domain/PlayerTests.cs
+index 47068f8..61655b7 100644
+--- a/tests/TicTacToe.Tests/Domain/PlayerTests.cs
++++ b/tests/TicTacToe.Tests/Domain/PlayerTests.cs
+@@ -1,4 +1,3 @@
+-using TicTacToe.AI;
+ using TicTacToe.Domain;
+ using Xunit;
+ 
+@@ -27,10 +26,7 @@ public class PlayerTests
+     [Fact]
+     public void player_should_trim_name()
+     {
+-        ComputerPlayer player = new(
+-            "  CPU  ",
+-            Symbol.O,
+-            new RandomMoveStrategy(1));
++        ComputerPlayer player = new("  CPU  ", Symbol.O);
+ 
+         Assert.Equal("CPU", player.Name);
+     }
+@@ -52,9 +48,6 @@ public class PlayerTests
+     public void player_should_reject_empty_symbol()
+     {
+         Assert.Throws<ArgumentException>(
+-            () => new ComputerPlayer(
+-                "CPU",
+-                Symbol.Empty,
+-                new RandomMoveStrategy(1)));
++            () => new ComputerPlayer("CPU", Symbol.Empty));
+     }
+ }

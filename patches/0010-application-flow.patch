@@ -1,0 +1,680 @@
+diff --git a/src/TicTacToe.Console/Application/IGameInput.cs b/src/TicTacToe.Console/Application/IGameInput.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/IGameInput.cs
+@@ -0,0 +1,18 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Define a porta de entrada utilizada para obter jogadas de participantes
++/// humanos.
++/// </summary>
++public interface IGameInput
++{
++    /// <summary>
++    /// Obtém uma posição para o participante informado.
++    /// </summary>
++    /// <param name="match">Partida em andamento.</param>
++    /// <param name="player">Pessoa responsável pelo turno.</param>
++    /// <returns>Posição selecionada.</returns>
++    BoardPosition read_move(Match match, HumanPlayer player);
++}
+diff --git a/src/TicTacToe.Console/Application/IGameOutput.cs b/src/TicTacToe.Console/Application/IGameOutput.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/IGameOutput.cs
+@@ -0,0 +1,32 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Define a porta de saída utilizada pelo fluxo de aplicação.
++/// </summary>
++public interface IGameOutput
++{
++    /// <summary>
++    /// Apresenta o estado atual da partida.
++    /// </summary>
++    /// <param name="match">Partida a ser apresentada.</param>
++    void show_match(Match match);
++
++    /// <summary>
++    /// Comunica que a posição selecionada não pôde ser aplicada.
++    /// </summary>
++    /// <param name="player">Participante responsável pela tentativa.</param>
++    /// <param name="position">Posição rejeitada.</param>
++    /// <param name="message">Descrição compreensível do problema.</param>
++    void show_invalid_move(
++        Player player,
++        BoardPosition position,
++        string message);
++
++    /// <summary>
++    /// Apresenta o resultado final da partida.
++    /// </summary>
++    /// <param name="match">Partida encerrada.</param>
++    void show_result(Match match);
++}
+diff --git a/src/TicTacToe.Console/Application/IMoveSelector.cs b/src/TicTacToe.Console/Application/IMoveSelector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/IMoveSelector.cs
+@@ -0,0 +1,18 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Define a porta responsável por selecionar uma posição conforme o tipo de
++/// participante.
++/// </summary>
++public interface IMoveSelector
++{
++    /// <summary>
++    /// Seleciona uma posição para o participante atual.
++    /// </summary>
++    /// <param name="match">Partida em andamento.</param>
++    /// <param name="player">Participante responsável pelo turno.</param>
++    /// <returns>Posição selecionada.</returns>
++    BoardPosition select_move(Match match, Player player);
++}
+diff --git a/src/TicTacToe.Console/Application/DefaultMoveSelector.cs b/src/TicTacToe.Console/Application/DefaultMoveSelector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/DefaultMoveSelector.cs
+@@ -0,0 +1,44 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Seleciona jogadas humanas pela porta de entrada e jogadas computacionais
++/// pela estratégia associada ao participante.
++/// </summary>
++public sealed class DefaultMoveSelector : IMoveSelector
++{
++    private readonly IGameInput game_input;
++
++    /// <summary>
++    /// Inicializa o seletor padrão.
++    /// </summary>
++    /// <param name="game_input">Porta de entrada para participantes humanos.</param>
++    public DefaultMoveSelector(IGameInput game_input)
++    {
++        ArgumentNullException.ThrowIfNull(game_input);
++        this.game_input = game_input;
++    }
++
++    /// <inheritdoc />
++    /// <exception cref="NotSupportedException">
++    /// Lançada quando o tipo concreto de participante não é reconhecido.
++    /// </exception>
++    public BoardPosition select_move(Match match, Player player)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++        ArgumentNullException.ThrowIfNull(player);
++
++        return player switch
++        {
++            HumanPlayer human_player =>
++                game_input.read_move(match, human_player),
++
++            ComputerPlayer computer_player =>
++                computer_player.choose_move(match.Board),
++
++            _ => throw new NotSupportedException(
++                $"O tipo de participante {player.GetType().Name} não é suportado.")
++        };
++    }
++}
+diff --git a/src/TicTacToe.Console/Application/MatchController.cs b/src/TicTacToe.Console/Application/MatchController.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/MatchController.cs
+@@ -0,0 +1,82 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Coordena o fluxo mínimo de uma partida sem conhecer Console ou mecanismos
++/// concretos de entrada e saída.
++/// </summary>
++/// <remarks>
++/// O controlador não implementa regras de domínio. Ele solicita posições,
++/// delega sua aplicação ao agregado <see cref="Match"/> e comunica eventos pelas
++/// portas de saída.
++/// </remarks>
++public sealed class MatchController
++{
++    private readonly IMoveSelector move_selector;
++    private readonly IGameOutput game_output;
++
++    /// <summary>
++    /// Inicializa o controlador.
++    /// </summary>
++    /// <param name="move_selector">Porta utilizada para selecionar jogadas.</param>
++    /// <param name="game_output">Porta utilizada para apresentar a partida.</param>
++    public MatchController(
++        IMoveSelector move_selector,
++        IGameOutput game_output)
++    {
++        ArgumentNullException.ThrowIfNull(move_selector);
++        ArgumentNullException.ThrowIfNull(game_output);
++
++        this.move_selector = move_selector;
++        this.game_output = game_output;
++    }
++
++    /// <summary>
++    /// Executa a partida até vitória ou empate.
++    /// </summary>
++    /// <param name="match">Agregado que será coordenado.</param>
++    /// <returns>A mesma instância, já encerrada.</returns>
++    /// <exception cref="ArgumentNullException">
++    /// Lançada quando a partida é nula.
++    /// </exception>
++    /// <exception cref="InvalidOperationException">
++    /// Lançada quando a partida recebida já está encerrada.
++    /// </exception>
++    public Match run(Match match)
++    {
++        ArgumentNullException.ThrowIfNull(match);
++
++        if (match.State != GameState.InProgress)
++        {
++            throw new InvalidOperationException(
++                "O controlador exige uma partida em andamento.");
++        }
++
++        game_output.show_match(match);
++
++        while (match.State == GameState.InProgress)
++        {
++            Player current_player = match.CurrentPlayer;
++            BoardPosition position =
++                move_selector.select_move(match, current_player);
++
++            try
++            {
++                match.apply_move(position);
++                game_output.show_match(match);
++            }
++            catch (InvalidOperationException exception)
++            {
++                game_output.show_invalid_move(
++                    current_player,
++                    position,
++                    exception.Message);
++            }
++        }
++
++        game_output.show_result(match);
++
++        return match;
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Application/DefaultMoveSelectorTests.cs b/tests/TicTacToe.Tests/Application/DefaultMoveSelectorTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Application/DefaultMoveSelectorTests.cs
+@@ -0,0 +1,109 @@
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Application;
++
++/// <summary>
++/// Verifica a seleção de jogadas conforme o tipo de participante.
++/// </summary>
++public class DefaultMoveSelectorTests
++{
++    /// <summary>
++    /// Confirma que participantes humanos utilizam a porta de entrada.
++    /// </summary>
++    [Fact]
++    public void select_move_should_use_input_for_human_player()
++    {
++        BoardPosition expected_position = new(1, 2);
++        RecordingInput input = new(expected_position);
++        DefaultMoveSelector selector = new(input);
++        HumanPlayer human_player = new("Ana", Symbol.X);
++        ComputerPlayer computer_player = new(
++            "CPU",
++            Symbol.O,
++            new RandomMoveStrategy(1));
++        Match match = new(human_player, computer_player);
++
++        BoardPosition selected_position =
++            selector.select_move(match, human_player);
++
++        Assert.Equal(expected_position, selected_position);
++        Assert.Same(match, input.ReceivedMatch);
++        Assert.Same(human_player, input.ReceivedPlayer);
++    }
++
++    /// <summary>
++    /// Confirma que participantes computacionais utilizam sua Strategy.
++    /// </summary>
++    [Fact]
++    public void select_move_should_use_strategy_for_computer_player()
++    {
++        BoardPosition expected_position = new(2, 0);
++        RecordingStrategy strategy = new(expected_position);
++        ComputerPlayer computer_player = new(
++            "CPU",
++            Symbol.O,
++            strategy);
++        HumanPlayer human_player = new("Ana", Symbol.X);
++        Match match = new(human_player, computer_player);
++        DefaultMoveSelector selector =
++            new(new RecordingInput(new BoardPosition(0, 0)));
++
++        BoardPosition selected_position =
++            selector.select_move(match, computer_player);
++
++        Assert.Equal(expected_position, selected_position);
++        Assert.Same(match.Board, strategy.ReceivedBoard);
++        Assert.Equal(Symbol.O, strategy.ReceivedSymbol);
++    }
++
++    private sealed class RecordingInput : IGameInput
++    {
++        private readonly BoardPosition position;
++
++        public RecordingInput(BoardPosition position)
++        {
++            this.position = position;
++        }
++
++        public Match? ReceivedMatch { get; private set; }
++
++        public HumanPlayer? ReceivedPlayer { get; private set; }
++
++        public BoardPosition read_move(
++            Match match,
++            HumanPlayer player)
++        {
++            ReceivedMatch = match;
++            ReceivedPlayer = player;
++
++            return position;
++        }
++    }
++
++    private sealed class RecordingStrategy : IMoveStrategy
++    {
++        private readonly BoardPosition position;
++
++        public RecordingStrategy(BoardPosition position)
++        {
++            this.position = position;
++        }
++
++        public Board? ReceivedBoard { get; private set; }
++
++        public Symbol ReceivedSymbol { get; private set; }
++
++        public BoardPosition choose_move(
++            Board board,
++            Symbol symbol)
++        {
++            ReceivedBoard = board;
++            ReceivedSymbol = symbol;
++
++            return position;
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Application/MatchControllerTests.cs b/tests/TicTacToe.Tests/Application/MatchControllerTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Application/MatchControllerTests.cs
+@@ -0,0 +1,209 @@
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Application;
++
++/// <summary>
++/// Verifica o fluxo de aplicação sem interação humana ou Console.
++/// </summary>
++public class MatchControllerTests
++{
++    /// <summary>
++    /// Confirma a execução completa até uma vitória.
++    /// </summary>
++    [Fact]
++    public void run_should_coordinate_match_until_win()
++    {
++        Match match = create_match();
++        QueueMoveSelector selector = new(
++            [
++                new BoardPosition(0, 0),
++                new BoardPosition(1, 0),
++                new BoardPosition(0, 1),
++                new BoardPosition(1, 1),
++                new BoardPosition(0, 2)
++            ]);
++        RecordingOutput output = new();
++        MatchController controller = new(selector, output);
++
++        Match result = controller.run(match);
++
++        Assert.Same(match, result);
++        Assert.Equal(GameState.Finished, match.State);
++        Assert.Equal(GameResult.XWins, match.Result);
++        Assert.Equal(5, match.Moves.Count);
++        Assert.Equal(6, output.ShownMatches.Count);
++        Assert.Single(output.Results);
++        Assert.Empty(output.InvalidMoves);
++    }
++
++    /// <summary>
++    /// Confirma que uma jogada inválida é comunicada e o fluxo continua.
++    /// </summary>
++    [Fact]
++    public void run_should_report_invalid_move_and_continue()
++    {
++        Match match = create_match();
++        QueueMoveSelector selector = new(
++            [
++                new BoardPosition(0, 0),
++                new BoardPosition(0, 0),
++                new BoardPosition(1, 0),
++                new BoardPosition(0, 1),
++                new BoardPosition(1, 1),
++                new BoardPosition(0, 2)
++            ]);
++        RecordingOutput output = new();
++        MatchController controller = new(selector, output);
++
++        controller.run(match);
++
++        Assert.Equal(GameResult.XWins, match.Result);
++        Assert.Single(output.InvalidMoves);
++        Assert.Equal(Symbol.O, output.InvalidMoves[0].Player.Symbol);
++        Assert.Equal(
++            new BoardPosition(0, 0),
++            output.InvalidMoves[0].Position);
++        Assert.Equal(5, match.Moves.Count);
++    }
++
++    /// <summary>
++    /// Confirma a execução automática entre participantes simulados.
++    /// </summary>
++    [Fact]
++    public void run_should_not_require_human_interaction()
++    {
++        ComputerPlayer first_player = new(
++            "CPU X",
++            Symbol.X,
++            new FirstAvailableStrategy());
++        ComputerPlayer second_player = new(
++            "CPU O",
++            Symbol.O,
++            new FirstAvailableStrategy());
++        Match match = new(first_player, second_player);
++        DefaultMoveSelector selector =
++            new(new FailingInput());
++        RecordingOutput output = new();
++        MatchController controller = new(selector, output);
++
++        controller.run(match);
++
++        Assert.Equal(GameState.Finished, match.State);
++        Assert.NotEqual(GameResult.None, match.Result);
++        Assert.InRange(match.Moves.Count, 5, 9);
++        Assert.Single(output.Results);
++    }
++
++    /// <summary>
++    /// Confirma que partidas já encerradas são rejeitadas.
++    /// </summary>
++    [Fact]
++    public void run_should_reject_finished_match()
++    {
++        Match match = create_finished_match();
++        MatchController controller = new(
++            new QueueMoveSelector([]),
++            new RecordingOutput());
++
++        Assert.Throws<InvalidOperationException>(
++            () => controller.run(match));
++    }
++
++    private static Match create_match()
++    {
++        return new Match(
++            new HumanPlayer("Ana", Symbol.X),
++            new ComputerPlayer(
++                "CPU",
++                Symbol.O,
++                new RandomMoveStrategy(1)));
++    }
++
++    private static Match create_finished_match()
++    {
++        Match match = create_match();
++
++        match.apply_move(new BoardPosition(0, 0));
++        match.apply_move(new BoardPosition(1, 0));
++        match.apply_move(new BoardPosition(0, 1));
++        match.apply_move(new BoardPosition(1, 1));
++        match.apply_move(new BoardPosition(0, 2));
++
++        return match;
++    }
++
++    private sealed class QueueMoveSelector : IMoveSelector
++    {
++        private readonly Queue<BoardPosition> positions;
++
++        public QueueMoveSelector(
++            IEnumerable<BoardPosition> positions)
++        {
++            this.positions = new Queue<BoardPosition>(positions);
++        }
++
++        public BoardPosition select_move(
++            Match match,
++            Player player)
++        {
++            return positions.Dequeue();
++        }
++    }
++
++    private sealed class RecordingOutput : IGameOutput
++    {
++        public List<Match> ShownMatches { get; } = [];
++
++        public List<InvalidMoveRecord> InvalidMoves { get; } = [];
++
++        public List<Match> Results { get; } = [];
++
++        public void show_match(Match match)
++        {
++            ShownMatches.Add(match);
++        }
++
++        public void show_invalid_move(
++            Player player,
++            BoardPosition position,
++            string message)
++        {
++            InvalidMoves.Add(
++                new InvalidMoveRecord(player, position, message));
++        }
++
++        public void show_result(Match match)
++        {
++            Results.Add(match);
++        }
++    }
++
++    private sealed record InvalidMoveRecord(
++        Player Player,
++        BoardPosition Position,
++        string Message);
++
++    private sealed class FirstAvailableStrategy : IMoveStrategy
++    {
++        public BoardPosition choose_move(
++            Board board,
++            Symbol symbol)
++        {
++            return board.get_available_positions()[0];
++        }
++    }
++
++    private sealed class FailingInput : IGameInput
++    {
++        public BoardPosition read_move(
++            Match match,
++            HumanPlayer player)
++        {
++            throw new InvalidOperationException(
++                "A entrada humana não deveria ser utilizada.");
++        }
++    }
++}
+diff --git a/docs/07-fluxo-aplicacao.md b/docs/07-fluxo-aplicacao.md
+new file mode 100644
+--- /dev/null
++++ b/docs/07-fluxo-aplicacao.md
+@@ -0,0 +1,110 @@
++# Fluxo básico de aplicação
++
++## 1. Finalidade
++
++Este documento descreve o primeiro caso de uso executável da aplicação. O fluxo coordena uma partida completa sem acoplar o domínio ao Console ou exigir interação humana nos testes.
++
++## 2. Portas
++
++A camada de aplicação define três portas:
++
++- `IGameInput`: obtém posições de participantes humanos;
++- `IGameOutput`: apresenta estados, erros e resultado;
++- `IMoveSelector`: resolve a origem da próxima jogada.
++
++`DefaultMoveSelector` encaminha `HumanPlayer` para `IGameInput` e `ComputerPlayer` para a estratégia associada.
++
++O diagrama apresenta as dependências da camada.
++
++```mermaid
++classDiagram
++    class MatchController {
++        -IMoveSelector move_selector
++        -IGameOutput game_output
++        +run(match) Match
++    }
++
++    class IMoveSelector {
++        <<interface>>
++        +select_move(match, player) BoardPosition
++    }
++
++    class DefaultMoveSelector {
++        -IGameInput game_input
++        +select_move(match, player) BoardPosition
++    }
++
++    class IGameInput {
++        <<interface>>
++        +read_move(match, player) BoardPosition
++    }
++
++    class IGameOutput {
++        <<interface>>
++        +show_match(match)
++        +show_invalid_move(player, position, message)
++        +show_result(match)
++    }
++
++    class Match
++    class ComputerPlayer
++
++    MatchController --> IMoveSelector
++    MatchController --> IGameOutput
++    IMoveSelector <|.. DefaultMoveSelector
++    DefaultMoveSelector --> IGameInput
++    DefaultMoveSelector --> ComputerPlayer
++    MatchController --> Match
++```
++
++As interfaces pertencem à camada de aplicação. Implementações futuras de Console dependerão dessas portas, e não o contrário.
++
++## 3. Fluxo coordenado
++
++O controlador apresenta o estado inicial, solicita posições até o encerramento e apresenta o resultado final.
++
++```mermaid
++sequenceDiagram
++    participant Controller as MatchController
++    participant Output as IGameOutput
++    participant Selector as IMoveSelector
++    participant Match
++
++    Controller->>Output: show_match(match)
++
++    loop enquanto InProgress
++        Controller->>Selector: select_move(match, current_player)
++        Selector-->>Controller: position
++        Controller->>Match: apply_move(position)
++
++        alt jogada válida
++            Match-->>Controller: move
++            Controller->>Output: show_match(match)
++        else posição ocupada
++            Match-->>Controller: InvalidOperationException
++            Controller->>Output: show_invalid_move(...)
++        end
++    end
++
++    Controller->>Output: show_result(match)
++```
++
++O controlador não interpreta vitória, empate ou alternância. Essas decisões continuam encapsuladas por `Match`.
++
++## 4. Testabilidade
++
++Os testes substituem as portas por objetos em memória:
++
++- fila de posições;
++- saída que registra chamadas;
++- entrada que retorna posição predefinida;
++- entrada que falha caso seja utilizada;
++- estratégias determinísticas.
++
++Assim, o fluxo completo pode ser executado sem `Console.ReadLine`, temporizadores, áudio ou entrada humana.
++
++## 5. Tratamento de jogadas inválidas
++
++Uma posição ocupada gera `InvalidOperationException` em `Board`, propagada por `Match`. O controlador captura essa falha específica, comunica a saída e solicita outra posição ao mesmo participante.
++
++Falhas inesperadas das portas não são ocultadas. Essa distinção evita transformar erros de programação ou infraestrutura em tentativas de jogada inválida.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -32,6 +32,14 @@
+ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
++
++### Added
++
++- Camada `Application` com controlador mínimo de partidas.
++- Portas `IGameInput`, `IGameOutput` e `IMoveSelector`.
++- `DefaultMoveSelector` para participantes humanos e computacionais.
++- Testes do fluxo completo sem Console ou interação humana.
++- `docs/07-fluxo-aplicacao.md` com componentes e sequência.
+ 
+ ## [1.3.0] - 2026-07-16
+ 

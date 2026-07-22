@@ -1,0 +1,1161 @@
+diff --git a/docs/33-analise-estatistica-experimentos.md b/docs/33-analise-estatistica-experimentos.md
+new file mode 100644
+--- /dev/null
++++ b/docs/33-analise-estatistica-experimentos.md
+@@ -0,0 +1,119 @@
++# Análise estatística avançada dos experimentos
++
++## 1. Objetivo
++
++O pipeline avançado complementa o resumo básico com medidas de posição,
++dispersão, incerteza e visualização das distribuições observadas.
++
++Ele não substitui `scripts/analyze-reference-experiment.py`. O analisador
++básico continua sendo usado para validação da candidata, enquanto
++`scripts/analyze-reference-experiment-advanced.py` produz os artefatos
++científicos complementares.
++
++## 2. Pipeline
++
++Os hashes e os esquemas são validados antes de qualquer cálculo.
++
++```mermaid
++flowchart LR
++    A[JSON e CSV brutos] --> B[Validação de hashes e esquemas]
++    B --> C[Estatísticas descritivas]
++    C --> D[Bootstrap e Wilson]
++    D --> E[CSV agregado]
++    D --> F[Gráficos PNG e SVG]
++    E --> G[Relatório Markdown]
++    F --> G
++```
++
++O fluxo impede que gráficos ou interpretações sejam produzidos sobre arquivos
++incompletos ou divergentes.
++
++## 3. Estatísticas
++
++Para duração, jogadas e estados avaliados são calculados:
++
++- número de observações;
++- mínimo e máximo;
++- percentis 5 e 95;
++- primeiro e terceiro quartis;
++- mediana e média;
++- variância e desvio padrão amostrais;
++- intervalo interquartil;
++- coeficiente de variação;
++- intervalo bootstrap de 95% da média;
++- intervalo bootstrap de 95% da mediana.
++
++O bootstrap usa 5.000 reamostragens e semente fixa `1900`. As proporções de
++vitória, empate e falha usam intervalo de Wilson de 95%.
++
++## 4. Gráficos
++
++O analisador gera:
++
++- barras empilhadas dos resultados por cenário;
++- box plot da duração;
++- box plot do número de jogadas;
++- box plot dos estados avaliados;
++- função de distribuição acumulada empírica da duração;
++- dispersão entre estados avaliados e duração;
++- duração pela ordem de execução;
++- heatmap da taxa de vitória de X.
++
++Cada figura é exportada em PNG e SVG.
++
++## 5. Relatório interpretativo
++
++O arquivo `reference-analysis.md` é produzido a partir dos resultados
++observados. O texto identifica:
++
++- cenário com maior e menor duração mediana;
++- cenário com maior variabilidade relativa;
++- presença de falhas;
++- diferenças entre média e mediana;
++- limitações de generalização.
++
++A interpretação permanece descritiva e não afirma causalidade ou significância
++estatística sem testes específicos.
++
++## 6. Dependência
++
++Matplotlib está isolado em `requirements-experiments.txt`. Ele não integra:
++
++- a aplicação .NET;
++- o projeto de testes C#;
++- os executáveis publicados;
++- os pacotes autocontidos.
++
++## 7. Execução
++
++```powershell
++python -m pip install `
++    -r .\requirements-experiments.txt
++
++python .\scripts\analyze-reference-experiment-advanced.py `
++    $output
++```
++
++Ou:
++
++```powershell
++powershell.exe `
++    -NoProfile `
++    -ExecutionPolicy Bypass `
++    -File .\scripts\run-reference-analysis-advanced.ps1 `
++    -ExperimentDirectory $output
++```
++
++## 8. Artefatos
++
++O diretório experimental recebe:
++
++- `reference-summary-advanced.json`;
++- `reference-descriptive-statistics.csv`;
++- `reference-analysis.md`;
++- `figures/*.png`;
++- `figures/*.svg`.
++
++Dados brutos e conjuntos completos de figuras devem ser anexados à release.
++Somente resultados pequenos, revisados e deliberadamente selecionados devem
++ser versionados.
+diff --git a/requirements-experiments.txt b/requirements-experiments.txt
+new file mode 100644
+--- /dev/null
++++ b/requirements-experiments.txt
+@@ -0,0 +1 @@
++matplotlib>=3.9,<4
+diff --git a/scripts/analyze-reference-experiment-advanced.py b/scripts/analyze-reference-experiment-advanced.py
+new file mode 100644
+--- /dev/null
++++ b/scripts/analyze-reference-experiment-advanced.py
+@@ -0,0 +1,991 @@
++#!/usr/bin/env python3
++"""Valida, resume e visualiza o experimento de referência."""
++
++from __future__ import annotations
++
++import csv
++import hashlib
++import json
++import math
++import pathlib
++import random
++import statistics
++import sys
++from collections import Counter, defaultdict
++from typing import Callable, Sequence
++
++try:
++    import matplotlib.pyplot as plt
++except ImportError as exception:
++    raise SystemExit(
++        "Matplotlib não está instalado. Execute: "
++        "python -m pip install -r requirements-experiments.txt"
++    ) from exception
++
++
++REQUIRED_COLUMNS = [
++    "experiment_id",
++    "run_number",
++    "x_strategy",
++    "o_strategy",
++    "seed",
++    "result",
++    "move_count",
++    "duration_ms",
++    "evaluated_states",
++    "failed",
++    "failure_message",
++    "application_version",
++]
++RESULTS = ("XWins", "OWins", "Draw", "Failed")
++BOOTSTRAP_REPETITIONS = 5000
++BOOTSTRAP_SEED = 1900
++
++
++def fail(message: str) -> None:
++    raise SystemExit(f"Erro de validação: {message}")
++
++
++def parse_bool(value: str) -> bool:
++    return value.strip().lower() == "true"
++
++
++def parse_optional_float(value: str) -> float | None:
++    normalized = value.strip()
++    return float(normalized) if normalized else None
++
++
++def percentile(values: Sequence[float], probability: float) -> float:
++    if not values:
++        raise ValueError("Amostra vazia.")
++
++    ordered = sorted(values)
++    position = (len(ordered) - 1) * probability
++    lower = math.floor(position)
++    upper = math.ceil(position)
++
++    if lower == upper:
++        return ordered[lower]
++
++    fraction = position - lower
++    return (
++        ordered[lower] * (1 - fraction)
++        + ordered[upper] * fraction
++    )
++
++
++def bootstrap_interval(
++    values: Sequence[float],
++    statistic: Callable[[Sequence[float]], float],
++) -> tuple[float, float]:
++    if not values:
++        return (0.0, 0.0)
++
++    if len(values) == 1:
++        return (values[0], values[0])
++
++    generator = random.Random(BOOTSTRAP_SEED)
++    sample_size = len(values)
++    estimates = []
++
++    for _ in range(BOOTSTRAP_REPETITIONS):
++        sample = [
++            values[generator.randrange(sample_size)]
++            for _ in range(sample_size)
++        ]
++        estimates.append(statistic(sample))
++
++    return (
++        percentile(estimates, 0.025),
++        percentile(estimates, 0.975),
++    )
++
++
++def wilson_interval(
++    successes: int,
++    total: int,
++) -> tuple[float, float]:
++    if total == 0:
++        return (0.0, 0.0)
++
++    z = 1.959963984540054
++    proportion = successes / total
++    denominator = 1 + z * z / total
++    center = (
++        proportion + z * z / (2 * total)
++    ) / denominator
++    margin = (
++        z
++        * math.sqrt(
++            proportion * (1 - proportion) / total
++            + z * z / (4 * total * total)
++        )
++        / denominator
++    )
++
++    return (
++        max(0.0, center - margin),
++        min(1.0, center + margin),
++    )
++
++
++def describe(
++    values: Sequence[float],
++) -> dict[str, float | int | list[float]]:
++    if not values:
++        return {
++            "count": 0,
++            "minimum": 0.0,
++            "p05": 0.0,
++            "q1": 0.0,
++            "median": 0.0,
++            "mean": 0.0,
++            "q3": 0.0,
++            "p95": 0.0,
++            "maximum": 0.0,
++            "variance": 0.0,
++            "standardDeviation": 0.0,
++            "interquartileRange": 0.0,
++            "coefficientOfVariation": 0.0,
++            "meanBootstrap95": [0.0, 0.0],
++            "medianBootstrap95": [0.0, 0.0],
++        }
++
++    mean = statistics.fmean(values)
++    variance = (
++        statistics.variance(values)
++        if len(values) > 1
++        else 0.0
++    )
++    standard_deviation = math.sqrt(variance)
++    q1 = percentile(values, 0.25)
++    median = statistics.median(values)
++    q3 = percentile(values, 0.75)
++
++    return {
++        "count": len(values),
++        "minimum": min(values),
++        "p05": percentile(values, 0.05),
++        "q1": q1,
++        "median": median,
++        "mean": mean,
++        "q3": q3,
++        "p95": percentile(values, 0.95),
++        "maximum": max(values),
++        "variance": variance,
++        "standardDeviation": standard_deviation,
++        "interquartileRange": q3 - q1,
++        "coefficientOfVariation": (
++            standard_deviation / mean
++            if mean != 0
++            else 0.0
++        ),
++        "meanBootstrap95": list(
++            bootstrap_interval(
++                values,
++                statistics.fmean,
++            )
++        ),
++        "medianBootstrap95": list(
++            bootstrap_interval(
++                values,
++                statistics.median,
++            )
++        ),
++    }
++
++
++def validate_and_load(
++    root: pathlib.Path,
++) -> tuple[dict, list[dict]]:
++    manifest_path = root / "reference-manifest.json"
++
++    if not manifest_path.is_file():
++        fail(f"manifesto ausente: {manifest_path}")
++
++    manifest = json.loads(
++        manifest_path.read_text(encoding="utf-8")
++    )
++    rows: list[dict] = []
++
++    for scenario in manifest["scenarios"]:
++        scenario_id = scenario["scenarioId"]
++        folder = root / scenario["directory"]
++        csv_path = folder / scenario["csvFile"]
++        json_path = folder / scenario["jsonFile"]
++
++        if not csv_path.is_file():
++            fail(f"{scenario_id}: CSV ausente: {csv_path}")
++
++        if not json_path.is_file():
++            fail(f"{scenario_id}: JSON ausente: {json_path}")
++
++        csv_hash = hashlib.sha256(
++            csv_path.read_bytes()
++        ).hexdigest()
++        json_hash = hashlib.sha256(
++            json_path.read_bytes()
++        ).hexdigest()
++
++        if csv_hash != scenario["csvSha256"]:
++            fail(f"{scenario_id}: hash CSV divergente")
++
++        if json_hash != scenario["jsonSha256"]:
++            fail(f"{scenario_id}: hash JSON divergente")
++
++        data = json.loads(
++            json_path.read_text(encoding="utf-8")
++        )
++
++        with csv_path.open(
++            encoding="utf-8",
++            newline="",
++        ) as file:
++            reader = csv.DictReader(
++                file,
++                delimiter=";",
++            )
++
++            if reader.fieldnames != REQUIRED_COLUMNS:
++                fail(
++                    f"{scenario_id}: cabeçalho CSV inválido; "
++                    f"atual={reader.fieldnames}"
++                )
++
++            scenario_rows = list(reader)
++
++        summary_count = data["summary"]["totalRuns"]
++        metric_count = len(data["metrics"])
++        csv_count = len(scenario_rows)
++
++        if not summary_count == metric_count == csv_count:
++            fail(
++                f"{scenario_id}: contagens inconsistentes; "
++                f"summary={summary_count}, "
++                f"metrics={metric_count}, "
++                f"csv={csv_count}"
++            )
++
++        for row in scenario_rows:
++            row["scenario_id"] = scenario_id
++            row["run_number"] = int(row["run_number"])
++            row["seed"] = (
++                int(row["seed"])
++                if row["seed"]
++                else None
++            )
++            row["move_count"] = int(row["move_count"])
++            row["duration_ms"] = float(
++                row["duration_ms"]
++            )
++            row["evaluated_states"] = (
++                parse_optional_float(
++                    row["evaluated_states"]
++                )
++            )
++            row["failed"] = parse_bool(
++                row["failed"]
++            )
++            rows.append(row)
++
++    if not rows:
++        fail("nenhuma métrica foi encontrada")
++
++    return manifest, rows
++
++
++def aggregate(rows: Sequence[dict]) -> dict:
++    by_scenario: dict[str, list[dict]] = defaultdict(list)
++
++    for row in rows:
++        by_scenario[row["scenario_id"]].append(row)
++
++    scenarios = {}
++
++    for scenario_id, scenario_rows in sorted(
++        by_scenario.items()
++    ):
++        successful = [
++            row
++            for row in scenario_rows
++            if not row["failed"]
++        ]
++        result_counts = Counter(
++            row["result"]
++            for row in scenario_rows
++        )
++        rates = {}
++
++        for result in RESULTS:
++            count = result_counts[result]
++            rates[result] = {
++                "count": count,
++                "proportion": (
++                    count / len(scenario_rows)
++                ),
++                "wilson95": list(
++                    wilson_interval(
++                        count,
++                        len(scenario_rows),
++                    )
++                ),
++            }
++
++        evaluated = [
++            row["evaluated_states"]
++            for row in successful
++            if row["evaluated_states"] is not None
++        ]
++
++        scenarios[scenario_id] = {
++            "runs": len(scenario_rows),
++            "failures": sum(
++                row["failed"]
++                for row in scenario_rows
++            ),
++            "results": rates,
++            "durationMs": describe([
++                row["duration_ms"]
++                for row in successful
++            ]),
++            "moveCount": describe([
++                float(row["move_count"])
++                for row in successful
++            ]),
++            "evaluatedStates": describe(evaluated),
++        }
++
++    successful = [
++        row
++        for row in rows
++        if not row["failed"]
++    ]
++
++    return {
++        "schemaVersion": "2.0",
++        "bootstrap": {
++            "repetitions": BOOTSTRAP_REPETITIONS,
++            "seed": BOOTSTRAP_SEED,
++            "confidenceLevel": 0.95,
++        },
++        "totalRuns": len(rows),
++        "failedRuns": sum(
++            row["failed"]
++            for row in rows
++        ),
++        "durationMs": describe([
++            row["duration_ms"]
++            for row in successful
++        ]),
++        "moveCount": describe([
++            float(row["move_count"])
++            for row in successful
++        ]),
++        "scenarios": scenarios,
++    }
++
++
++def write_aggregate_csv(
++    root: pathlib.Path,
++    summary: dict,
++) -> None:
++    path = root / "reference-descriptive-statistics.csv"
++    fields = [
++        "scenario_id",
++        "metric",
++        "count",
++        "minimum",
++        "p05",
++        "q1",
++        "median",
++        "mean",
++        "q3",
++        "p95",
++        "maximum",
++        "variance",
++        "standard_deviation",
++        "interquartile_range",
++        "coefficient_of_variation",
++        "mean_ci95_lower",
++        "mean_ci95_upper",
++        "median_ci95_lower",
++        "median_ci95_upper",
++    ]
++
++    with path.open(
++        "w",
++        encoding="utf-8",
++        newline="",
++    ) as file:
++        writer = csv.DictWriter(
++            file,
++            fieldnames=fields,
++            delimiter=";",
++        )
++        writer.writeheader()
++
++        for scenario_id, scenario in (
++            summary["scenarios"].items()
++        ):
++            for metric_name in (
++                "durationMs",
++                "moveCount",
++                "evaluatedStates",
++            ):
++                data = scenario[metric_name]
++                writer.writerow({
++                    "scenario_id": scenario_id,
++                    "metric": metric_name,
++                    "count": data["count"],
++                    "minimum": data["minimum"],
++                    "p05": data["p05"],
++                    "q1": data["q1"],
++                    "median": data["median"],
++                    "mean": data["mean"],
++                    "q3": data["q3"],
++                    "p95": data["p95"],
++                    "maximum": data["maximum"],
++                    "variance": data["variance"],
++                    "standard_deviation": (
++                        data["standardDeviation"]
++                    ),
++                    "interquartile_range": (
++                        data["interquartileRange"]
++                    ),
++                    "coefficient_of_variation": (
++                        data["coefficientOfVariation"]
++                    ),
++                    "mean_ci95_lower": (
++                        data["meanBootstrap95"][0]
++                    ),
++                    "mean_ci95_upper": (
++                        data["meanBootstrap95"][1]
++                    ),
++                    "median_ci95_lower": (
++                        data["medianBootstrap95"][0]
++                    ),
++                    "median_ci95_upper": (
++                        data["medianBootstrap95"][1]
++                    ),
++                })
++
++
++def save_figure(
++    figure,
++    output_directory: pathlib.Path,
++    stem: str,
++) -> None:
++    figure.tight_layout()
++    figure.savefig(
++        output_directory / f"{stem}.png",
++        dpi=180,
++        bbox_inches="tight",
++    )
++    figure.savefig(
++        output_directory / f"{stem}.svg",
++        bbox_inches="tight",
++    )
++    plt.close(figure)
++
++
++def grouped_values(
++    rows: Sequence[dict],
++    field: str,
++) -> tuple[list[str], list[list[float]]]:
++    groups: dict[str, list[float]] = defaultdict(list)
++
++    for row in rows:
++        if row["failed"]:
++            continue
++
++        value = row[field]
++
++        if value is not None:
++            groups[row["scenario_id"]].append(
++                float(value)
++            )
++
++    labels = sorted(groups)
++
++    return (
++        labels,
++        [groups[label] for label in labels],
++    )
++
++
++def create_figures(
++    root: pathlib.Path,
++    rows: Sequence[dict],
++    summary: dict,
++) -> None:
++    output = root / "figures"
++    output.mkdir(exist_ok=True)
++    scenario_ids = sorted(summary["scenarios"])
++
++    figure, axis = plt.subplots(figsize=(11, 6))
++    bottoms = [0] * len(scenario_ids)
++
++    for result in RESULTS:
++        values = [
++            summary["scenarios"][scenario][
++                "results"
++            ][result]["count"]
++            for scenario in scenario_ids
++        ]
++        axis.bar(
++            scenario_ids,
++            values,
++            bottom=bottoms,
++            label=result,
++        )
++        bottoms = [
++            current + value
++            for current, value in zip(
++                bottoms,
++                values,
++            )
++        ]
++
++    axis.set_title(
++        "Distribuição dos resultados por cenário"
++    )
++    axis.set_ylabel("Partidas")
++    axis.tick_params(axis="x", rotation=35)
++    axis.legend()
++    save_figure(
++        figure,
++        output,
++        "01-resultados-por-cenario",
++    )
++
++    specifications = [
++        (
++            "02",
++            "duration_ms",
++            "Duração por cenário",
++            "Duração (ms)",
++        ),
++        (
++            "03",
++            "move_count",
++            "Jogadas por cenário",
++            "Jogadas",
++        ),
++        (
++            "04",
++            "evaluated_states",
++            "Estados avaliados por cenário",
++            "Estados avaliados",
++        ),
++    ]
++
++    for number, field, title, ylabel in specifications:
++        labels, values = grouped_values(
++            rows,
++            field,
++        )
++
++        if not values or all(
++            not group
++            for group in values
++        ):
++            continue
++
++        figure, axis = plt.subplots(
++            figsize=(11, 6)
++        )
++        axis.boxplot(
++            values,
++            tick_labels=labels,
++            showmeans=True,
++        )
++        axis.set_title(title)
++        axis.set_ylabel(ylabel)
++        axis.tick_params(
++            axis="x",
++            rotation=35,
++        )
++        save_figure(
++            figure,
++            output,
++            f"{number}-{field}-boxplot",
++        )
++
++    figure, axis = plt.subplots(figsize=(11, 6))
++
++    for scenario_id in scenario_ids:
++        values = sorted(
++            row["duration_ms"]
++            for row in rows
++            if row["scenario_id"] == scenario_id
++            and not row["failed"]
++        )
++
++        if not values:
++            continue
++
++        probabilities = [
++            (index + 1) / len(values)
++            for index in range(len(values))
++        ]
++        axis.step(
++            values,
++            probabilities,
++            where="post",
++            label=scenario_id,
++        )
++
++    axis.set_title(
++        "Distribuição acumulada empírica da duração"
++    )
++    axis.set_xlabel("Duração (ms)")
++    axis.set_ylabel("Proporção acumulada")
++    axis.legend(fontsize="small")
++    save_figure(
++        figure,
++        output,
++        "05-duracao-ecdf",
++    )
++
++    figure, axis = plt.subplots(figsize=(10, 6))
++
++    for scenario_id in scenario_ids:
++        scenario_rows = [
++            row
++            for row in rows
++            if row["scenario_id"] == scenario_id
++            and not row["failed"]
++            and row["evaluated_states"] is not None
++        ]
++
++        if scenario_rows:
++            axis.scatter(
++                [
++                    row["evaluated_states"]
++                    for row in scenario_rows
++                ],
++                [
++                    row["duration_ms"]
++                    for row in scenario_rows
++                ],
++                label=scenario_id,
++                alpha=0.65,
++            )
++
++    axis.set_title(
++        "Estados avaliados e duração"
++    )
++    axis.set_xlabel("Estados avaliados")
++    axis.set_ylabel("Duração (ms)")
++    axis.legend(fontsize="small")
++    save_figure(
++        figure,
++        output,
++        "06-estados-duracao-dispersao",
++    )
++
++    figure, axis = plt.subplots(figsize=(11, 6))
++
++    for scenario_id in scenario_ids:
++        scenario_rows = sorted(
++            (
++                row
++                for row in rows
++                if row["scenario_id"] == scenario_id
++                and not row["failed"]
++            ),
++            key=lambda row: row["run_number"],
++        )
++        axis.plot(
++            [
++                row["run_number"]
++                for row in scenario_rows
++            ],
++            [
++                row["duration_ms"]
++                for row in scenario_rows
++            ],
++            label=scenario_id,
++            alpha=0.8,
++        )
++
++    axis.set_title(
++        "Duração pela ordem de execução"
++    )
++    axis.set_xlabel("Número da execução")
++    axis.set_ylabel("Duração (ms)")
++    axis.legend(fontsize="small")
++    save_figure(
++        figure,
++        output,
++        "07-duracao-ordem-execucao",
++    )
++
++    strategies = [
++        "Random",
++        "Heuristic",
++        "Minimax",
++    ]
++    wins = [
++        [0 for _ in strategies]
++        for _ in strategies
++    ]
++    counts = [
++        [0 for _ in strategies]
++        for _ in strategies
++    ]
++
++    for row in rows:
++        if row["failed"]:
++            continue
++
++        x_index = strategies.index(
++            row["x_strategy"]
++        )
++        o_index = strategies.index(
++            row["o_strategy"]
++        )
++        counts[x_index][o_index] += 1
++
++        if row["result"] == "XWins":
++            wins[x_index][o_index] += 1
++
++    rates = [
++        [
++            (
++                wins[row][column]
++                / counts[row][column]
++            )
++            if counts[row][column] > 0
++            else math.nan
++            for column in range(len(strategies))
++        ]
++        for row in range(len(strategies))
++    ]
++
++    figure, axis = plt.subplots(figsize=(7, 6))
++    image = axis.imshow(
++        rates,
++        vmin=0,
++        vmax=1,
++    )
++    axis.set_xticks(
++        range(len(strategies)),
++        strategies,
++    )
++    axis.set_yticks(
++        range(len(strategies)),
++        strategies,
++    )
++    axis.set_xlabel("Strategy de O")
++    axis.set_ylabel("Strategy de X")
++    axis.set_title(
++        "Taxa de vitória de X por combinação"
++    )
++
++    for row_index, row_values in enumerate(rates):
++        for column_index, value in enumerate(
++            row_values
++        ):
++            label = (
++                "—"
++                if math.isnan(value)
++                else f"{value:.1%}"
++            )
++            axis.text(
++                column_index,
++                row_index,
++                label,
++                ha="center",
++                va="center",
++            )
++
++    figure.colorbar(
++        image,
++        ax=axis,
++        label="Taxa de vitória de X",
++    )
++    save_figure(
++        figure,
++        output,
++        "08-taxa-vitoria-heatmap",
++    )
++
++
++def format_number(value: float) -> str:
++    return f"{value:.3f}".rstrip(
++        "0"
++    ).rstrip(".")
++
++
++def create_report(
++    root: pathlib.Path,
++    manifest: dict,
++    summary: dict,
++) -> None:
++    scenarios = summary["scenarios"]
++    duration_medians = {
++        scenario: data["durationMs"]["median"]
++        for scenario, data in scenarios.items()
++    }
++    most_variable = max(
++        scenarios,
++        key=lambda scenario: scenarios[scenario][
++            "durationMs"
++        ]["coefficientOfVariation"],
++    )
++    slowest = max(
++        duration_medians,
++        key=duration_medians.get,
++    )
++    fastest = min(
++        duration_medians,
++        key=duration_medians.get,
++    )
++    failures = summary["failedRuns"]
++    table_rows = []
++
++    for scenario_id, data in scenarios.items():
++        duration = data["durationMs"]
++        moves = data["moveCount"]
++        table_rows.append(
++            "| "
++            f"{scenario_id} | "
++            f"{data['runs']} | "
++            f"{data['failures']} | "
++            f"{format_number(duration['mean'])} | "
++            f"{format_number(duration['median'])} | "
++            f"{format_number(duration['standardDeviation'])} | "
++            f"{format_number(duration['q1'])}–"
++            f"{format_number(duration['q3'])} | "
++            f"{format_number(moves['median'])} |"
++        )
++
++    environment = manifest["environment"]
++    failure_interpretation = (
++        "A ausência de falhas fortalece a consistência "
++        "operacional do lote, mas não elimina outras "
++        "ameaças à validade."
++        if failures == 0
++        else
++        "As falhas devem ser examinadas por cenário e "
++        "semente antes de qualquer comparação."
++    )
++    report = f"""# Relatório analítico do experimento de referência
++
++## 1. Proveniência
++
++- versão: `{environment.get('applicationVersion', 'unknown')}`;
++- commit ou tag: `{environment.get('commit', 'unknown')}`;
++- sistema operacional: `{environment.get('operatingSystem', 'unknown')}`;
++- runtime: `{environment.get('runtime', 'unknown')}`;
++- arquitetura: `{environment.get('architecture', 'unknown')}`;
++- processador: `{environment.get('processor', 'unknown')}`;
++- execuções: **{summary['totalRuns']}**;
++- falhas: **{failures}**;
++- bootstrap: **{BOOTSTRAP_REPETITIONS}** reamostragens;
++- semente do bootstrap: **{BOOTSTRAP_SEED}**.
++
++## 2. Estatísticas descritivas
++
++| Cenário | N | Falhas | Média duração | Mediana duração | DP duração | Q1–Q3 duração | Mediana jogadas |
++|---|---:|---:|---:|---:|---:|---:|---:|
++{chr(10).join(table_rows)}
++
++As durações estão em milissegundos. As estatísticas completas estão em
++`reference-summary-advanced.json` e
++`reference-descriptive-statistics.csv`.
++
++## 3. Interpretação
++
++O cenário com maior mediana de duração foi **{slowest}**, enquanto
++**{fastest}** apresentou a menor mediana. Essa comparação descreve somente o
++ambiente observado.
++
++A maior variabilidade relativa ocorreu em **{most_variable}**, segundo o
++coeficiente de variação. Quando média e mediana se afastam, a mediana e o
++intervalo interquartil devem receber maior peso interpretativo.
++
++{failure_interpretation}
++
++Os intervalos de 95% das médias e medianas foram estimados por bootstrap
++determinístico. As proporções utilizam intervalo de Wilson.
++
++## 4. Figuras
++
++![Resultados por cenário](figures/01-resultados-por-cenario.png)
++
++![Box plot da duração](figures/02-duration_ms-boxplot.png)
++
++![Box plot das jogadas](figures/03-move_count-boxplot.png)
++
++![Box plot dos estados avaliados](figures/04-evaluated_states-boxplot.png)
++
++![ECDF da duração](figures/05-duracao-ecdf.png)
++
++![Dispersão](figures/06-estados-duracao-dispersao.png)
++
++![Ordem de execução](figures/07-duracao-ordem-execucao.png)
++
++![Heatmap](figures/08-taxa-vitoria-heatmap.png)
++
++## 5. Limitações
++
++- duração depende de hardware, runtime e carga externa;
++- `duration_ms` pode ser insuficiente para partidas muito rápidas;
++- estados avaliados não existem para todas as Strategies;
++- confrontos determinísticos podem repetir trajetórias;
++- bootstrap não substitui validade externa;
++- o relatório não executa testes de hipótese.
++
++## 6. Artefatos
++
++- `reference-summary-advanced.json`;
++- `reference-descriptive-statistics.csv`;
++- `reference-analysis.md`;
++- `figures/*.png`;
++- `figures/*.svg`.
++
++Os dados brutos devem ser anexados à release e não versionados.
++"""
++
++    (root / "reference-analysis.md").write_text(
++        report,
++        encoding="utf-8",
++    )
++
++
++def main() -> None:
++    root = pathlib.Path(
++        sys.argv[1]
++        if len(sys.argv) > 1
++        else "artifacts/experiments/reference"
++    )
++    manifest, rows = validate_and_load(root)
++    summary = aggregate(rows)
++
++    (
++        root / "reference-summary-advanced.json"
++    ).write_text(
++        json.dumps(
++            summary,
++            indent=2,
++            ensure_ascii=False,
++        ),
++        encoding="utf-8",
++    )
++    write_aggregate_csv(root, summary)
++    create_figures(root, rows, summary)
++    create_report(root, manifest, summary)
++
++    print(
++        json.dumps(
++            summary,
++            indent=2,
++            ensure_ascii=False,
++        )
++    )
++
++
++if __name__ == "__main__":
++    main()
+diff --git a/scripts/run-reference-analysis-advanced.ps1 b/scripts/run-reference-analysis-advanced.ps1
+new file mode 100644
+--- /dev/null
++++ b/scripts/run-reference-analysis-advanced.ps1
+@@ -0,0 +1,30 @@
++﻿param(
++    [Parameter(Mandatory = $true)]
++    [string]$ExperimentDirectory
++)
++
++$ErrorActionPreference = "Stop"
++$project_root = (
++    Resolve-Path (
++        Join-Path $PSScriptRoot ".."
++    )
++).Path
++$requirements = Join-Path `
++    $project_root `
++    "requirements-experiments.txt"
++$analysis_script = Join-Path `
++    $project_root `
++    "scripts\analyze-reference-experiment-advanced.py"
++
++python -m pip install `
++    --requirement $requirements
++
++if ($LASTEXITCODE -ne 0) {
++    throw "Não foi possível instalar as dependências experimentais."
++}
++
++python $analysis_script $ExperimentDirectory
++
++if ($LASTEXITCODE -ne 0) {
++    throw "A análise experimental avançada falhou."
++}

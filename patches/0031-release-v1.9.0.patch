@@ -1,0 +1,932 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -28,7 +28,7 @@
+         2026-07-17 : v1.7.0 — recursos audiovisuais
+         2026-07-18 : v1.8.0 — persistência e exportação
+     section Marcos planejados
+-        Data a definir : v1.9.0 — experimentação e consolidação
++        2026-07-21 : v1.9.0 — experimentação e consolidação
+         Data a definir : v2.0.0 — refatoração completa
+ ```
+ 
+@@ -36,6 +36,10 @@
+ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
++
++Nenhuma alteração registrada após `v1.9.0`.
++
++## [1.9.0] - 2026-07-21
+ 
+ ### Added
+ 
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,8 +2,8 @@
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.8.0"
+-date-released: "2026-07-18"
++version: "1.9.0"
++date-released: "2026-07-21"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+ authors:
+diff --git a/Directory.Build.props b/Directory.Build.props
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.8.0</Version>
++        <Version>1.9.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -43,7 +43,7 @@
+ | `v1.6.0` | 2026-07-17 | apresentação e navegação |
+ | `v1.7.0` | 2026-07-17 | recursos audiovisuais |
+ | `v1.8.0` | 2026-07-18 | persistência e CSV |
+-| `Unreleased` | — | experimentação, robustez, publicação e revisão final |
++| `v1.9.0` | 2026-07-21 | experimentação, robustez e publicação candidata |
+ | `v2.0.0` | a definir | consolidação final |
+ 
+ ## Estrutura
+@@ -186,8 +186,24 @@
+ | [`docs/29-revisao-arquitetural-final.md`](docs/29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
+ | [`docs/30-revisao-legal-documental.md`](docs/30-revisao-legal-documental.md) | Revisão legal, metadados e consistência documental. |
+ | [`docs/31-matriz-documentacao.md`](docs/31-matriz-documentacao.md) | Relação entre documentos, versões e componentes. |
++| [`docs/32-release-v1.9.0.md`](docs/32-release-v1.9.0.md) | Checklist e validação da candidata v1.9.0. |
+ 
+ Também há um índice dedicado em [`docs/README.md`](docs/README.md).
++
++
++## Candidata v1.9.0
++
++A versão `1.9.0` está preparada como candidata final. A tag só deve ser criada
++após a execução e aprovação do checklist em
++[`docs/32-release-v1.9.0.md`](docs/32-release-v1.9.0.md).
++
++```powershell
++powershell.exe `
++    -NoProfile `
++    -ExecutionPolicy Bypass `
++    -File .\scripts
++alidate-release-v1.9.0.ps1
++```
+ 
+ ## Licença e citação
+ 
+diff --git a/docs/13-resultados.md b/docs/13-resultados.md
+--- a/docs/13-resultados.md
++++ b/docs/13-resultados.md
+@@ -200,3 +200,24 @@
+ ```
+ 
+ Esse fluxo reduz bloqueios de sincronização e evita versionar dados volumosos.
++
++
++## 12. Validação da candidata v1.9.0
++
++A candidata usa um experimento curto separado do protocolo de referência:
++
++```powershell
++dotnet run `
++    --project .\src\TicTacToe.Console\TicTacToe.Console.csproj `
++    --configuration Release `
++    --no-build `
++    -- `
++    --reference-experiment `
++    --commit (git rev-parse HEAD) `
++    --output $output `
++    --repetitions 2 `
++    --base-seed 1900
++```
++
++As opções `--repetitions` e `--base-seed` permitem validar rapidamente o
++pipeline sem alterar o plano versionado de 100 repetições por cenário.
+diff --git a/docs/26-publicacao.md b/docs/26-publicacao.md
+--- a/docs/26-publicacao.md
++++ b/docs/26-publicacao.md
+@@ -255,3 +255,19 @@
+ 
+ `Remove-Item -Recurse -Force` é destrutivo. Antes de usá-lo em dados locais,
+ confirme o caminho com `Resolve-Path`, `Test-Path` e `Get-ChildItem`.
++
++
++## 14. Publicações da candidata v1.9.0
++
++A validação integrada é executada por:
++
++```powershell
++powershell.exe `
++    -NoProfile `
++    -ExecutionPolicy Bypass `
++    -File .\scripts
++alidate-release-v1.9.0.ps1
++```
++
++O script publica e inspeciona os quatro perfis. A tag só pode ser criada depois
++que todos os pacotes forem validados e o relatório da candidata for aprovado.
+diff --git a/docs/30-revisao-legal-documental.md b/docs/30-revisao-legal-documental.md
+--- a/docs/30-revisao-legal-documental.md
++++ b/docs/30-revisao-legal-documental.md
+@@ -4,7 +4,7 @@
+ 
+ Esta revisão verifica os artefatos legais, metadados de versão, documentação,
+ esquemas e instruções operacionais contra o código consolidado da versão
+-`1.8.0` com alterações ainda em `Unreleased`.
++`1.9.0` preparada como candidata final.
+ 
+ ## 2. Licença e atribuições
+ 
+@@ -24,15 +24,14 @@
+ 
+ ## 3. Versão e citação
+ 
+-A versão permanece `1.8.0` em:
++A versão candidata é `1.9.0` em:
+ 
+ - `Directory.Build.props`;
+ - `CITATION.cff`;
+ - assembly produzido pelo MSBuild.
+ 
+-A data `2026-07-18` identifica a release `v1.8.0`. Alterações dos prompts
+-posteriores permanecem em `Unreleased` e não alteram a citação até a próxima
+-release formal.
++A data `2026-07-21` identifica a candidata `v1.9.0`. A tag permanece
++pendente até a conclusão do checklist de release.
+ 
+ O arquivo `CITATION.cff` é copiado explicitamente para build e publicação por
+ `TicTacToe.Console.csproj`.
+diff --git a/docs/31-matriz-documentacao.md b/docs/31-matriz-documentacao.md
+--- a/docs/31-matriz-documentacao.md
++++ b/docs/31-matriz-documentacao.md
+@@ -3,7 +3,7 @@
+ ## 1. Finalidade
+ 
+ A matriz relaciona cada documento ao marco de versão e ao componente que ele
+-descreve. `Unreleased` identifica conteúdo implementado depois de `v1.8.0` e
++descreve. `Unreleased` identifica conteúdo implementado depois de `v1.9.0` e
+ ainda não associado a uma tag formal.
+ 
+ | Documento | Versão ou período | Componente | Finalidade |
+@@ -39,7 +39,8 @@
+ | `28-uso-ia-generativa.md` | Unreleased | Governança | transparência de IA |
+ | `29-revisao-arquitetural-final.md` | Unreleased | Arquitetura | auditoria final |
+ | `30-revisao-legal-documental.md` | Unreleased | Governança/Legal | auditoria legal e documental |
+-| `31-matriz-documentacao.md` | Unreleased | Governança | rastreabilidade documental |
++| `31-matriz-documentacao.md` | 1.9.0 | Governança | rastreabilidade documental |
++| `32-release-v1.9.0.md` | 1.9.0 | Release | checklist e validação da candidata |
+ 
+ ## 2. Leitura da matriz
+ 
+diff --git a/docs/32-release-v1.9.0.md b/docs/32-release-v1.9.0.md
+new file mode 100644
+--- /dev/null
++++ b/docs/32-release-v1.9.0.md
+@@ -0,0 +1,130 @@
++# Preparação da versão v1.9.0
++
++## 1. Estado
++
++A versão `1.9.0` é preparada como candidata final em `2026-07-21`. A tag
++`v1.9.0` permanece proibida até que o checklist seja executado em ambiente com
++SDK .NET 9 e a documentação seja aprovada.
++
++## 2. Escopo da versão
++
++A versão consolida:
++
++- modo automático IA contra IA;
++- modo experimental reproduzível;
++- robustez das fronteiras externas;
++- compatibilidade Windows e Linux;
++- publicação dependente do framework e autocontida;
++- revisão arquitetural;
++- cobertura e qualidade dos testes;
++- experimento de referência;
++- revisão legal e documental.
++
++## 3. Fluxo de validação
++
++O script `scripts/validate-release-v1.9.0.ps1` centraliza as verificações.
++
++```mermaid
++flowchart TD
++    A[Auditoria do Git] --> B[Restore]
++    B --> C[Build Release com warnings como erros]
++    C --> D[Testes]
++    D --> E[Cobertura]
++    E --> F[Smoke test automático]
++    F --> G[Experimento curto com sementes]
++    G --> H[Validação JSON e CSV]
++    H --> I[Quatro publicações]
++    I --> J[Relatório da candidata]
++    J --> K{Aprovação documental?}
++    K -- Sim --> L[Tag v1.9.0]
++    K -- Não --> M[Correção sem tag]
++```
++
++A tag é a última operação e não deve ser usada para contornar uma validação
++incompleta.
++
++## 4. Execução no Windows
++
++Como políticas de execução podem bloquear scripts PowerShell:
++
++```powershell
++powershell.exe `
++    -NoProfile `
++    -ExecutionPolicy Bypass `
++    -File .\scripts
++alidate-release-v1.9.0.ps1
++```
++
++Os artefatos de validação são produzidos em:
++
++```text
++%LOCALAPPDATA%\TicTacToe
++elease
++1.9.0
++```
++
++Isso reduz conflitos com o Dropbox.
++
++## 5. Verificações realizadas pelo script
++
++- consistência da versão `1.9.0`;
++- ausência de binários e dados locais rastreados;
++- busca por segredos e caminhos pessoais;
++- `git diff --check`;
++- restore;
++- build Release com `-warnaserror`;
++- suíte completa;
++- Cobertura XML;
++- smoke test de `AutomaticMatchRunner`;
++- experimento curto com duas repetições por cenário;
++- semente base `1900`;
++- commit registrado;
++- análise e validação de JSON e CSV;
++- quatro perfis de publicação;
++- arquivos obrigatórios do pacote;
++- relatório JSON da candidata.
++
++## 6. Experimento curto
++
++O experimento de validação não substitui o experimento de referência de 600
++partidas. Ele usa:
++
++```text
++2 repetições por cenário
++6 cenários
++12 partidas
++semente base 1900
++```
++
++O objetivo é validar o pipeline, os esquemas, os hashes e a reprodutibilidade
++antes da release.
++
++## 7. Auditoria do repositório
++
++Não podem estar rastreados:
++
++- `bin/`;
++- `obj/`;
++- `artifacts/`;
++- resultados de cobertura;
++- `data/*.json`;
++- `exports/*.csv`;
++- resultados experimentais brutos;
++- arquivos `.user`, `.suo`, `.trx` ou pacotes NuGet;
++- caminhos pessoais;
++- chaves privadas ou segredos.
++
++## 8. Aprovação e tag
++
++Depois de revisar `release-validation.json`, cobertura, publicações,
++documentação e resultados:
++
++```powershell
++git status
++git log -1 --oneline
++git tag -a v1.9.0 -m "release: v1.9.0"
++git push origin v1.9.0
++```
++
++A tag não deve ser criada se a árvore estiver suja, se houver warnings, falhas,
++dados locais rastreados ou documentação pendente.
+diff --git a/docs/README.md b/docs/README.md
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -37,6 +37,7 @@
+ | [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | Unreleased | Arquitetura | auditoria final |
+ | [30-revisao-legal-documental.md](30-revisao-legal-documental.md) | Unreleased | Governança/Legal | auditoria legal e documental |
+ | [31-matriz-documentacao.md](31-matriz-documentacao.md) | Unreleased | Governança | rastreabilidade documental |
++| [32-release-v1.9.0.md](32-release-v1.9.0.md) | 1.9.0 | Release | checklist e validação da candidata |
+ 
+ A matriz detalhada está em
+ [`31-matriz-documentacao.md`](31-matriz-documentacao.md). Documentos históricos
+diff --git a/scripts/validate-release-v1.9.0.ps1 b/scripts/validate-release-v1.9.0.ps1
+new file mode 100644
+--- /dev/null
++++ b/scripts/validate-release-v1.9.0.ps1
+@@ -0,0 +1,339 @@
++param(
++    [string]$OutputRoot = (
++        Join-Path `
++            $env:LOCALAPPDATA `
++            "TicTacToe\release\v1.9.0"
++    ),
++    [switch]$SkipPublish
++)
++
++$ErrorActionPreference = "Stop"
++$projectRoot = (
++    Resolve-Path (
++        Join-Path $PSScriptRoot ".."
++    )
++).Path
++$solution = Join-Path $projectRoot "TicTacToe.sln"
++$project = Join-Path `
++    $projectRoot `
++    "src\TicTacToe.Console\TicTacToe.Console.csproj"
++$coverageDirectory = Join-Path $OutputRoot "coverage"
++$experimentDirectory = Join-Path $OutputRoot "experiment-short"
++$publishDirectory = Join-Path $projectRoot "artifacts\publish"
++$reportPath = Join-Path $OutputRoot "release-validation.json"
++
++function Invoke-Checked {
++    param(
++        [Parameter(Mandatory = $true)]
++        [scriptblock]$Command,
++        [Parameter(Mandatory = $true)]
++        [string]$Description
++    )
++
++    Write-Host ""
++    Write-Host "==> $Description"
++
++    & $Command
++
++    if ($LASTEXITCODE -ne 0) {
++        throw "$Description falhou com código $LASTEXITCODE."
++    }
++}
++
++function Assert-NoTrackedLocalData {
++    $tracked = @(
++        git -C $projectRoot ls-files
++    )
++    $forbidden = @(
++        $tracked | Where-Object {
++            $_ -match '(^|/)(bin|obj|artifacts|TestResults|coverage|publish)/' -or
++            $_ -match '(^|/)data/.*\.json$' -or
++            $_ -match '(^|/)exports/.*\.csv$' -or
++            $_ -match '\.(user|suo|nupkg|snupkg|trx|coverage)$'
++        }
++    )
++
++    if ($forbidden.Count -gt 0) {
++        throw (
++            "Arquivos locais ou binários rastreados: " +
++            ($forbidden -join ", ")
++        )
++    }
++}
++
++function Assert-NoSensitiveContent {
++    $patterns = @(
++        'm4rc3lo',
++        'Dropbox\\univali',
++        'C:\\Users\\[^<>{}`"]+',
++        'AKIA[0-9A-Z]{16}',
++        'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY',
++        '(?i)(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*[^\s<>{}]+'
++    )
++    $trackedText = @(
++        git -C $projectRoot grep -n -I -E (
++            $patterns -join "|"
++        ) -- `
++            ':!docs/13-resultados.md' `
++            ':!docs/26-publicacao.md' `
++            ':!README.md' 2>$null
++    )
++
++    if ($trackedText.Count -gt 0) {
++        throw (
++            "Conteúdo potencialmente sensível encontrado:`n" +
++            ($trackedText -join "`n")
++        )
++    }
++}
++
++function Assert-VersionConsistency {
++    [xml]$props = Get-Content (
++        Join-Path $projectRoot "Directory.Build.props"
++    )
++    $version = [string]$props.Project.PropertyGroup.Version
++    $citation = Get-Content (
++        Join-Path $projectRoot "CITATION.cff"
++    )
++
++    if ($version -ne "1.9.0") {
++        throw "Directory.Build.props não contém a versão 1.9.0."
++    }
++
++    if ($citation -notcontains 'version: "1.9.0"') {
++        throw "CITATION.cff não contém a versão 1.9.0."
++    }
++}
++
++Remove-Item `
++    $OutputRoot `
++    -Recurse `
++    -Force `
++    -ErrorAction SilentlyContinue
++New-Item `
++    -ItemType Directory `
++    -Path $OutputRoot `
++    -Force |
++    Out-Null
++
++Push-Location $projectRoot
++
++try {
++    Assert-VersionConsistency
++    Assert-NoTrackedLocalData
++    Assert-NoSensitiveContent
++
++    Invoke-Checked `
++        { git diff --check } `
++        "Verificação de whitespace"
++
++    Invoke-Checked `
++        { dotnet restore $solution } `
++        "Restore"
++
++    Invoke-Checked `
++        {
++            dotnet build `
++                $solution `
++                --configuration Release `
++                --no-restore `
++                -warnaserror
++        } `
++        "Build Release sem warnings"
++
++    Invoke-Checked `
++        {
++            dotnet test `
++                $solution `
++                --configuration Release `
++                --no-build
++        } `
++        "Suíte completa"
++
++    Remove-Item `
++        $coverageDirectory `
++        -Recurse `
++        -Force `
++        -ErrorAction SilentlyContinue
++
++    Invoke-Checked `
++        {
++            dotnet test `
++                $solution `
++                --configuration Release `
++                --no-build `
++                --collect "XPlat Code Coverage" `
++                --settings (
++                    Join-Path `
++                        $projectRoot `
++                        "tests\coverage.runsettings"
++                ) `
++                --results-directory $coverageDirectory
++        } `
++        "Relatório de cobertura"
++
++    Invoke-Checked `
++        {
++            dotnet test `
++                (
++                    Join-Path `
++                        $projectRoot `
++                        "tests\TicTacToe.Tests\TicTacToe.Tests.csproj"
++                ) `
++                --configuration Release `
++                --no-build `
++                --filter "FullyQualifiedName~AutomaticMatchRunnerTests"
++        } `
++        "Execução curta do runner automático"
++
++    $commit = (
++        git -C $projectRoot rev-parse HEAD
++    ).Trim()
++
++    Remove-Item `
++        $experimentDirectory `
++        -Recurse `
++        -Force `
++        -ErrorAction SilentlyContinue
++
++    Invoke-Checked `
++        {
++            dotnet run `
++                --project $project `
++                --configuration Release `
++                --no-build `
++                -- `
++                --reference-experiment `
++                --commit $commit `
++                --output $experimentDirectory `
++                --repetitions 2 `
++                --base-seed 1900
++        } `
++        "Experimento curto reproduzível"
++
++    Invoke-Checked `
++        {
++            python `
++                (
++                    Join-Path `
++                        $projectRoot `
++                        "scripts\analyze-reference-experiment.py"
++                ) `
++                $experimentDirectory
++        } `
++        "Validação dos JSON e CSV experimentais"
++
++    if (-not $SkipPublish) {
++        $profiles = @(
++            "win-x64-framework-dependent",
++            "win-x64-self-contained",
++            "linux-x64-framework-dependent",
++            "linux-x64-self-contained"
++        )
++
++        foreach ($profile in $profiles) {
++            Invoke-Checked `
++                {
++                    dotnet publish `
++                        $project `
++                        /p:PublishProfile=$profile `
++                        --no-restore
++                } `
++                "Publicação $profile"
++
++            & (
++                Join-Path `
++                    $projectRoot `
++                    "scripts\validate-publish.ps1"
++            ) (
++                Join-Path `
++                    $publishDirectory `
++                    $profile
++            )
++        }
++    }
++
++    $ignored = @(
++        git -C $projectRoot status --ignored --short
++    )
++    $coverageReport = Get-ChildItem `
++        $coverageDirectory `
++        -Filter "coverage.cobertura.xml" `
++        -File `
++        -Recurse |
++        Select-Object -First 1
++
++    if ($null -eq $coverageReport) {
++        throw "Relatório de cobertura não encontrado."
++    }
++
++    [xml]$coverage = Get-Content $coverageReport.FullName
++    $manifestPath = Join-Path `
++        $experimentDirectory `
++        "reference-manifest.json"
++    $summaryPath = Join-Path `
++        $experimentDirectory `
++        "reference-summary.json"
++    $svgPath = Join-Path `
++        $experimentDirectory `
++        "reference-results.svg"
++
++    foreach ($requiredPath in @(
++        $manifestPath,
++        $summaryPath,
++        $svgPath
++    )) {
++        if (-not (Test-Path $requiredPath -PathType Leaf)) {
++            throw "Arquivo esperado ausente: $requiredPath"
++        }
++    }
++
++    $report = [ordered]@{
++        version = "1.9.0"
++        candidateDate = "2026-07-21"
++        commit = $commit
++        branch = (
++            git -C $projectRoot branch --show-current
++        ).Trim()
++        dotnet = (
++            dotnet --version
++        ).Trim()
++        coverage = [ordered]@{
++            report = $coverageReport.FullName
++            lineRate = $coverage.coverage.'line-rate'
++            branchRate = $coverage.coverage.'branch-rate'
++            linesCovered = $coverage.coverage.'lines-covered'
++            linesValid = $coverage.coverage.'lines-valid'
++            branchesCovered = $coverage.coverage.'branches-covered'
++            branchesValid = $coverage.coverage.'branches-valid'
++        }
++        experiment = [ordered]@{
++            directory = $experimentDirectory
++            repetitionsPerScenario = 2
++            baseSeed = 1900
++            manifestSha256 = (
++                Get-FileHash `
++                    $manifestPath `
++                    -Algorithm SHA256
++            ).Hash.ToLowerInvariant()
++        }
++        publishSkipped = [bool]$SkipPublish
++        ignoredEntries = $ignored
++        completedAt = (
++            Get-Date
++        ).ToUniversalTime().ToString("O")
++    }
++
++    $report |
++        ConvertTo-Json -Depth 8 |
++        Set-Content `
++            $reportPath `
++            -Encoding utf8NoBOM
++
++    Write-Host ""
++    Write-Host "Candidata v1.9.0 validada."
++    Write-Host "Relatório: $reportPath"
++}
++finally {
++    Pop-Location
++}
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentCommand.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentCommand.cs
+--- a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentCommand.cs
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentCommand.cs
+@@ -10,31 +10,119 @@
+         ArgumentNullException.ThrowIfNull(args);
+         ArgumentNullException.ThrowIfNull(writer);
+ 
+-        if (!args.Contains("--reference-experiment", StringComparer.OrdinalIgnoreCase))
++        if (!args.Contains(
++                "--reference-experiment",
++                StringComparer.OrdinalIgnoreCase))
+         {
+             return false;
+         }
+ 
+-        string output_directory = get_value(args, "--output") ??
+-            Path.Combine("artifacts", "experiments", "reference");
+-        string commit = get_value(args, "--commit") ?? "unrecorded";
+-        ReferenceExperimentPlan plan =
+-            ReferenceExperimentPlan.create_default(output_directory);
++        string output_directory =
++            get_value(args, "--output") ??
++            Path.Combine(
++                "artifacts",
++                "experiments",
++                "reference");
++        string commit =
++            get_value(args, "--commit") ??
++            "unrecorded";
++        ReferenceExperimentPlan default_plan =
++            ReferenceExperimentPlan.create_default(
++                output_directory);
++        int repetitions = get_positive_integer(
++            args,
++            "--repetitions",
++            default_plan.RepetitionsPerScenario);
++        int base_seed = get_integer(
++            args,
++            "--base-seed",
++            default_plan.BaseSeed);
++        ReferenceExperimentPlan plan = default_plan with
++        {
++            RepetitionsPerScenario = repetitions,
++            BaseSeed = base_seed
++        };
+         ReferenceExperimentManifest manifest =
+-            new ReferenceExperimentRunner().run(plan, commit);
++            new ReferenceExperimentRunner().run(
++                plan,
++                commit);
+ 
+-        writer.WriteLine($"Experimento concluído: {manifest.Scenarios.Count} cenários.");
+-        writer.WriteLine($"Manifesto: {Path.Combine(output_directory, "reference-manifest.json")}");
++        writer.WriteLine(
++            $"Experimento concluído: " +
++            $"{manifest.Scenarios.Count} cenários.");
++        writer.WriteLine(
++            $"Repetições por cenário: " +
++            $"{plan.RepetitionsPerScenario}.");
++        writer.WriteLine(
++            $"Semente base: {plan.BaseSeed}.");
++        writer.WriteLine(
++            $"Manifesto: " +
++            $"{Path.Combine(output_directory, "reference-manifest.json")}");
+         return true;
+     }
+ 
+-    private static string? get_value(string[] args, string option)
++    private static string? get_value(
++        string[] args,
++        string option)
+     {
+         int index = Array.FindIndex(
+             args,
+-            item => string.Equals(item, option, StringComparison.OrdinalIgnoreCase));
+-        return index >= 0 && index + 1 < args.Length
++            item => string.Equals(
++                item,
++                option,
++                StringComparison.OrdinalIgnoreCase));
++
++        return index >= 0 &&
++            index + 1 < args.Length
+             ? args[index + 1]
+             : null;
+     }
++
++    private static int get_positive_integer(
++        string[] args,
++        string option,
++        int default_value)
++    {
++        int value = get_integer(
++            args,
++            option,
++            default_value);
++
++        if (value < 1)
++        {
++            throw new ArgumentOutOfRangeException(
++                option,
++                "O valor deve ser maior que zero.");
++        }
++
++        return value;
++    }
++
++    private static int get_integer(
++        string[] args,
++        string option,
++        int default_value)
++    {
++        string? raw_value = get_value(
++            args,
++            option);
++
++        if (raw_value is null)
++        {
++            return default_value;
++        }
++
++        if (!int.TryParse(
++                raw_value,
++                System.Globalization.NumberStyles.Integer,
++                System.Globalization.CultureInfo.InvariantCulture,
++                out int value))
++        {
++            throw new ArgumentException(
++                $"O valor de {option} deve ser inteiro.",
++                option);
++        }
++
++        return value;
++    }
+ }
+diff --git a/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs b/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
+--- a/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
++++ b/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
+@@ -27,6 +27,30 @@
+         Assert.Contains(
+             $"version: \"{assembly_version}\"",
+             citation);
++    }
++
++
++    [Fact]
++    public void release_candidate_should_use_expected_version_and_date()
++    {
++        string citation = File.ReadAllText(
++            Path.Combine(
++                project_root,
++                "CITATION.cff"));
++        string changelog = File.ReadAllText(
++            Path.Combine(
++                project_root,
++                "CHANGELOG.md"));
++
++        Assert.Contains(
++            "version: \"1.9.0\"",
++            citation);
++        Assert.Contains(
++            "date-released: \"2026-07-21\"",
++            citation);
++        Assert.Contains(
++            "## [1.9.0] - 2026-07-21",
++            changelog);
+     }
+ 
+     [Fact]
+diff --git a/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentCommandTests.cs b/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentCommandTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentCommandTests.cs
+@@ -0,0 +1,78 @@
++using TicTacToe.ReferenceExperiment;
++using Xunit;
++
++namespace TicTacToe.Tests.ReferenceExperiment;
++
++public sealed class ReferenceExperimentCommandTests : IDisposable
++{
++    private readonly string directory = Path.Combine(
++        Path.GetTempPath(),
++        $"tictactoe-reference-command-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void try_run_should_accept_short_reproducible_plan()
++    {
++        StringWriter writer = new();
++
++        bool handled = ReferenceExperimentCommand.try_run(
++        [
++            "--reference-experiment",
++            "--commit",
++            "test-commit",
++            "--output",
++            directory,
++            "--repetitions",
++            "2",
++            "--base-seed",
++            "1900"
++        ],
++        writer);
++
++        Assert.True(handled);
++        Assert.Contains(
++            "Repetições por cenário: 2.",
++            writer.ToString());
++        Assert.Contains(
++            "Semente base: 1900.",
++            writer.ToString());
++        Assert.True(
++            File.Exists(
++                Path.Combine(
++                    directory,
++                    "reference-manifest.json")));
++    }
++
++    [Fact]
++    public void try_run_should_reject_zero_repetitions()
++    {
++        Assert.Throws<ArgumentOutOfRangeException>(
++            () => ReferenceExperimentCommand.try_run(
++            [
++                "--reference-experiment",
++                "--repetitions",
++                "0"
++            ],
++            new StringWriter()));
++    }
++
++    [Fact]
++    public void try_run_should_ignore_unrelated_arguments()
++    {
++        bool handled =
++            ReferenceExperimentCommand.try_run(
++            ["--help"],
++            new StringWriter());
++
++        Assert.False(handled);
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(
++                directory,
++                recursive: true);
++        }
++    }
++}

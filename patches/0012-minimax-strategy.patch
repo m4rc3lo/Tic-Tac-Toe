@@ -1,0 +1,917 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -23,8 +23,8 @@
+         2026-07-16 : v1.2.0 — domínio, regras e agregado Match
+         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
+         2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
++        2026-07-17 : v1.5.0 — estratégia Minimax
+     section Marcos planejados
+-        Data a definir : v1.5.0 — estratégia Minimax
+         Data a definir : v1.6.0 — apresentação e estados
+         Data a definir : v1.7.0 — recursos audiovisuais
+         Data a definir : v1.8.0 — persistência e exportação
+@@ -36,6 +36,23 @@
+ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
++
++## [1.5.0] - 2026-07-17
++
++### Added
++
++- `SearchBoard` como representação interna e independente para estados de busca.
++- `MinimaxMoveStrategy` com alternância entre maximização e minimização.
++- `MinimaxAnalysis` com posição, pontuação, profundidade e estados visitados.
++- Avaliação terminal que favorece vitórias rápidas e posterga derrotas.
++- Desempate determinístico pela ordem de linha e coluna.
++- Testes de vitória, bloqueio, jogo perfeito, isolamento e métricas.
++- Documentação da árvore de busca, complexidade, limitações e otimizações.
++
++### Changed
++
++- `docs/10-inteligencia-artificial.md` ampliado com o algoritmo Minimax.
++- Versão do projeto e metadados de citação atualizados para `1.5.0`.
+ 
+ ## [1.4.0] - 2026-07-16
+ 
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,7 +2,7 @@
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.4.0"
++version: "1.5.0"
+ date-released: "2026-07-16"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+diff --git a/Directory.Build.props b/Directory.Build.props
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.4.0</Version>
++        <Version>1.5.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -10,6 +10,7 @@
+ - `v1.2.0` — 2026-07-16: domínio, regras e agregado de partida;
+ - `v1.3.0` — 2026-07-16: padrão Strategy e estratégia aleatória;
+ - `v1.4.0` — 2026-07-16: fluxo básico de aplicação, correções arquiteturais e estratégia heurística;
++- `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
+ - `Unreleased`: próxima etapa de desenvolvimento;
+ - `v2.0.0` — data a definir: consolidação final da refatoração.
+ 
+diff --git a/docs/10-inteligencia-artificial.md b/docs/10-inteligencia-artificial.md
+--- a/docs/10-inteligencia-artificial.md
++++ b/docs/10-inteligencia-artificial.md
+@@ -2,9 +2,9 @@
+ 
+ ## 1. Finalidade
+ 
+-Este documento descreve a infraestrutura de inteligência artificial do **Tic-Tac-Toe Console AI** até a versão `1.4.0`.
+-
+-O módulo contém uma estratégia aleatória, utilizada como linha de base, e uma estratégia heurística baseada em prioridades táticas e posicionais. Ambas implementam `IMoveStrategy`, recebem `IReadOnlyBoard` e não modificam o estado pertencente ao agregado `Match`.
++Este documento descreve a infraestrutura de inteligência artificial do **Tic-Tac-Toe Console AI** até a versão `1.5.0`.
++
++O módulo contém estratégias aleatória, heurística e Minimax. Todas implementam `IMoveStrategy`, recebem `IReadOnlyBoard` e não modificam o estado pertencente ao agregado `Match`.
+ 
+ ## 2. Fronteiras arquiteturais
+ 
+@@ -31,6 +31,7 @@
+ 
+     class RandomMoveStrategy
+     class HeuristicMoveStrategy
++    class MinimaxMoveStrategy
+ 
+     class IReadOnlyBoard {
+         <<interface>>
+@@ -45,8 +46,10 @@
+     IComputerMoveStrategyResolver --> IMoveStrategy
+     IMoveStrategy <|.. RandomMoveStrategy
+     IMoveStrategy <|.. HeuristicMoveStrategy
++    IMoveStrategy <|.. MinimaxMoveStrategy
+     RandomMoveStrategy --> IReadOnlyBoard
+     HeuristicMoveStrategy --> IReadOnlyBoard
++    MinimaxMoveStrategy --> IReadOnlyBoard
+ ```
+ 
+ A direção das dependências permanece `Application → AI → Domain`. O módulo `Domain` não conhece estratégias, e o tabuleiro exposto por `Match` é somente para leitura.
+@@ -233,4 +236,211 @@
+ - não atribui pontuações graduais a estados futuros;
+ - pode perder contra sequências que exigem planejamento além de um turno.
+ 
+-Essas limitações justificam a implementação posterior de `MinimaxMoveStrategy`, que deverá usar um estado de busca independente e preservar o `IReadOnlyBoard` original.
++Essas limitações motivaram a inclusão de `MinimaxMoveStrategy` na versão
++`1.5.0`. A estratégia Minimax usa um estado de busca independente e preserva o
++`IReadOnlyBoard` original.
++
++## 11. Estratégia Minimax
++
++`MinimaxMoveStrategy` realiza busca completa nos estados alcançáveis a partir do
++tabuleiro recebido. O símbolo do agente representa o nível de maximização, e o
++símbolo adversário representa o nível de minimização.
++
++A API mantém o contrato de Strategy e oferece uma análise detalhada:
++
++```csharp
++BoardPosition choose_move(
++    IReadOnlyBoard board,
++    Symbol symbol);
++
++MinimaxAnalysis analyze(
++    IReadOnlyBoard board,
++    Symbol symbol);
++```
++
++`choose_move` retorna apenas a posição exigida por `IMoveStrategy`. `analyze`
++retorna um objeto separado de `Move`, contendo posição, pontuação, maior
++profundidade e quantidade de estados visitados.
++
++### 11.1 Estado de busca independente
++
++A busca não utiliza o `Board` mutável pertencente a `Match`. O diagrama mostra a
++cópia inicial e as mutações restritas ao módulo de inteligência artificial.
++
++```mermaid
++classDiagram
++    class IReadOnlyBoard {
++        <<interface>>
++        +get_symbol(position) Symbol
++        +get_available_positions() IReadOnlyList
++    }
++
++    class SearchBoard {
++        -Symbol[,] cells
++        +get_available_positions() IReadOnlyList
++        +get_symbol(position) Symbol
++        +set_symbol(position, symbol)
++        +has_winner(symbol) bool
++    }
++
++    class MinimaxMoveStrategy {
++        +choose_move(board, symbol) BoardPosition
++        +analyze(board, symbol) MinimaxAnalysis
++    }
++
++    class MinimaxAnalysis {
++        +BoardPosition Position
++        +int Score
++        +int MaximumDepth
++        +int VisitedStates
++    }
++
++    MinimaxMoveStrategy --> IReadOnlyBoard
++    MinimaxMoveStrategy *-- SearchBoard
++    MinimaxMoveStrategy --> MinimaxAnalysis
++```
++
++`SearchBoard` copia os nove símbolos na construção. Aplicações e reversões de
++hipóteses ocorrem exclusivamente nessa cópia, sem conversão do
++`IReadOnlyBoard` original para `Board`.
++
++### 11.2 Pseudocódigo
++
++O pseudocódigo explicita a alternância entre maximização e minimização.
++
++```text
++função analisar(tabuleiro, símbolo_max):
++    estado ← copiar_para_search_board(tabuleiro)
++    símbolo_min ← símbolo_oposto(símbolo_max)
++
++    para cada posição livre em ordem linha-coluna:
++        aplicar símbolo_max na cópia
++        pontuação ← minimax(
++            estado,
++            símbolo_atual = símbolo_min,
++            profundidade = 1)
++        desfazer na cópia
++
++        se pontuação for maior que a melhor:
++            guardar posição e pontuação
++
++    retornar posição, pontuação, profundidade e estados visitados
++
++função minimax(estado, símbolo_atual, profundidade):
++    registrar estado e profundidade
++
++    se símbolo_max venceu:
++        retornar 10 - profundidade
++
++    se símbolo_min venceu:
++        retornar -10 + profundidade
++
++    se não houver casas livres:
++        retornar 0
++
++    se símbolo_atual for símbolo_max:
++        retornar máximo das continuações
++    senão:
++        retornar mínimo das continuações
++```
++
++A profundidade diferencia resultados equivalentes: uma vitória em menos turnos
++recebe pontuação maior, enquanto uma derrota mais distante recebe pontuação
++menos negativa.
++
++### 11.3 Árvore de busca
++
++O diagrama representa a estrutura alternada da árvore. Cada aresta corresponde a
++uma jogada hipotética aplicada e desfeita em `SearchBoard`.
++
++```mermaid
++flowchart TD
++    R[Estado raiz] --> X1[Jogada candidata X]
++    R --> X2[Outra jogada candidata X]
++
++    X1 --> O11[Resposta O]
++    X1 --> O12[Outra resposta O]
++    X2 --> O21[Resposta O]
++    X2 --> O22[Outra resposta O]
++
++    O11 --> T1[Vitória: 10 - profundidade]
++    O12 --> T2[Empate: 0]
++    O21 --> T3[Derrota: -10 + profundidade]
++    O22 --> T4[Continuação]
++
++    T1 --> MAX1[Maximização]
++    T2 --> MAX1
++    T3 --> MAX2[Maximização]
++    T4 --> MAX2
++
++    MAX1 --> MIN[Minimização]
++    MAX2 --> MIN
++    MIN --> B[Melhor posição da raiz]
++```
++
++Níveis do agente maximizam a pontuação; níveis do adversário minimizam. O valor
++propagado até a raiz representa o resultado garantido quando ambos jogam
++otimamente.
++
++### 11.4 Avaliação terminal
++
++A função utiliza três categorias:
++
++| Estado terminal | Pontuação |
++|---|---:|
++| vitória do agente | `10 - profundidade` |
++| vitória do adversário | `-10 + profundidade` |
++| empate | `0` |
++
++A pontuação depende apenas de estados terminais. Não há função heurística para
++interromper a busca antes do fim, pois o espaço de estados do jogo da velha é
++pequeno.
++
++### 11.5 Desempate determinístico
++
++As posições livres são enumeradas em ordem de linha e coluna. Quando duas
++candidatas possuem a mesma pontuação, a primeira é mantida. Portanto:
++
++- a mesma entrada produz a mesma decisão;
++- não há consumo de `IRandomSource`;
++- resultados experimentais são reproduzíveis sem semente;
++- a ordem de enumeração faz parte do comportamento observável.
++
++### 11.6 Métricas
++
++`MinimaxAnalysis` registra:
++
++- `Position`: melhor posição encontrada;
++- `Score`: valor Minimax da posição;
++- `MaximumDepth`: maior profundidade visitada;
++- `VisitedStates`: quantidade de chamadas recursivas avaliadas.
++
++A contagem é reiniciada em cada chamada de `analyze` e não pertence à entidade
++`Move`.
++
++## 12. Complexidade do Minimax
++
++Para `b` jogadas possíveis por estado e profundidade `d`, a busca sem poda
++possui complexidade temporal aproximada `O(b^d)` e complexidade espacial
++`O(d)` para a pilha recursiva, além da cópia fixa de nove células.
++
++No jogo da velha, `b` diminui a cada nível e `d` é no máximo nove. A busca
++completa é viável, mas estados simétricos e transposições são recalculados.
++
++## 13. Limitações e possíveis otimizações
++
++A implementação inicial privilegia clareza didática e determinismo. Ela ainda
++não utiliza:
++
++- poda alfa-beta;
++- tabela de transposição;
++- memoização;
++- redução por simetria;
++- ordenação estratégica de jogadas;
++- paralelização;
++- limite configurável de profundidade.
++
++A poda alfa-beta seria a primeira otimização recomendada, pois preserva o
++resultado do Minimax e reduz a quantidade de estados visitados quando a ordem
++das jogadas favorece cortes. Memoização e normalização por simetrias também
++reduziriam avaliações repetidas.
+diff --git a/src/TicTacToe.Console/AI/MinimaxAnalysis.cs b/src/TicTacToe.Console/AI/MinimaxAnalysis.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/MinimaxAnalysis.cs
+@@ -0,0 +1,20 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Representa o resultado imutável de uma análise Minimax.
++/// </summary>
++/// <param name="Position">Melhor posição encontrada.</param>
++/// <param name="Score">Pontuação da posição para o agente analisado.</param>
++/// <param name="MaximumDepth">Maior profundidade alcançada pela busca.</param>
++/// <param name="VisitedStates">Quantidade de estados visitados.</param>
++/// <remarks>
++/// O resultado é separado de <see cref="Move"/> porque descreve uma decisão
++/// hipotética, ainda não aplicada pelo agregado da partida.
++/// </remarks>
++public readonly record struct MinimaxAnalysis(
++    BoardPosition Position,
++    int Score,
++    int MaximumDepth,
++    int VisitedStates);
+diff --git a/src/TicTacToe.Console/AI/SearchBoard.cs b/src/TicTacToe.Console/AI/SearchBoard.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/SearchBoard.cs
+@@ -0,0 +1,114 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Representa um estado mutável restrito à busca de inteligência artificial.
++/// </summary>
++/// <remarks>
++/// A instância copia os nove símbolos de um <see cref="IReadOnlyBoard"/>. Todas
++/// as aplicações e reversões realizadas pelo Minimax ocorrem somente nesta
++/// representação, preservando o tabuleiro pertencente a <see cref="Match"/>.
++/// </remarks>
++internal sealed class SearchBoard
++{
++    private static readonly BoardPosition[][] winning_lines =
++    [
++        [new BoardPosition(0, 0), new BoardPosition(0, 1), new BoardPosition(0, 2)],
++        [new BoardPosition(1, 0), new BoardPosition(1, 1), new BoardPosition(1, 2)],
++        [new BoardPosition(2, 0), new BoardPosition(2, 1), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 0), new BoardPosition(1, 0), new BoardPosition(2, 0)],
++        [new BoardPosition(0, 1), new BoardPosition(1, 1), new BoardPosition(2, 1)],
++        [new BoardPosition(0, 2), new BoardPosition(1, 2), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 0), new BoardPosition(1, 1), new BoardPosition(2, 2)],
++        [new BoardPosition(0, 2), new BoardPosition(1, 1), new BoardPosition(2, 0)]
++    ];
++
++    private readonly Symbol[,] cells =
++        new Symbol[BoardPosition.BoardSize, BoardPosition.BoardSize];
++
++    /// <summary>
++    /// Inicializa o estado de busca copiando um tabuleiro somente para leitura.
++    /// </summary>
++    /// <param name="board">Tabuleiro de origem.</param>
++    public SearchBoard(IReadOnlyBoard board)
++    {
++        ArgumentNullException.ThrowIfNull(board);
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0;
++                 column < BoardPosition.BoardSize;
++                 column++)
++            {
++                BoardPosition position = new(row, column);
++                cells[row, column] = board.get_symbol(position);
++            }
++        }
++    }
++
++    /// <summary>
++    /// Obtém as posições livres em ordem estável de linha e coluna.
++    /// </summary>
++    /// <returns>Posições disponíveis.</returns>
++    public IReadOnlyList<BoardPosition> get_available_positions()
++    {
++        List<BoardPosition> positions = [];
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0;
++                 column < BoardPosition.BoardSize;
++                 column++)
++            {
++                BoardPosition position = new(row, column);
++
++                if (get_symbol(position) == Symbol.Empty)
++                {
++                    positions.Add(position);
++                }
++            }
++        }
++
++        return positions.AsReadOnly();
++    }
++
++    /// <summary>
++    /// Obtém o símbolo de uma posição.
++    /// </summary>
++    /// <param name="position">Posição consultada.</param>
++    /// <returns>Símbolo armazenado.</returns>
++    public Symbol get_symbol(BoardPosition position)
++    {
++        return cells[position.Row, position.Column];
++    }
++
++    /// <summary>
++    /// Define temporariamente o símbolo de uma posição.
++    /// </summary>
++    /// <param name="position">Posição alterada.</param>
++    /// <param name="symbol">Novo símbolo.</param>
++    public void set_symbol(
++        BoardPosition position,
++        Symbol symbol)
++    {
++        cells[position.Row, position.Column] = symbol;
++    }
++
++    /// <summary>
++    /// Verifica se o símbolo possui uma sequência vencedora.
++    /// </summary>
++    /// <param name="symbol">Símbolo avaliado.</param>
++    /// <returns><see langword="true"/> quando existe vitória.</returns>
++    public bool has_winner(Symbol symbol)
++    {
++        return winning_lines.Any(
++            line => line.All(
++                position => get_symbol(position) == symbol));
++    }
++
++    /// <summary>
++    /// Indica se não existem posições livres.
++    /// </summary>
++    public bool IsFull => get_available_positions().Count == 0;
++}
+diff --git a/src/TicTacToe.Console/AI/MinimaxMoveStrategy.cs b/src/TicTacToe.Console/AI/MinimaxMoveStrategy.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/MinimaxMoveStrategy.cs
+@@ -0,0 +1,176 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Seleciona jogadas por busca Minimax completa.
++/// </summary>
++/// <remarks>
++/// A estratégia copia o tabuleiro para um <see cref="SearchBoard"/> e alterna
++/// níveis de maximização e minimização até estados terminais. Empates de
++/// pontuação são resolvidos pela primeira posição em ordem linha-coluna.
++/// </remarks>
++public sealed class MinimaxMoveStrategy : IMoveStrategy
++{
++    private const int WinScore = 10;
++    private const int LossScore = -10;
++    private const int DrawScore = 0;
++
++    /// <inheritdoc />
++    public BoardPosition choose_move(
++        IReadOnlyBoard board,
++        Symbol symbol)
++    {
++        return analyze(board, symbol).Position;
++    }
++
++    /// <summary>
++    /// Analisa o estado e retorna a melhor posição acompanhada das métricas da
++    /// busca.
++    /// </summary>
++    /// <param name="board">Tabuleiro consultado.</param>
++    /// <param name="symbol">Símbolo maximizado.</param>
++    /// <returns>Resultado completo da análise.</returns>
++    /// <exception cref="ArgumentNullException">
++    /// Lançada quando o tabuleiro é nulo.
++    /// </exception>
++    /// <exception cref="ArgumentException">
++    /// Lançada quando o símbolo é vazio.
++    /// </exception>
++    /// <exception cref="InvalidOperationException">
++    /// Lançada quando não existem posições disponíveis.
++    /// </exception>
++    public MinimaxAnalysis analyze(
++        IReadOnlyBoard board,
++        Symbol symbol)
++    {
++        ArgumentNullException.ThrowIfNull(board);
++
++        if (symbol == Symbol.Empty)
++        {
++            throw new ArgumentException(
++                "A estratégia deve analisar uma jogada para X ou O.",
++                nameof(symbol));
++        }
++
++        SearchBoard search_board = new(board);
++        IReadOnlyList<BoardPosition> available_positions =
++            search_board.get_available_positions();
++
++        if (available_positions.Count == 0)
++        {
++            throw new InvalidOperationException(
++                "Não existem casas disponíveis para análise.");
++        }
++
++        SearchMetrics metrics = new();
++        Symbol opponent_symbol = get_opponent_symbol(symbol);
++        BoardPosition best_position = available_positions[0];
++        int best_score = int.MinValue;
++
++        foreach (BoardPosition position in available_positions)
++        {
++            search_board.set_symbol(position, symbol);
++
++            int score = minimax(
++                search_board,
++                symbol,
++                opponent_symbol,
++                opponent_symbol,
++                depth: 1,
++                metrics);
++
++            search_board.set_symbol(position, Symbol.Empty);
++
++            if (score > best_score)
++            {
++                best_score = score;
++                best_position = position;
++            }
++        }
++
++        return new MinimaxAnalysis(
++            best_position,
++            best_score,
++            metrics.MaximumDepth,
++            metrics.VisitedStates);
++    }
++
++    private static int minimax(
++        SearchBoard board,
++        Symbol maximizing_symbol,
++        Symbol minimizing_symbol,
++        Symbol current_symbol,
++        int depth,
++        SearchMetrics metrics)
++    {
++        metrics.register_state(depth);
++
++        if (board.has_winner(maximizing_symbol))
++        {
++            return WinScore - depth;
++        }
++
++        if (board.has_winner(minimizing_symbol))
++        {
++            return LossScore + depth;
++        }
++
++        IReadOnlyList<BoardPosition> available_positions =
++            board.get_available_positions();
++
++        if (available_positions.Count == 0)
++        {
++            return DrawScore;
++        }
++
++        bool is_maximizing = current_symbol == maximizing_symbol;
++        int best_score = is_maximizing
++            ? int.MinValue
++            : int.MaxValue;
++
++        foreach (BoardPosition position in available_positions)
++        {
++            board.set_symbol(position, current_symbol);
++
++            int score = minimax(
++                board,
++                maximizing_symbol,
++                minimizing_symbol,
++                get_opponent_symbol(current_symbol),
++                depth + 1,
++                metrics);
++
++            board.set_symbol(position, Symbol.Empty);
++
++            best_score = is_maximizing
++                ? Math.Max(best_score, score)
++                : Math.Min(best_score, score);
++        }
++
++        return best_score;
++    }
++
++    private static Symbol get_opponent_symbol(Symbol symbol)
++    {
++        return symbol == Symbol.X
++            ? Symbol.O
++            : Symbol.X;
++    }
++
++    /// <summary>
++    /// Acumula métricas durante uma única análise.
++    /// </summary>
++    private sealed class SearchMetrics
++    {
++        public int MaximumDepth { get; private set; }
++
++        public int VisitedStates { get; private set; }
++
++        public void register_state(int depth)
++        {
++            VisitedStates++;
++            MaximumDepth = Math.Max(MaximumDepth, depth);
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/AI/MinimaxMoveStrategyTests.cs b/tests/TicTacToe.Tests/AI/MinimaxMoveStrategyTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/AI/MinimaxMoveStrategyTests.cs
+@@ -0,0 +1,267 @@
++using TicTacToe.AI;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.AI;
++
++/// <summary>
++/// Verifica decisões, métricas e isolamento da estratégia Minimax.
++/// </summary>
++public class MinimaxMoveStrategyTests
++{
++    /// <summary>
++    /// Confirma que uma vitória imediata é escolhida.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_select_immediate_win()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (0, 1, Symbol.X),
++            (1, 0, Symbol.O),
++            (1, 1, Symbol.O));
++
++        MinimaxMoveStrategy strategy = new();
++
++        BoardPosition position =
++            strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(0, 2), position);
++    }
++
++    /// <summary>
++    /// Confirma o bloqueio de uma vitória adversária obrigatória.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_block_required_opponent_win()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.O),
++            (0, 1, Symbol.O),
++            (1, 0, Symbol.X));
++
++        MinimaxMoveStrategy strategy = new();
++
++        BoardPosition position =
++            strategy.choose_move(board, Symbol.X);
++
++        Assert.Equal(new BoardPosition(0, 2), position);
++    }
++
++    /// <summary>
++    /// Confirma empate quando dois agentes Minimax jogam perfeitamente.
++    /// </summary>
++    [Fact]
++    public void perfect_play_should_finish_with_draw()
++    {
++        Board board = new();
++        MinimaxMoveStrategy strategy = new();
++        Symbol current_symbol = Symbol.X;
++        int turn_number = 1;
++
++        while (!board.IsFull &&
++               GameRules.evaluate(board).IsInProgress)
++        {
++            BoardPosition position =
++                strategy.choose_move(board, current_symbol);
++
++            board.apply_move(
++                new Move(position, current_symbol, turn_number));
++
++            current_symbol = current_symbol == Symbol.X
++                ? Symbol.O
++                : Symbol.X;
++
++            turn_number++;
++        }
++
++        GameEvaluation evaluation = GameRules.evaluate(board);
++
++        Assert.Equal(GameResult.Draw, evaluation.Result);
++    }
++
++    /// <summary>
++    /// Confirma que a posição escolhida está disponível.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_return_available_position()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (1, 1, Symbol.O),
++            (2, 2, Symbol.X));
++
++        MinimaxMoveStrategy strategy = new();
++
++        BoardPosition position =
++            strategy.choose_move(board, Symbol.O);
++
++        Assert.True(board.is_position_available(position));
++    }
++
++    /// <summary>
++    /// Confirma que a análise não modifica o tabuleiro recebido.
++    /// </summary>
++    [Fact]
++    public void analyze_should_preserve_original_board()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (1, 1, Symbol.O),
++            (2, 0, Symbol.X));
++        Symbol[,] before = capture_symbols(board);
++        int occupied_count = board.OccupiedCount;
++
++        MinimaxMoveStrategy strategy = new();
++
++        strategy.analyze(board, Symbol.O);
++
++        Assert.Equal(occupied_count, board.OccupiedCount);
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0;
++                 column < BoardPosition.BoardSize;
++                 column++)
++            {
++                Assert.Equal(
++                    before[row, column],
++                    board.get_symbol(
++                        new BoardPosition(row, column)));
++            }
++        }
++    }
++
++    /// <summary>
++    /// Confirma que estados iguais produzem análise idêntica.
++    /// </summary>
++    [Fact]
++    public void analyze_should_be_reproducible()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (1, 1, Symbol.O));
++
++        MinimaxMoveStrategy first_strategy = new();
++        MinimaxMoveStrategy second_strategy = new();
++
++        MinimaxAnalysis first_analysis =
++            first_strategy.analyze(board, Symbol.X);
++        MinimaxAnalysis second_analysis =
++            second_strategy.analyze(board, Symbol.X);
++
++        Assert.Equal(first_analysis, second_analysis);
++    }
++
++    /// <summary>
++    /// Confirma o registro de estados e profundidade.
++    /// </summary>
++    [Fact]
++    public void analyze_should_report_search_metrics()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (1, 1, Symbol.O));
++
++        MinimaxMoveStrategy strategy = new();
++
++        MinimaxAnalysis analysis =
++            strategy.analyze(board, Symbol.X);
++
++        Assert.True(analysis.VisitedStates > 0);
++        Assert.True(analysis.MaximumDepth > 0);
++    }
++
++    /// <summary>
++    /// Confirma que o resultado da análise não é uma jogada do domínio.
++    /// </summary>
++    [Fact]
++    public void analyze_should_return_analysis_separate_from_move()
++    {
++        Board board = new();
++        MinimaxMoveStrategy strategy = new();
++
++        MinimaxAnalysis analysis =
++            strategy.analyze(board, Symbol.X);
++
++        Assert.IsType<MinimaxAnalysis>(analysis);
++        Assert.True(board.is_position_available(analysis.Position));
++    }
++
++    /// <summary>
++    /// Confirma a rejeição de tabuleiro completo.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_full_board()
++    {
++        Board board = create_board(
++            (0, 0, Symbol.X),
++            (0, 1, Symbol.O),
++            (0, 2, Symbol.X),
++            (1, 0, Symbol.X),
++            (1, 1, Symbol.O),
++            (1, 2, Symbol.O),
++            (2, 0, Symbol.O),
++            (2, 1, Symbol.X),
++            (2, 2, Symbol.X));
++
++        MinimaxMoveStrategy strategy = new();
++
++        Assert.Throws<InvalidOperationException>(
++            () => strategy.choose_move(board, Symbol.O));
++    }
++
++    /// <summary>
++    /// Confirma a rejeição do símbolo vazio.
++    /// </summary>
++    [Fact]
++    public void choose_move_should_reject_empty_symbol()
++    {
++        MinimaxMoveStrategy strategy = new();
++
++        Assert.Throws<ArgumentException>(
++            () => strategy.choose_move(
++                new Board(),
++                Symbol.Empty));
++    }
++
++    private static Board create_board(
++        params (int Row, int Column, Symbol Symbol)[] cells)
++    {
++        Board board = new();
++        int turn_number = 1;
++
++        foreach ((int row, int column, Symbol symbol) in cells)
++        {
++            board.apply_move(
++                new Move(
++                    new BoardPosition(row, column),
++                    symbol,
++                    turn_number));
++
++            turn_number++;
++        }
++
++        return board;
++    }
++
++    private static Symbol[,] capture_symbols(IReadOnlyBoard board)
++    {
++        Symbol[,] symbols =
++            new Symbol[BoardPosition.BoardSize, BoardPosition.BoardSize];
++
++        for (int row = 0; row < BoardPosition.BoardSize; row++)
++        {
++            for (int column = 0;
++                 column < BoardPosition.BoardSize;
++                 column++)
++            {
++                symbols[row, column] =
++                    board.get_symbol(
++                        new BoardPosition(row, column));
++            }
++        }
++
++        return symbols;
++    }
++}

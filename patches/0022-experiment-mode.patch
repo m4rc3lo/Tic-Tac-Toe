@@ -1,0 +1,1106 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,17 @@
+ 
+ ### Added
+ 
++- `ExperimentController` para confrontos IA contra IA em lote.
++- Política determinística de sementes e alternância independente.
++- Contrato opcional `ISearchMetricsProvider`.
++- Persistência experimental acumulada em JSON e CSV.
++- Captura de falhas individuais sem descarte do lote.
++- Testes sem apresentação, tempo real ou arquivos permanentes.
++- `docs/24-modo-experimental.md`.
++
++
++### Added
++
+ - modo demonstrativo IA contra IA com Strategies independentes para X e O;
+ - pausa e cancelamento por contrato testável;
+ - aplicação de Strategy e semente padrão;
+diff --git a/docs/24-modo-experimental.md b/docs/24-modo-experimental.md
+new file mode 100644
+--- /dev/null
++++ b/docs/24-modo-experimental.md
+@@ -0,0 +1,96 @@
++# Modo experimental
++
++## 1. Finalidade
++
++O modo experimental executa confrontos IA contra IA em lote sem renderização,
++animações, áudio, atrasos ou navegação. Ele reutiliza `Match`,
++`MatchController`, `IComputerMoveStrategyResolver` e as Strategies existentes.
++
++## 2. Componentes
++
++O controlador recebe todos os mecanismos externos por contrato.
++
++```mermaid
++classDiagram
++    class ExperimentController
++    class IExperimentStrategyFactory
++    class ISeedSequence
++    class IExperimentTimerFactory
++    class IExperimentResultRepository
++    class ISearchMetricsProvider
++    class JsonExperimentResultRepository
++    class CsvExperimentResultRepository
++
++    ExperimentController --> IExperimentStrategyFactory
++    ExperimentController --> ISeedSequence
++    ExperimentController --> IExperimentTimerFactory
++    ExperimentController --> IExperimentResultRepository
++    JsonExperimentResultRepository ..|> IExperimentResultRepository
++    CsvExperimentResultRepository ..|> IExperimentResultRepository
++    ISearchMetricsProvider <|.. MinimaxMoveStrategy
++```
++
++Essa separação permite testes determinísticos e impede acoplamento com
++`MinimaxMoveStrategy` concreto ou com a camada de apresentação.
++
++## 3. Execução do lote
++
++Cada execução obtém uma semente pela política sequencial, cria Strategies
++independentes e executa o controlador normal com `NullGameOutput`.
++
++```mermaid
++sequenceDiagram
++    participant Experiment as ExperimentController
++    participant Seed as ISeedSequence
++    participant Factory as IExperimentStrategyFactory
++    participant Match as MatchController
++    participant Repository as IExperimentResultRepository
++
++    loop para cada execução
++        Experiment->>Seed: get_seed(base, número)
++        Experiment->>Factory: create(X, semente)
++        Experiment->>Factory: create(O, semente)
++        Experiment->>Match: run(match)
++        Match-->>Experiment: partida concluída ou falha
++        Experiment->>Repository: save(resultado acumulado)
++    end
++```
++
++O resultado acumulado é salvo após cada tentativa. Uma falha individual gera
++uma métrica com `failed=true` e não elimina observações anteriores.
++
++## 4. Alternâncias
++
++`AlternateSymbols` troca as Strategies associadas a X e O nas execuções pares.
++`AlternateFirstPlayer` altera qual símbolo ocupa a primeira posição no
++construtor de `Match`. As opções são independentes.
++
++## 5. Sementes
++
++`SequentialSeedSequence` produz `base_seed + run_number - 1`. Sem semente base,
++o valor permanece nulo. A semente efetiva é registrada em JSON e CSV.
++
++## 6. Métricas de busca
++
++Strategies podem implementar `ISearchMetricsProvider`. O seletor acumula
++`LastEvaluatedStates` após cada jogada. Strategies sem o contrato produzem
++`evaluated_states` vazio.
++
++## 7. Persistência
++
++Os arquivos padrão são:
++
++```text
++experiment-result.json
++experiment-metrics.csv
++```
++
++JSON e CSV usam arquivo temporário seguido de substituição. O histórico normal
++não é alterado, exceto quando `PersistMatchesToHistory` é explicitamente
++habilitado.
++
++## 8. Testabilidade
++
++Os testes usam temporizadores simulados, diretórios temporários, sementes
++controladas, Strategies com falha e métricas simuladas. Nenhum teste depende de
++Console, ScreenManager, áudio, animação ou tempo real.
+diff --git a/src/TicTacToe.Console/AI/ISearchMetricsProvider.cs b/src/TicTacToe.Console/AI/ISearchMetricsProvider.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/AI/ISearchMetricsProvider.cs
+@@ -0,0 +1,12 @@
++namespace TicTacToe.AI;
++
++/// <summary>
++/// Expõe métricas opcionais produzidas pela última seleção de jogada.
++/// </summary>
++public interface ISearchMetricsProvider
++{
++    /// <summary>
++    /// Obtém a quantidade de estados avaliados na última busca.
++    /// </summary>
++    long LastEvaluatedStates { get; }
++}
+diff --git a/src/TicTacToe.Console/AI/MinimaxMoveStrategy.cs b/src/TicTacToe.Console/AI/MinimaxMoveStrategy.cs
+--- a/src/TicTacToe.Console/AI/MinimaxMoveStrategy.cs
++++ b/src/TicTacToe.Console/AI/MinimaxMoveStrategy.cs
+@@ -10,8 +10,10 @@
+ /// níveis de maximização e minimização até estados terminais. Empates de
+ /// pontuação são resolvidos pela primeira posição em ordem linha-coluna.
+ /// </remarks>
+-public sealed class MinimaxMoveStrategy : IMoveStrategy
++public sealed class MinimaxMoveStrategy : IMoveStrategy, ISearchMetricsProvider
+ {
++    /// <inheritdoc />
++    public long LastEvaluatedStates { get; private set; }
+     private const int WinScore = 10;
+     private const int LossScore = -10;
+     private const int DrawScore = 0;
+@@ -21,7 +23,9 @@
+         IReadOnlyBoard board,
+         Symbol symbol)
+     {
+-        return analyze(board, symbol).Position;
++        MinimaxAnalysis analysis = analyze(board, symbol);
++        LastEvaluatedStates = analysis.VisitedStates;
++        return analysis.Position;
+     }
+ 
+     /// <summary>
+diff --git a/src/TicTacToe.Console/Application/ExperimentConfiguration.cs b/src/TicTacToe.Console/Application/ExperimentConfiguration.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ExperimentConfiguration.cs
+@@ -0,0 +1,16 @@
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Define um lote experimental reproduzível.
++/// </summary>
++public sealed record ExperimentConfiguration(
++    ExperimentStrategy XStrategy,
++    ExperimentStrategy OStrategy,
++    int MatchCount,
++    bool AlternateSymbols,
++    bool AlternateFirstPlayer,
++    int? BaseSeed,
++    string ApplicationVersion,
++    string OutputDirectory,
++    bool ContinueOnFailure = true,
++    bool PersistMatchesToHistory = false);
+diff --git a/src/TicTacToe.Console/Application/ExperimentController.cs b/src/TicTacToe.Console/Application/ExperimentController.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ExperimentController.cs
+@@ -0,0 +1,286 @@
++using TicTacToe.AI;
++using TicTacToe.Domain;
++using TicTacToe.Persistence;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Executa confrontos em lote sem dependências de apresentação.
++/// </summary>
++public sealed class ExperimentController
++{
++    private readonly IExperimentStrategyFactory strategy_factory;
++    private readonly ISeedSequence seed_sequence;
++    private readonly IExperimentTimerFactory timer_factory;
++    private readonly IReadOnlyList<IExperimentResultRepository> repositories;
++    private readonly IMatchPersistenceService? match_persistence_service;
++
++    public ExperimentController(
++        IExperimentStrategyFactory strategy_factory,
++        ISeedSequence seed_sequence,
++        IExperimentTimerFactory timer_factory,
++        IEnumerable<IExperimentResultRepository> repositories,
++        IMatchPersistenceService? match_persistence_service = null)
++    {
++        ArgumentNullException.ThrowIfNull(strategy_factory);
++        ArgumentNullException.ThrowIfNull(seed_sequence);
++        ArgumentNullException.ThrowIfNull(timer_factory);
++        ArgumentNullException.ThrowIfNull(repositories);
++
++        this.strategy_factory = strategy_factory;
++        this.seed_sequence = seed_sequence;
++        this.timer_factory = timer_factory;
++        this.repositories = repositories.ToArray();
++        this.match_persistence_service = match_persistence_service;
++    }
++
++    public ExperimentResult run(ExperimentConfiguration configuration)
++    {
++        validate(configuration);
++
++        Guid experiment_id = Guid.NewGuid();
++        List<ExperimentMetricRecord> metrics = [];
++
++        for (int run_number = 1;
++             run_number <= configuration.MatchCount;
++             run_number++)
++        {
++            int? seed = seed_sequence.get_seed(
++                configuration.BaseSeed,
++                run_number);
++            (ExperimentStrategy x_kind, ExperimentStrategy o_kind) =
++                resolve_strategy_assignment(configuration, run_number);
++
++            try
++            {
++                ExecutionOutcome outcome = execute_run(
++                    configuration,
++                    experiment_id,
++                    run_number,
++                    seed,
++                    x_kind,
++                    o_kind);
++                metrics.Add(outcome.Metric);
++
++                if (configuration.PersistMatchesToHistory)
++                {
++                    persist_match(configuration, outcome, seed);
++                }
++            }
++            catch (Exception exception)
++            {
++                metrics.Add(create_failure_metric(
++                    configuration,
++                    experiment_id,
++                    run_number,
++                    seed,
++                    x_kind,
++                    o_kind,
++                    exception));
++
++                save_progress(configuration, experiment_id, metrics);
++
++                if (!configuration.ContinueOnFailure)
++                {
++                    break;
++                }
++
++                continue;
++            }
++
++            save_progress(configuration, experiment_id, metrics);
++        }
++
++        return create_result(configuration, experiment_id, metrics);
++    }
++
++    private ExecutionOutcome execute_run(
++        ExperimentConfiguration configuration,
++        Guid experiment_id,
++        int run_number,
++        int? seed,
++        ExperimentStrategy x_kind,
++        ExperimentStrategy o_kind)
++    {
++        IMoveStrategy x_strategy = strategy_factory.create(x_kind, seed);
++        IMoveStrategy o_strategy = strategy_factory.create(o_kind, seed);
++
++        IComputerMoveStrategyResolver resolver =
++            new ConfiguredComputerMoveStrategyResolver(
++                new Dictionary<Symbol, IMoveStrategy>
++                {
++                    [Symbol.X] = x_strategy,
++                    [Symbol.O] = o_strategy
++                });
++
++        ExperimentMoveSelector selector = new(resolver);
++        MatchController controller = new(selector, new NullGameOutput());
++
++        ComputerPlayer x_player = new(x_kind.ToString(), Symbol.X);
++        ComputerPlayer o_player = new(o_kind.ToString(), Symbol.O);
++        bool o_starts =
++            configuration.AlternateFirstPlayer && run_number % 2 == 0;
++        Match match = o_starts
++            ? new Match(o_player, x_player)
++            : new Match(x_player, o_player);
++
++        IExperimentTimer timer = timer_factory.start();
++        Match completed_match;
++
++        try
++        {
++            completed_match = controller.run(match);
++        }
++        finally
++        {
++            timer.stop();
++        }
++
++        ExperimentMetricRecord metric = new(
++            experiment_id,
++            run_number,
++            x_kind.ToString(),
++            o_kind.ToString(),
++            seed,
++            completed_match.Result.ToString(),
++            completed_match.Moves.Count,
++            timer.ElapsedMilliseconds,
++            selector.EvaluatedStates > 0
++                ? selector.EvaluatedStates
++                : null,
++            false,
++            null,
++            configuration.ApplicationVersion);
++
++        return new ExecutionOutcome(
++            completed_match,
++            metric,
++            timer.StartedAt,
++            timer.FinishedAt,
++            x_kind,
++            o_kind);
++    }
++
++    private void persist_match(
++        ExperimentConfiguration configuration,
++        ExecutionOutcome outcome,
++        int? seed)
++    {
++        match_persistence_service?.persist(
++            new MatchPersistenceContext(
++                outcome.Match,
++                outcome.StartedAt,
++                outcome.FinishedAt,
++                outcome.XStrategy.ToString(),
++                outcome.OStrategy.ToString(),
++                seed,
++                configuration.ApplicationVersion));
++    }
++
++    private void save_progress(
++        ExperimentConfiguration configuration,
++        Guid experiment_id,
++        IReadOnlyList<ExperimentMetricRecord> metrics)
++    {
++        ExperimentResult result = create_result(
++            configuration,
++            experiment_id,
++            metrics);
++
++        foreach (IExperimentResultRepository repository in repositories)
++        {
++            repository.save(configuration.OutputDirectory, result);
++        }
++    }
++
++    private static ExperimentResult create_result(
++        ExperimentConfiguration configuration,
++        Guid experiment_id,
++        IReadOnlyList<ExperimentMetricRecord> metrics)
++    {
++        ExperimentMetricRecord[] snapshot = metrics.ToArray();
++        ExperimentMetricRecord[] successful = snapshot
++            .Where(metric => !metric.Failed)
++            .ToArray();
++
++        ExperimentSummary summary = new(
++            snapshot.Length,
++            successful.Length,
++            snapshot.Count(metric => metric.Failed),
++            successful.Count(metric => metric.Result == "XWins"),
++            successful.Count(metric => metric.Result == "OWins"),
++            successful.Count(metric => metric.Result == "Draw"),
++            successful.Length == 0
++                ? 0
++                : successful.Average(metric => metric.MoveCount),
++            successful.Length == 0
++                ? 0
++                : successful.Average(metric => metric.DurationMilliseconds));
++
++        return new ExperimentResult(
++            experiment_id,
++            configuration,
++            snapshot,
++            summary);
++    }
++
++    private static ExperimentMetricRecord create_failure_metric(
++        ExperimentConfiguration configuration,
++        Guid experiment_id,
++        int run_number,
++        int? seed,
++        ExperimentStrategy x_kind,
++        ExperimentStrategy o_kind,
++        Exception exception)
++    {
++        return new ExperimentMetricRecord(
++            experiment_id,
++            run_number,
++            x_kind.ToString(),
++            o_kind.ToString(),
++            seed,
++            "Failed",
++            0,
++            0,
++            null,
++            true,
++            exception.Message,
++            configuration.ApplicationVersion);
++    }
++
++    private static (
++        ExperimentStrategy XStrategy,
++        ExperimentStrategy OStrategy)
++        resolve_strategy_assignment(
++            ExperimentConfiguration configuration,
++            int run_number)
++    {
++        bool swap_symbols =
++            configuration.AlternateSymbols && run_number % 2 == 0;
++
++        return swap_symbols
++            ? (configuration.OStrategy, configuration.XStrategy)
++            : (configuration.XStrategy, configuration.OStrategy);
++    }
++
++    private static void validate(ExperimentConfiguration configuration)
++    {
++        ArgumentNullException.ThrowIfNull(configuration);
++        if (configuration.MatchCount < 1)
++        {
++            throw new ArgumentOutOfRangeException(
++                nameof(configuration),
++                "A quantidade de partidas deve ser maior que zero.");
++        }
++        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.ApplicationVersion);
++        ArgumentException.ThrowIfNullOrWhiteSpace(configuration.OutputDirectory);
++    }
++
++    private sealed record ExecutionOutcome(
++        Match Match,
++        ExperimentMetricRecord Metric,
++        DateTimeOffset StartedAt,
++        DateTimeOffset FinishedAt,
++        ExperimentStrategy XStrategy,
++        ExperimentStrategy OStrategy);
++}
+diff --git a/src/TicTacToe.Console/Application/ExperimentMoveSelector.cs b/src/TicTacToe.Console/Application/ExperimentMoveSelector.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ExperimentMoveSelector.cs
+@@ -0,0 +1,39 @@
++using TicTacToe.AI;
++using TicTacToe.Domain;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Seleciona jogadas computacionais e acumula métricas opcionais.
++/// </summary>
++public sealed class ExperimentMoveSelector : IMoveSelector
++{
++    private readonly IComputerMoveStrategyResolver resolver;
++
++    public ExperimentMoveSelector(IComputerMoveStrategyResolver resolver)
++    {
++        ArgumentNullException.ThrowIfNull(resolver);
++        this.resolver = resolver;
++    }
++
++    public long EvaluatedStates { get; private set; }
++
++    public BoardPosition select_move(Match match, Player player)
++    {
++        if (player is not ComputerPlayer computer_player)
++        {
++            throw new InvalidOperationException(
++                "O modo experimental aceita somente participantes computacionais.");
++        }
++
++        IMoveStrategy strategy = resolver.resolve_strategy(computer_player);
++        BoardPosition position = strategy.choose_move(match.Board, player.Symbol);
++
++        if (strategy is ISearchMetricsProvider metrics_provider)
++        {
++            EvaluatedStates += metrics_provider.LastEvaluatedStates;
++        }
++
++        return position;
++    }
++}
+diff --git a/src/TicTacToe.Console/Application/ExperimentResult.cs b/src/TicTacToe.Console/Application/ExperimentResult.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ExperimentResult.cs
+@@ -0,0 +1,12 @@
++using TicTacToe.Persistence;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Contém métricas individuais e agregadas de um experimento.
++/// </summary>
++public sealed record ExperimentResult(
++    Guid ExperimentId,
++    ExperimentConfiguration Configuration,
++    IReadOnlyList<ExperimentMetricRecord> Metrics,
++    ExperimentSummary Summary);
+diff --git a/src/TicTacToe.Console/Application/ExperimentStrategy.cs b/src/TicTacToe.Console/Application/ExperimentStrategy.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ExperimentStrategy.cs
+@@ -0,0 +1,11 @@
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Identifica as Strategies disponíveis em experimentos.
++/// </summary>
++public enum ExperimentStrategy
++{
++    Random,
++    Heuristic,
++    Minimax
++}
+diff --git a/src/TicTacToe.Console/Application/ExperimentStrategyFactory.cs b/src/TicTacToe.Console/Application/ExperimentStrategyFactory.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ExperimentStrategyFactory.cs
+@@ -0,0 +1,24 @@
++using TicTacToe.AI;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Cria as Strategies concretas disponíveis no experimento.
++/// </summary>
++public sealed class ExperimentStrategyFactory : IExperimentStrategyFactory
++{
++    public IMoveStrategy create(ExperimentStrategy strategy, int? seed)
++    {
++        return strategy switch
++        {
++            ExperimentStrategy.Random => seed.HasValue
++                ? new RandomMoveStrategy(seed.Value)
++                : new RandomMoveStrategy(),
++            ExperimentStrategy.Heuristic => seed.HasValue
++                ? new HeuristicMoveStrategy(seed.Value)
++                : new HeuristicMoveStrategy(),
++            ExperimentStrategy.Minimax => new MinimaxMoveStrategy(),
++            _ => throw new ArgumentOutOfRangeException(nameof(strategy))
++        };
++    }
++}
+diff --git a/src/TicTacToe.Console/Application/ExperimentSummary.cs b/src/TicTacToe.Console/Application/ExperimentSummary.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ExperimentSummary.cs
+@@ -0,0 +1,14 @@
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Consolida resultados do lote experimental.
++/// </summary>
++public sealed record ExperimentSummary(
++    int TotalRuns,
++    int SuccessfulRuns,
++    int FailedRuns,
++    int XWins,
++    int OWins,
++    int Draws,
++    double AverageMoves,
++    double AverageDurationMilliseconds);
+diff --git a/src/TicTacToe.Console/Application/IExperimentResultRepository.cs b/src/TicTacToe.Console/Application/IExperimentResultRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/IExperimentResultRepository.cs
+@@ -0,0 +1,9 @@
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Persiste o estado acumulado de um experimento.
++/// </summary>
++public interface IExperimentResultRepository
++{
++    void save(string output_directory, ExperimentResult result);
++}
+diff --git a/src/TicTacToe.Console/Application/IExperimentStrategyFactory.cs b/src/TicTacToe.Console/Application/IExperimentStrategyFactory.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/IExperimentStrategyFactory.cs
+@@ -0,0 +1,11 @@
++using TicTacToe.AI;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Cria Strategies para uma execução experimental.
++/// </summary>
++public interface IExperimentStrategyFactory
++{
++    IMoveStrategy create(ExperimentStrategy strategy, int? seed);
++}
+diff --git a/src/TicTacToe.Console/Application/IExperimentTimer.cs b/src/TicTacToe.Console/Application/IExperimentTimer.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/IExperimentTimer.cs
+@@ -0,0 +1,17 @@
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Mede uma execução sem impor relógio real aos testes.
++/// </summary>
++public interface IExperimentTimer
++{
++    DateTimeOffset StartedAt { get; }
++    DateTimeOffset FinishedAt { get; }
++    long ElapsedMilliseconds { get; }
++    void stop();
++}
++
++public interface IExperimentTimerFactory
++{
++    IExperimentTimer start();
++}
+diff --git a/src/TicTacToe.Console/Application/ISeedSequence.cs b/src/TicTacToe.Console/Application/ISeedSequence.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/ISeedSequence.cs
+@@ -0,0 +1,9 @@
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Produz sementes determinísticas para execuções sucessivas.
++/// </summary>
++public interface ISeedSequence
++{
++    int? get_seed(int? base_seed, int run_number);
++}
+diff --git a/src/TicTacToe.Console/Application/NullGameOutput.cs b/src/TicTacToe.Console/Application/NullGameOutput.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/NullGameOutput.cs
+@@ -0,0 +1,13 @@
++using TicTacToe.Domain;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Suprime toda saída durante confrontos experimentais.
++/// </summary>
++public sealed class NullGameOutput : IGameOutput
++{
++    public void show_match(Match match) { }
++    public void show_invalid_move(Player player, BoardPosition position, string message) { }
++    public void show_result(Match match) { }
++}
+diff --git a/src/TicTacToe.Console/Application/SequentialSeedSequence.cs b/src/TicTacToe.Console/Application/SequentialSeedSequence.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/SequentialSeedSequence.cs
+@@ -0,0 +1,19 @@
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Incrementa a semente base pelo índice da execução.
++/// </summary>
++public sealed class SequentialSeedSequence : ISeedSequence
++{
++    public int? get_seed(int? base_seed, int run_number)
++    {
++        if (run_number < 1)
++        {
++            throw new ArgumentOutOfRangeException(nameof(run_number));
++        }
++
++        return base_seed.HasValue
++            ? checked(base_seed.Value + run_number - 1)
++            : null;
++    }
++}
+diff --git a/src/TicTacToe.Console/Application/StopwatchExperimentTimer.cs b/src/TicTacToe.Console/Application/StopwatchExperimentTimer.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Application/StopwatchExperimentTimer.cs
+@@ -0,0 +1,32 @@
++using System.Diagnostics;
++
++namespace TicTacToe.Application;
++
++/// <summary>
++/// Mede execuções reais com relógio monotônico.
++/// </summary>
++public sealed class StopwatchExperimentTimerFactory : IExperimentTimerFactory
++{
++    public IExperimentTimer start() => new StopwatchExperimentTimer();
++
++    private sealed class StopwatchExperimentTimer : IExperimentTimer
++    {
++        private readonly Stopwatch stopwatch = Stopwatch.StartNew();
++
++        public StopwatchExperimentTimer()
++        {
++            StartedAt = DateTimeOffset.UtcNow;
++            FinishedAt = StartedAt;
++        }
++
++        public DateTimeOffset StartedAt { get; }
++        public DateTimeOffset FinishedAt { get; private set; }
++        public long ElapsedMilliseconds => stopwatch.ElapsedMilliseconds;
++
++        public void stop()
++        {
++            stopwatch.Stop();
++            FinishedAt = StartedAt + stopwatch.Elapsed;
++        }
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/Csv/CsvExperimentResultRepository.cs b/src/TicTacToe.Console/Persistence/Csv/CsvExperimentResultRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/CsvExperimentResultRepository.cs
+@@ -0,0 +1,29 @@
++using TicTacToe.Application;
++
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Persiste métricas experimentais acumuladas em CSV.
++/// </summary>
++public sealed class CsvExperimentResultRepository
++    : IExperimentResultRepository
++{
++    private readonly ExperimentMetricsCsvExporter exporter;
++
++    public CsvExperimentResultRepository(CsvWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        exporter = new ExperimentMetricsCsvExporter(writer);
++    }
++
++    public void save(string output_directory, ExperimentResult result)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(output_directory);
++        ArgumentNullException.ThrowIfNull(result);
++        Directory.CreateDirectory(output_directory);
++
++        exporter.export(
++            Path.Combine(output_directory, "experiment-metrics.csv"),
++            result.Metrics);
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/JsonExperimentResultRepository.cs b/src/TicTacToe.Console/Persistence/JsonExperimentResultRepository.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/JsonExperimentResultRepository.cs
+@@ -0,0 +1,22 @@
++using TicTacToe.Application;
++
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Persiste resultados experimentais acumulados em JSON.
++/// </summary>
++public sealed class JsonExperimentResultRepository
++    : IExperimentResultRepository
++{
++    private readonly JsonFileStore store = new();
++
++    public void save(string output_directory, ExperimentResult result)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(output_directory);
++        ArgumentNullException.ThrowIfNull(result);
++
++        store.save(
++            Path.Combine(output_directory, "experiment-result.json"),
++            result);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Application/ExperimentArchitectureTests.cs b/tests/TicTacToe.Tests/Application/ExperimentArchitectureTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Application/ExperimentArchitectureTests.cs
+@@ -0,0 +1,41 @@
++using System.Reflection;
++using TicTacToe.Application;
++using Xunit;
++
++namespace TicTacToe.Tests.Application;
++
++public class ExperimentArchitectureTests
++{
++    [Fact]
++    public void controller_contracts_should_not_expose_presentation_types()
++    {
++        Type controller_type = typeof(ExperimentController);
++
++        Type[] exposed_types = controller_type
++            .GetConstructors(BindingFlags.Public | BindingFlags.Instance)
++            .SelectMany(constructor => constructor.GetParameters())
++            .Select(parameter => parameter.ParameterType)
++            .Append(
++                controller_type.GetMethod(nameof(ExperimentController.run))!
++                    .ReturnType)
++            .ToArray();
++
++        Assert.DoesNotContain(
++            exposed_types,
++            type => contains_presentation_namespace(type));
++    }
++
++    private static bool contains_presentation_namespace(Type type)
++    {
++        if (type.Namespace?.StartsWith(
++                "TicTacToe.Presentation",
++                StringComparison.Ordinal) == true)
++        {
++            return true;
++        }
++
++        return type.IsGenericType &&
++               type.GetGenericArguments()
++                   .Any(contains_presentation_namespace);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs b/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Application/ExperimentControllerTests.cs
+@@ -0,0 +1,164 @@
++using TicTacToe.AI;
++using TicTacToe.Application;
++using TicTacToe.Domain;
++using Xunit;
++
++namespace TicTacToe.Tests.Application;
++
++public class ExperimentControllerTests
++{
++    [Fact]
++    public void run_should_be_reproducible_and_aggregate_results()
++    {
++        MemoryRepository repository = new();
++        ExperimentController controller = create_controller(
++            new ExperimentStrategyFactory(),
++            repository);
++
++        ExperimentResult result = controller.run(
++            create_configuration(match_count: 4));
++
++        Assert.Equal(4, result.Metrics.Count);
++        Assert.Equal(
++            new int?[] { 10, 11, 12, 13 },
++            result.Metrics.Select(metric => metric.Seed).ToArray());
++        Assert.Equal(4, result.Summary.SuccessfulRuns);
++        Assert.Equal(4, repository.SaveCount);
++        Assert.All(result.Metrics, metric => Assert.False(metric.Failed));
++    }
++
++    [Fact]
++    public void run_should_alternate_symbols_and_first_player()
++    {
++        MemoryRepository repository = new();
++        RecordingFactory factory = new();
++        ExperimentController controller = create_controller(factory, repository);
++
++        ExperimentResult result = controller.run(create_configuration(match_count: 2));
++
++        Assert.Equal("Random", result.Metrics[0].XStrategy);
++        Assert.Equal("Minimax", result.Metrics[0].OStrategy);
++        Assert.Equal("Minimax", result.Metrics[1].XStrategy);
++        Assert.Equal("Random", result.Metrics[1].OStrategy);
++        Assert.Equal(4, factory.Calls.Count);
++    }
++
++    [Fact]
++    public void run_should_capture_failure_and_continue()
++    {
++        MemoryRepository repository = new();
++        ExperimentController controller = create_controller(
++            new FailingOnceFactory(),
++            repository);
++
++        ExperimentResult result = controller.run(create_configuration(match_count: 2));
++
++        Assert.Equal(2, result.Metrics.Count);
++        Assert.True(result.Metrics[0].Failed);
++        Assert.False(result.Metrics[1].Failed);
++        Assert.Equal(1, result.Summary.FailedRuns);
++        Assert.Equal(2, repository.SaveCount);
++    }
++
++    [Fact]
++    public void run_should_collect_optional_search_metrics()
++    {
++        MemoryRepository repository = new();
++        ExperimentController controller = create_controller(
++            new MetricsFactory(),
++            repository);
++
++        ExperimentResult result = controller.run(create_configuration(match_count: 1));
++
++        Assert.NotNull(result.Metrics[0].EvaluatedStates);
++        Assert.True(result.Metrics[0].EvaluatedStates > 0);
++    }
++
++    private static ExperimentController create_controller(
++        IExperimentStrategyFactory factory,
++        IExperimentResultRepository repository)
++    {
++        return new ExperimentController(
++            factory,
++            new SequentialSeedSequence(),
++            new FakeTimerFactory(),
++            [repository]);
++    }
++
++    private static ExperimentConfiguration create_configuration(int match_count)
++    {
++        return new ExperimentConfiguration(
++            ExperimentStrategy.Random,
++            ExperimentStrategy.Minimax,
++            match_count,
++            AlternateSymbols: true,
++            AlternateFirstPlayer: true,
++            BaseSeed: 10,
++            ApplicationVersion: "1.8.0",
++            OutputDirectory: "ignored");
++    }
++
++    private sealed class MemoryRepository : IExperimentResultRepository
++    {
++        public int SaveCount { get; private set; }
++        public void save(string output_directory, ExperimentResult result) => SaveCount++;
++    }
++
++    private sealed class FakeTimerFactory : IExperimentTimerFactory
++    {
++        public IExperimentTimer start() => new FakeTimer();
++    }
++
++    private sealed class FakeTimer : IExperimentTimer
++    {
++        public DateTimeOffset StartedAt { get; } = DateTimeOffset.UnixEpoch;
++        public DateTimeOffset FinishedAt { get; private set; } = DateTimeOffset.UnixEpoch;
++        public long ElapsedMilliseconds => 25;
++        public void stop() => FinishedAt = StartedAt.AddMilliseconds(25);
++    }
++
++    private sealed class RecordingFactory : IExperimentStrategyFactory
++    {
++        private readonly ExperimentStrategyFactory inner = new();
++        public List<ExperimentStrategy> Calls { get; } = [];
++        public IMoveStrategy create(ExperimentStrategy strategy, int? seed)
++        {
++            Calls.Add(strategy);
++            return inner.create(strategy, seed);
++        }
++    }
++
++    private sealed class FailingOnceFactory : IExperimentStrategyFactory
++    {
++        private int calls;
++        private readonly ExperimentStrategyFactory inner = new();
++        public IMoveStrategy create(ExperimentStrategy strategy, int? seed)
++        {
++            calls++;
++            if (calls == 1) return new ThrowingStrategy();
++            return inner.create(strategy, seed);
++        }
++    }
++
++    private sealed class ThrowingStrategy : IMoveStrategy
++    {
++        public BoardPosition choose_move(IReadOnlyBoard board, Symbol symbol) =>
++            throw new InvalidOperationException("Falha controlada.");
++    }
++
++    private sealed class MetricsFactory : IExperimentStrategyFactory
++    {
++        public IMoveStrategy create(ExperimentStrategy strategy, int? seed) =>
++            new MetricsStrategy();
++    }
++
++    private sealed class MetricsStrategy : IMoveStrategy, ISearchMetricsProvider
++    {
++        public long LastEvaluatedStates { get; private set; }
++        public BoardPosition choose_move(IReadOnlyBoard board, Symbol symbol)
++        {
++            LastEvaluatedStates = 3;
++            return board.get_available_positions()[0];
++        }
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Application/SequentialSeedSequenceTests.cs b/tests/TicTacToe.Tests/Application/SequentialSeedSequenceTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Application/SequentialSeedSequenceTests.cs
+@@ -0,0 +1,18 @@
++using TicTacToe.Application;
++using Xunit;
++
++namespace TicTacToe.Tests.Application;
++
++public class SequentialSeedSequenceTests
++{
++    [Fact]
++    public void get_seed_should_increment_base_seed()
++    {
++        SequentialSeedSequence sequence = new();
++
++        Assert.Equal(40, sequence.get_seed(40, 1));
++        Assert.Equal(41, sequence.get_seed(40, 2));
++        Assert.Equal(42, sequence.get_seed(40, 3));
++        Assert.Null(sequence.get_seed(null, 1));
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/ExperimentResultRepositoriesTests.cs b/tests/TicTacToe.Tests/Persistence/ExperimentResultRepositoriesTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/ExperimentResultRepositoriesTests.cs
+@@ -0,0 +1,55 @@
++using TicTacToe.Application;
++using TicTacToe.Persistence;
++using TicTacToe.Persistence.Csv;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence;
++
++public sealed class ExperimentResultRepositoriesTests : IDisposable
++{
++    private readonly string directory = Path.Combine(
++        Path.GetTempPath(),
++        $"tictactoe-experiment-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void repositories_should_write_json_and_csv_atomically()
++    {
++        ExperimentResult result = create_result();
++
++        new JsonExperimentResultRepository().save(directory, result);
++        new CsvExperimentResultRepository(new CsvWriter()).save(directory, result);
++
++        Assert.True(File.Exists(Path.Combine(directory, "experiment-result.json")));
++        Assert.True(File.Exists(Path.Combine(directory, "experiment-metrics.csv")));
++        Assert.Contains("experimentId", File.ReadAllText(Path.Combine(directory, "experiment-result.json")));
++        Assert.Contains("experiment_id;run_number", File.ReadAllText(Path.Combine(directory, "experiment-metrics.csv")));
++        Assert.Empty(Directory.GetFiles(directory, "*.tmp-*", SearchOption.AllDirectories));
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory)) Directory.Delete(directory, true);
++    }
++
++    private static ExperimentResult create_result()
++    {
++        Guid id = Guid.NewGuid();
++        ExperimentConfiguration configuration = new(
++            ExperimentStrategy.Random,
++            ExperimentStrategy.Minimax,
++            1,
++            false,
++            false,
++            1,
++            "1.8.0",
++            OutputDirectory: ".");
++        ExperimentMetricRecord metric = new(
++            id, 1, "Random", "Minimax", 1, "Draw", 9, 10, 20,
++            false, null, "1.8.0");
++        return new ExperimentResult(
++            id,
++            configuration,
++            [metric],
++            new ExperimentSummary(1, 1, 0, 0, 0, 1, 9, 10));
++    }
++}

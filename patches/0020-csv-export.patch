@@ -1,0 +1,1007 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -27,7 +27,7 @@
+         2026-07-17 : v1.6.0 — apresentação e estados
+     section Marcos planejados
+         2026-07-17 : v1.7.0 — recursos audiovisuais
+-        Data a definir : v1.8.0 — persistência e exportação
++        2026-07-17 : v1.8.0 — persistência e exportação
+         Data a definir : v1.9.0 — experimentação e consolidação
+         Data a definir : v2.0.0 — refatoração completa
+ ```
+@@ -36,6 +36,23 @@
+ real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+ 
+ ## [Unreleased]
++
++## [1.8.0] - 2026-07-17
++
++### Added
++
++- Infraestrutura CSV UTF-8 sem dependências externas.
++- Exportadores de partidas, jogadas, estatísticas e métricas experimentais.
++- Escape de separadores, aspas e quebras de linha.
++- Datas ISO 8601 e números com cultura invariável.
++- `ExperimentMetricRecord` como esquema de intercâmbio experimental.
++- Testes de esquema, caracteres especiais e codificação.
++- `docs/22-exportacao-csv.md`.
++
++### Changed
++
++- Versão do projeto e metadados atualizados para `1.8.0`.
++
+ 
+ ### Added
+ 
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,7 +2,7 @@
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.7.0"
++version: "1.8.0"
+ date-released: "2026-07-17"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+diff --git a/Directory.Build.props b/Directory.Build.props
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.7.0</Version>
++        <Version>1.8.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -13,6 +13,7 @@
+ - `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
+ - `v1.6.0` — 2026-07-17: apresentação Console e máquina de estados;
+ - `v1.7.0` — 2026-07-17: recursos visuais, animações e áudio com fallback;
++- `v1.8.0` — 2026-07-17: persistência JSON e exportação CSV;
+ - `Unreleased`: próxima etapa de desenvolvimento;
+ - `v2.0.0` — data a definir: consolidação final da refatoração.
+ 
+diff --git a/docs/22-exportacao-csv.md b/docs/22-exportacao-csv.md
+new file mode 100644
+--- /dev/null
++++ b/docs/22-exportacao-csv.md
+@@ -0,0 +1,173 @@
++# Exportação CSV
++
++## 1. Finalidade
++
++A versão `1.8.0` introduz exportadores CSV sem biblioteca externa. Os arquivos
++utilizam UTF-8 sem BOM, ponto e vírgula como separador, cabeçalho obrigatório e
++representações independentes da cultura local.
++
++A infraestrutura exporta partidas, jogadas, estatísticas gerais, estatísticas
++por Strategy e métricas experimentais.
++
++## 2. Regras de serialização
++
++`CsvWriter` aplica as seguintes regras:
++
++- separador `;`;
++- aspas duplas em campos com separador, aspas ou quebra de linha;
++- duplicação de aspas internas;
++- datas em ISO 8601 e UTC;
++- números com cultura invariável e ponto decimal;
++- valores nulos como campos vazios;
++- UTF-8 sem marcador BOM;
++- gravação temporária seguida de substituição.
++
++O fluxo de escape é apresentado a seguir.
++
++```mermaid
++flowchart TD
++    A[Receber campo] --> B{Contém ponto e vírgula, aspas ou quebra?}
++    B -- Não --> C[Escrever valor diretamente]
++    B -- Sim --> D[Duplicar aspas internas]
++    D --> E[Envolver o campo em aspas duplas]
++    C --> F[Separar por ponto e vírgula]
++    E --> F
++```
++
++Esse procedimento preserva conteúdo textual arbitrário, inclusive mensagens de
++falha com múltiplas linhas.
++
++## 3. Arquivos gerados
++
++`CsvExportService` gera:
++
++```text
++matches.csv
++moves.csv
++statistics.csv
++strategy-statistics.csv
++experiment-metrics.csv
++```
++
++As quatro primeiras saídas usam os registros JSON já definidos. A última usa
++`ExperimentMetricRecord`, que será preenchido pelo modo experimental.
++
++## 4. Colunas de partidas
++
++| Coluna | Descrição |
++|---|---|
++| `match_id` | UUID da partida |
++| `started_at_utc` | início em ISO 8601 UTC |
++| `finished_at_utc` | término em ISO 8601 UTC |
++| `duration_ms` | duração em milissegundos |
++| `first_name` | nome do primeiro participante |
++| `first_kind` | `Human` ou `Computer` |
++| `first_symbol` | símbolo do primeiro participante |
++| `first_strategy` | Strategy, quando computacional |
++| `second_name` | nome do segundo participante |
++| `second_kind` | tipo do segundo participante |
++| `second_symbol` | símbolo do segundo participante |
++| `second_strategy` | Strategy do segundo participante |
++| `result` | resultado consolidado |
++| `move_count` | quantidade de jogadas |
++| `winning_sequence` | posições separadas por `|` |
++| `random_seed` | semente opcional |
++| `application_version` | versão da aplicação |
++
++## 5. Colunas de jogadas
++
++| Coluna | Descrição |
++|---|---|
++| `match_id` | vínculo com a partida |
++| `turn_number` | ordem da jogada |
++| `row` | linha interna de zero a dois |
++| `column` | coluna interna de zero a dois |
++| `symbol` | símbolo aplicado |
++
++Uma partida produz uma linha em `matches.csv` e várias linhas em `moves.csv`.
++
++## 6. Colunas de estatísticas
++
++`statistics.csv` contém:
++
++| Coluna | Descrição |
++|---|---|
++| `total_matches` | total de partidas |
++| `x_wins` | vitórias de X |
++| `o_wins` | vitórias de O |
++| `draws` | empates |
++| `total_moves` | total de jogadas |
++| `average_moves` | média de jogadas |
++| `average_duration_ms` | duração média |
++
++`strategy-statistics.csv` contém:
++
++| Coluna | Descrição |
++|---|---|
++| `strategy` | nome da Strategy |
++| `matches` | participações |
++| `wins` | vitórias |
++| `losses` | derrotas |
++| `draws` | empates |
++
++## 7. Colunas experimentais
++
++| Coluna | Descrição |
++|---|---|
++| `experiment_id` | UUID do experimento |
++| `run_number` | número da execução |
++| `x_strategy` | Strategy de X |
++| `o_strategy` | Strategy de O |
++| `seed` | semente usada |
++| `result` | resultado ou estado final |
++| `move_count` | jogadas executadas |
++| `duration_ms` | duração |
++| `evaluated_states` | estados avaliados, quando disponíveis |
++| `failed` | indicador de falha |
++| `failure_message` | mensagem opcional |
++| `application_version` | versão executada |
++
++O esquema é definido antes do modo experimental para permitir que o Prompt 22
++produza dados sem alterar o formato de intercâmbio.
++
++## 8. Componentes
++
++```mermaid
++classDiagram
++    class CsvWriter
++    class ICsvExporter~T~
++    class MatchCsvExporter
++    class MoveCsvExporter
++    class StatisticsCsvExporter
++    class ExperimentMetricsCsvExporter
++    class CsvExportService
++
++    ICsvExporter <|.. MatchCsvExporter
++    ICsvExporter <|.. ExperimentMetricsCsvExporter
++    MatchCsvExporter --> CsvWriter
++    MoveCsvExporter --> CsvWriter
++    StatisticsCsvExporter --> CsvWriter
++    ExperimentMetricsCsvExporter --> CsvWriter
++    CsvExportService --> MatchCsvExporter
++    CsvExportService --> MoveCsvExporter
++    CsvExportService --> StatisticsCsvExporter
++    CsvExportService --> ExperimentMetricsCsvExporter
++```
++
++Os exportadores não conhecem entidades mutáveis do domínio. Eles consomem
++somente registros persistentes.
++
++## 9. Testes
++
++A suíte verifica:
++
++- esquema e ordem do cabeçalho;
++- quantidade de linhas por jogada;
++- ponto decimal invariável;
++- datas ISO 8601;
++- escape de ponto e vírgula;
++- duplicação de aspas;
++- quebra de linha em campo;
++- UTF-8 sem BOM;
++- criação de diretórios;
++- ausência de arquivos temporários residuais.
+diff --git a/src/TicTacToe.Console/Persistence/Csv/CsvExportService.cs b/src/TicTacToe.Console/Persistence/Csv/CsvExportService.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/CsvExportService.cs
+@@ -0,0 +1,67 @@
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Coordena a exportação dos conjuntos persistidos para arquivos CSV.
++/// </summary>
++public sealed class CsvExportService
++{
++    private readonly MatchCsvExporter match_exporter;
++    private readonly MoveCsvExporter move_exporter;
++    private readonly StatisticsCsvExporter statistics_exporter;
++    private readonly ExperimentMetricsCsvExporter experiment_exporter;
++
++    public CsvExportService(CsvWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++
++        match_exporter = new MatchCsvExporter(writer);
++        move_exporter = new MoveCsvExporter(writer);
++        statistics_exporter =
++            new StatisticsCsvExporter(writer);
++        experiment_exporter =
++            new ExperimentMetricsCsvExporter(writer);
++    }
++
++    public void export_matches(
++        string directory,
++        IReadOnlyList<MatchRecord> matches,
++        MatchStatisticsRecord statistics)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
++        ArgumentNullException.ThrowIfNull(matches);
++        ArgumentNullException.ThrowIfNull(statistics);
++
++        Directory.CreateDirectory(directory);
++
++        match_exporter.export(
++            Path.Combine(directory, "matches.csv"),
++            matches);
++        move_exporter.export(
++            Path.Combine(directory, "moves.csv"),
++            matches);
++        statistics_exporter.export_summary(
++            Path.Combine(directory, "statistics.csv"),
++            statistics);
++        statistics_exporter.export_strategies(
++            Path.Combine(
++                directory,
++                "strategy-statistics.csv"),
++            statistics);
++    }
++
++    public void export_experiment_metrics(
++        string directory,
++        IEnumerable<ExperimentMetricRecord> metrics)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
++        ArgumentNullException.ThrowIfNull(metrics);
++
++        Directory.CreateDirectory(directory);
++
++        experiment_exporter.export(
++            Path.Combine(
++                directory,
++                "experiment-metrics.csv"),
++            metrics);
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/Csv/CsvWriter.cs b/src/TicTacToe.Console/Persistence/Csv/CsvWriter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/CsvWriter.cs
+@@ -0,0 +1,134 @@
++using System.Globalization;
++using System.Text;
++
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Escreve documentos CSV UTF-8 separados por ponto e vírgula.
++/// </summary>
++public sealed class CsvWriter
++{
++    private const char Separator = ';';
++
++    /// <summary>
++    /// Escreve cabeçalho e linhas em arquivo UTF-8 sem BOM.
++    /// </summary>
++    public void write(
++        string path,
++        IReadOnlyList<string> header,
++        IEnumerable<IReadOnlyList<string?>> rows)
++    {
++        ArgumentException.ThrowIfNullOrWhiteSpace(path);
++        ArgumentNullException.ThrowIfNull(header);
++        ArgumentNullException.ThrowIfNull(rows);
++
++        if (header.Count == 0)
++        {
++            throw new ArgumentException(
++                "O cabeçalho deve conter ao menos uma coluna.",
++                nameof(header));
++        }
++
++        string? directory = Path.GetDirectoryName(path);
++
++        if (!string.IsNullOrWhiteSpace(directory))
++        {
++            Directory.CreateDirectory(directory);
++        }
++
++        string temporary_path =
++            $"{path}.tmp-{Guid.NewGuid():N}";
++
++        try
++        {
++            using StreamWriter writer = new(
++                temporary_path,
++                append: false,
++                new UTF8Encoding(
++                    encoderShouldEmitUTF8Identifier: false));
++
++            write_row(writer, header);
++
++            foreach (IReadOnlyList<string?> row in rows)
++            {
++                if (row.Count != header.Count)
++                {
++                    throw new InvalidOperationException(
++                        "Todas as linhas devem possuir a mesma quantidade de colunas do cabeçalho.");
++                }
++
++                write_row(writer, row);
++            }
++
++            File.Move(
++                temporary_path,
++                path,
++                overwrite: true);
++        }
++        finally
++        {
++            if (File.Exists(temporary_path))
++            {
++                File.Delete(temporary_path);
++            }
++        }
++    }
++
++    /// <summary>
++    /// Formata um campo conforme regras de escape CSV.
++    /// </summary>
++    public static string escape(string? value)
++    {
++        string normalized = value ?? string.Empty;
++
++        bool requires_quotes =
++            normalized.Contains(Separator) ||
++            normalized.Contains('"') ||
++            normalized.Contains('\r') ||
++            normalized.Contains('\n');
++
++        if (!requires_quotes)
++        {
++            return normalized;
++        }
++
++        return $"\"{normalized.Replace("\"", "\"\"")}\"";
++    }
++
++    /// <summary>
++    /// Formata datas de modo estável em ISO 8601.
++    /// </summary>
++    public static string format_date(DateTimeOffset value)
++    {
++        return value.ToUniversalTime()
++            .ToString("O", CultureInfo.InvariantCulture);
++    }
++
++    /// <summary>
++    /// Formata números inteiros com cultura invariável.
++    /// </summary>
++    public static string format_number(long value)
++    {
++        return value.ToString(CultureInfo.InvariantCulture);
++    }
++
++    /// <summary>
++    /// Formata números de ponto flutuante com cultura invariável.
++    /// </summary>
++    public static string format_number(double value)
++    {
++        return value.ToString(
++            "0.################",
++            CultureInfo.InvariantCulture);
++    }
++
++    private static void write_row(
++        TextWriter writer,
++        IReadOnlyList<string?> values)
++    {
++        writer.WriteLine(
++            string.Join(
++                Separator,
++                values.Select(escape)));
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/Csv/ExperimentMetricsCsvExporter.cs b/src/TicTacToe.Console/Persistence/Csv/ExperimentMetricsCsvExporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/ExperimentMetricsCsvExporter.cs
+@@ -0,0 +1,66 @@
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Exporta métricas de execuções experimentais.
++/// </summary>
++public sealed class ExperimentMetricsCsvExporter
++    : ICsvExporter<ExperimentMetricRecord>
++{
++    private static readonly string[] header =
++    [
++        "experiment_id",
++        "run_number",
++        "x_strategy",
++        "o_strategy",
++        "seed",
++        "result",
++        "move_count",
++        "duration_ms",
++        "evaluated_states",
++        "failed",
++        "failure_message",
++        "application_version"
++    ];
++
++    private readonly CsvWriter writer;
++
++    public ExperimentMetricsCsvExporter(CsvWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    public void export(
++        string path,
++        IEnumerable<ExperimentMetricRecord> records)
++    {
++        ArgumentNullException.ThrowIfNull(records);
++
++        writer.write(
++            path,
++            header,
++            records.Select(map_row));
++    }
++
++    private static IReadOnlyList<string?> map_row(
++        ExperimentMetricRecord record)
++    {
++        return
++        [
++            record.ExperimentId.ToString("D"),
++            CsvWriter.format_number(record.RunNumber),
++            record.XStrategy,
++            record.OStrategy,
++            record.Seed?.ToString(
++                System.Globalization.CultureInfo.InvariantCulture),
++            record.Result,
++            CsvWriter.format_number(record.MoveCount),
++            CsvWriter.format_number(record.DurationMilliseconds),
++            record.EvaluatedStates?.ToString(
++                System.Globalization.CultureInfo.InvariantCulture),
++            record.Failed ? "true" : "false",
++            record.FailureMessage,
++            record.ApplicationVersion
++        ];
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/Csv/ICsvExporter.cs b/src/TicTacToe.Console/Persistence/Csv/ICsvExporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/ICsvExporter.cs
+@@ -0,0 +1,15 @@
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Define um exportador de registros para CSV.
++/// </summary>
++/// <typeparam name="T">Tipo de registro exportado.</typeparam>
++public interface ICsvExporter<in T>
++{
++    /// <summary>
++    /// Exporta os registros para o caminho informado.
++    /// </summary>
++    void export(
++        string path,
++        IEnumerable<T> records);
++}
+diff --git a/src/TicTacToe.Console/Persistence/Csv/MatchCsvExporter.cs b/src/TicTacToe.Console/Persistence/Csv/MatchCsvExporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/MatchCsvExporter.cs
+@@ -0,0 +1,81 @@
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Exporta uma linha por partida.
++/// </summary>
++public sealed class MatchCsvExporter
++    : ICsvExporter<MatchRecord>
++{
++    private static readonly string[] header =
++    [
++        "match_id",
++        "started_at_utc",
++        "finished_at_utc",
++        "duration_ms",
++        "first_name",
++        "first_kind",
++        "first_symbol",
++        "first_strategy",
++        "second_name",
++        "second_kind",
++        "second_symbol",
++        "second_strategy",
++        "result",
++        "move_count",
++        "winning_sequence",
++        "random_seed",
++        "application_version"
++    ];
++
++    private readonly CsvWriter writer;
++
++    public MatchCsvExporter(CsvWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    public void export(
++        string path,
++        IEnumerable<MatchRecord> records)
++    {
++        ArgumentNullException.ThrowIfNull(records);
++
++        writer.write(
++            path,
++            header,
++            records.Select(map_row));
++    }
++
++    private static IReadOnlyList<string?> map_row(
++        MatchRecord record)
++    {
++        string winning_sequence = string.Join(
++            "|",
++            record.WinningSequence.Select(
++                position =>
++                    $"{position.Row},{position.Column}"));
++
++        return
++        [
++            record.Id.ToString("D"),
++            CsvWriter.format_date(record.StartedAt),
++            CsvWriter.format_date(record.FinishedAt),
++            CsvWriter.format_number(record.DurationMilliseconds),
++            record.FirstParticipant.Name,
++            record.FirstParticipant.Kind,
++            record.FirstParticipant.Symbol,
++            record.FirstParticipant.Strategy,
++            record.SecondParticipant.Name,
++            record.SecondParticipant.Kind,
++            record.SecondParticipant.Symbol,
++            record.SecondParticipant.Strategy,
++            record.Result,
++            CsvWriter.format_number(record.Moves.Count),
++            winning_sequence,
++            record.RandomSeed?.ToString(
++                System.Globalization.CultureInfo.InvariantCulture),
++            record.ApplicationVersion
++        ];
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/Csv/MoveCsvExporter.cs b/src/TicTacToe.Console/Persistence/Csv/MoveCsvExporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/MoveCsvExporter.cs
+@@ -0,0 +1,52 @@
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Exporta uma linha por jogada.
++/// </summary>
++public sealed class MoveCsvExporter
++{
++    private static readonly string[] header =
++    [
++        "match_id",
++        "turn_number",
++        "row",
++        "column",
++        "symbol"
++    ];
++
++    private readonly CsvWriter writer;
++
++    public MoveCsvExporter(CsvWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    public void export(
++        string path,
++        IEnumerable<MatchRecord> matches)
++    {
++        ArgumentNullException.ThrowIfNull(matches);
++
++        IEnumerable<IReadOnlyList<string?>> rows =
++            matches.SelectMany(
++                match => match.Moves.Select(
++                    move => map_row(match.Id, move)));
++
++        writer.write(path, header, rows);
++    }
++
++    private static IReadOnlyList<string?> map_row(
++        Guid match_id,
++        MatchMoveRecord move)
++    {
++        return
++        [
++            match_id.ToString("D"),
++            CsvWriter.format_number(move.TurnNumber),
++            CsvWriter.format_number(move.Row),
++            CsvWriter.format_number(move.Column),
++            move.Symbol
++        ];
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/Csv/StatisticsCsvExporter.cs b/src/TicTacToe.Console/Persistence/Csv/StatisticsCsvExporter.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/Csv/StatisticsCsvExporter.cs
+@@ -0,0 +1,79 @@
++namespace TicTacToe.Persistence.Csv;
++
++/// <summary>
++/// Exporta estatísticas gerais e por Strategy.
++/// </summary>
++public sealed class StatisticsCsvExporter
++{
++    private static readonly string[] summary_header =
++    [
++        "total_matches",
++        "x_wins",
++        "o_wins",
++        "draws",
++        "total_moves",
++        "average_moves",
++        "average_duration_ms"
++    ];
++
++    private static readonly string[] strategy_header =
++    [
++        "strategy",
++        "matches",
++        "wins",
++        "losses",
++        "draws"
++    ];
++
++    private readonly CsvWriter writer;
++
++    public StatisticsCsvExporter(CsvWriter writer)
++    {
++        ArgumentNullException.ThrowIfNull(writer);
++        this.writer = writer;
++    }
++
++    public void export_summary(
++        string path,
++        MatchStatisticsRecord statistics)
++    {
++        ArgumentNullException.ThrowIfNull(statistics);
++
++        writer.write(
++            path,
++            summary_header,
++            [
++                [
++                    CsvWriter.format_number(statistics.TotalMatches),
++                    CsvWriter.format_number(statistics.XWins),
++                    CsvWriter.format_number(statistics.OWins),
++                    CsvWriter.format_number(statistics.Draws),
++                    CsvWriter.format_number(statistics.TotalMoves),
++                    CsvWriter.format_number(statistics.AverageMoves),
++                    CsvWriter.format_number(
++                        statistics.AverageDurationMilliseconds)
++                ]
++            ]);
++    }
++
++    public void export_strategies(
++        string path,
++        MatchStatisticsRecord statistics)
++    {
++        ArgumentNullException.ThrowIfNull(statistics);
++
++        writer.write(
++            path,
++            strategy_header,
++            statistics.Strategies.Select(
++                strategy =>
++                    (IReadOnlyList<string?>)
++                    [
++                        strategy.Strategy,
++                        CsvWriter.format_number(strategy.Matches),
++                        CsvWriter.format_number(strategy.Wins),
++                        CsvWriter.format_number(strategy.Losses),
++                        CsvWriter.format_number(strategy.Draws)
++                    ]));
++    }
++}
+diff --git a/src/TicTacToe.Console/Persistence/ExperimentMetricRecord.cs b/src/TicTacToe.Console/Persistence/ExperimentMetricRecord.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Persistence/ExperimentMetricRecord.cs
+@@ -0,0 +1,18 @@
++namespace TicTacToe.Persistence;
++
++/// <summary>
++/// Representa uma observação produzida por uma execução experimental.
++/// </summary>
++public sealed record ExperimentMetricRecord(
++    Guid ExperimentId,
++    int RunNumber,
++    string XStrategy,
++    string OStrategy,
++    int? Seed,
++    string Result,
++    int MoveCount,
++    long DurationMilliseconds,
++    long? EvaluatedStates,
++    bool Failed,
++    string? FailureMessage,
++    string ApplicationVersion);
+diff --git a/tests/TicTacToe.Tests/Persistence/Csv/CsvExportersTests.cs b/tests/TicTacToe.Tests/Persistence/Csv/CsvExportersTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/Csv/CsvExportersTests.cs
+@@ -0,0 +1,163 @@
++using System.Text;
++using TicTacToe.Persistence;
++using TicTacToe.Persistence.Csv;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence.Csv;
++
++public sealed class CsvExportersTests : IDisposable
++{
++    private readonly string directory =
++        Path.Combine(
++            Path.GetTempPath(),
++            $"tictactoe-csv-tests-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void match_exporter_should_write_expected_schema()
++    {
++        string path = Path.Combine(directory, "matches.csv");
++        MatchRecord record = create_match_record();
++
++        new MatchCsvExporter(new CsvWriter())
++            .export(path, [record]);
++
++        string[] lines = File.ReadAllLines(path);
++
++        Assert.Equal(
++            "match_id;started_at_utc;finished_at_utc;duration_ms;first_name;first_kind;first_symbol;first_strategy;second_name;second_kind;second_symbol;second_strategy;result;move_count;winning_sequence;random_seed;application_version",
++            lines[0]);
++        Assert.Equal(2, lines.Length);
++        Assert.Contains("\"Pessoa; Um\"", lines[1]);
++    }
++
++    [Fact]
++    public void move_exporter_should_write_one_row_per_move()
++    {
++        string path = Path.Combine(directory, "moves.csv");
++
++        new MoveCsvExporter(new CsvWriter())
++            .export(path, [create_match_record()]);
++
++        string[] lines = File.ReadAllLines(path);
++
++        Assert.Equal(
++            "match_id;turn_number;row;column;symbol",
++            lines[0]);
++        Assert.Equal(3, lines.Length);
++    }
++
++    [Fact]
++    public void statistics_exporter_should_use_decimal_point()
++    {
++        string path =
++            Path.Combine(directory, "statistics.csv");
++        MatchStatisticsRecord statistics = new(
++            2,
++            1,
++            0,
++            1,
++            15,
++            7.5,
++            1250.25,
++            Array.Empty<StrategyStatisticsRecord>());
++
++        new StatisticsCsvExporter(new CsvWriter())
++            .export_summary(path, statistics);
++
++        string content = File.ReadAllText(path);
++
++        Assert.Contains("7.5;1250.25", content);
++        Assert.DoesNotContain("7,5", content);
++    }
++
++    [Fact]
++    public void experiment_exporter_should_escape_failure_message()
++    {
++        string path =
++            Path.Combine(directory, "experiment.csv");
++        ExperimentMetricRecord metric = new(
++            Guid.NewGuid(),
++            1,
++            "Minimax",
++            "Random",
++            42,
++            "Failed",
++            0,
++            10,
++            null,
++            true,
++            "Falha; com \"aspas\"\ne linha",
++            "1.8.0");
++
++        new ExperimentMetricsCsvExporter(
++            new CsvWriter())
++            .export(path, [metric]);
++
++        string content = File.ReadAllText(path);
++
++        Assert.Contains(
++            "\"Falha; com \"\"aspas\"\"",
++            content);
++        Assert.Contains("e linha\"", content);
++    }
++
++    [Fact]
++    public void writer_should_use_utf8_without_bom()
++    {
++        string path = Path.Combine(directory, "utf8.csv");
++
++        new CsvWriter().write(
++            path,
++            ["nome"],
++            [["José"]]);
++
++        byte[] bytes = File.ReadAllBytes(path);
++
++        Assert.False(
++            bytes.Length >= 3 &&
++            bytes[0] == 0xEF &&
++            bytes[1] == 0xBB &&
++            bytes[2] == 0xBF);
++        Assert.Contains(
++            "José",
++            Encoding.UTF8.GetString(bytes));
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(directory, recursive: true);
++        }
++    }
++
++    private static MatchRecord create_match_record()
++    {
++        DateTimeOffset start =
++            new(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
++
++        return new MatchRecord(
++            Guid.Parse("11111111-1111-1111-1111-111111111111"),
++            start,
++            start.AddMilliseconds(500),
++            500,
++            new MatchParticipantRecord(
++                "Pessoa; Um",
++                "Human",
++                "X",
++                null),
++            new MatchParticipantRecord(
++                "CPU",
++                "Computer",
++                "O",
++                "Minimax"),
++            [
++                new MatchMoveRecord(1, 0, 0, "X"),
++                new MatchMoveRecord(2, 1, 1, "O")
++            ],
++            "Draw",
++            Array.Empty<BoardPositionRecord>(),
++            42,
++            "1.8.0");
++    }
++}
+diff --git a/tests/TicTacToe.Tests/Persistence/Csv/CsvWriterTests.cs b/tests/TicTacToe.Tests/Persistence/Csv/CsvWriterTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Persistence/Csv/CsvWriterTests.cs
+@@ -0,0 +1,33 @@
++using TicTacToe.Persistence.Csv;
++using Xunit;
++
++namespace TicTacToe.Tests.Persistence.Csv;
++
++public class CsvWriterTests
++{
++    [Theory]
++    [InlineData("texto", "texto")]
++    [InlineData("a;b", "\"a;b\"")]
++    [InlineData("a\"b", "\"a\"\"b\"")]
++    [InlineData("a\nb", "\"a\nb\"")]
++    public void escape_should_handle_special_characters(
++        string value,
++        string expected)
++    {
++        Assert.Equal(expected, CsvWriter.escape(value));
++    }
++
++    [Fact]
++    public void formats_should_use_invariant_representation()
++    {
++        DateTimeOffset date =
++            new(2026, 7, 17, 10, 30, 0, TimeSpan.FromHours(-3));
++
++        Assert.Equal(
++            "2026-07-17T13:30:00.0000000+00:00",
++            CsvWriter.format_date(date));
++        Assert.Equal(
++            "1234.5",
++            CsvWriter.format_number(1234.5));
++    }
++}

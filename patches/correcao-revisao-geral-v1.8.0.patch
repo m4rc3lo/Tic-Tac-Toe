@@ -1,0 +1,350 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -25,9 +25,9 @@
+         2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
+         2026-07-17 : v1.5.0 — estratégia Minimax
+         2026-07-17 : v1.6.0 — apresentação e estados
++        2026-07-17 : v1.7.0 — recursos audiovisuais
++        2026-07-18 : v1.8.0 — persistência e exportação
+     section Marcos planejados
+-        2026-07-17 : v1.7.0 — recursos audiovisuais
+-        2026-07-17 : v1.8.0 — persistência e exportação
+         Data a definir : v1.9.0 — experimentação e consolidação
+         Data a definir : v2.0.0 — refatoração completa
+ ```
+@@ -37,55 +37,34 @@
+ 
+ ## [Unreleased]
+ 
+-## [1.8.0] - 2026-07-17
+-
+-### Added
+-
++## [1.8.0] - 2026-07-18
++
++### Added
++
++- `ApplicationSettings` e `ApplicationDirectories` com valores padrão.
++- `ISettingsRepository`, `JsonSettingsRepository` e `SettingsValidator`.
++- Persistência JSON com propriedades desconhecidas toleradas e recuperação segura.
++- Registros imutáveis para partidas, participantes, jogadas e sequência vencedora.
++- Repositórios JSON de histórico e estatísticas.
++- `MatchRecordMapper` para conversão fora do domínio.
++- `MatchStatisticsCalculator` com agregação geral e por Strategy.
++- `MatchPersistenceService` com tentativa de rollback do histórico.
+ - Infraestrutura CSV UTF-8 sem dependências externas.
+ - Exportadores de partidas, jogadas, estatísticas e métricas experimentais.
+ - Escape de separadores, aspas e quebras de linha.
+ - Datas ISO 8601 e números com cultura invariável.
+-- `ExperimentMetricRecord` como esquema de intercâmbio experimental.
+-- Testes de esquema, caracteres especiais e codificação.
++- Testes em diretórios temporários e testes de esquema CSV.
++- `docs/20-configuracoes-json.md`.
++- `docs/21-partidas-e-estatisticas-json.md`.
+ - `docs/22-exportacao-csv.md`.
+ 
+ ### Changed
+ 
++- `Program.Main` passou a carregar `data/settings.json` antes da composição.
++- `ConsoleMatchSessionRunner` passou a medir e persistir partidas concluídas.
++- `MatchConfiguration` passou a aceitar semente opcional.
++- Atraso configurado passou a controlar animações da apresentação.
+ - Versão do projeto e metadados atualizados para `1.8.0`.
+-
+-
+-### Added
+-
+-- Registros imutáveis para partidas, participantes, jogadas e sequência vencedora.
+-- Repositórios JSON de histórico e estatísticas.
+-- `MatchRecordMapper` para conversão fora do domínio.
+-- `MatchStatisticsCalculator` com agregação geral e por Strategy.
+-- `MatchPersistenceService` com rollback do histórico em falhas de estatística.
+-- Medição de duração, semente e versão na execução de partidas.
+-- Testes em diretórios temporários.
+-- `docs/21-partidas-e-estatisticas-json.md`.
+-
+-### Changed
+-
+-- `ConsoleMatchSessionRunner` passou a persistir partidas concluídas.
+-- `MatchConfiguration` passou a aceitar semente opcional.
+-
+-
+-### Added
+-
+-- `ApplicationSettings` e `ApplicationDirectories` com valores padrão.
+-- `ISettingsRepository`, `JsonSettingsRepository` e `SettingsValidator`.
+-- Persistência JSON com propriedades desconhecidas toleradas.
+-- Gravação temporária seguida de substituição atômica.
+-- Recuperação segura para arquivo ausente, JSON inválido ou valores inválidos.
+-- Testes em diretórios temporários.
+-- `docs/20-configuracoes-json.md`.
+-
+-### Changed
+-
+-- `Program.Main` passou a carregar `data/settings.json` antes da composição.
+-- Atraso configurado passou a controlar animações da apresentação.
+-
+ 
+ ## [1.7.0] - 2026-07-17
+ 
+diff --git a/CITATION.cff b/CITATION.cff
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -3,7 +3,7 @@
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+ version: "1.8.0"
+-date-released: "2026-07-17"
++date-released: "2026-07-18"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+ authors:
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -13,7 +13,7 @@
+ - `v1.5.0` — 2026-07-17: estratégia Minimax e métricas de busca;
+ - `v1.6.0` — 2026-07-17: apresentação Console e máquina de estados;
+ - `v1.7.0` — 2026-07-17: recursos visuais, animações e áudio com fallback;
+-- `v1.8.0` — 2026-07-17: persistência JSON e exportação CSV;
++- `v1.8.0` — 2026-07-18: persistência JSON e exportação CSV;
+ - `Unreleased`: próxima etapa de desenvolvimento;
+ - `v2.0.0` — data a definir: consolidação final da refatoração.
+ 
+diff --git a/docs/00-decisoes-e-escopo.md b/docs/00-decisoes-e-escopo.md
+--- a/docs/00-decisoes-e-escopo.md
++++ b/docs/00-decisoes-e-escopo.md
+@@ -181,13 +181,12 @@
+         2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
+         2026-07-16 : v1.2.0 — domínio e regras
+         2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
+-        2026-07-16 : Unreleased — fluxo básico de aplicação
++        2026-07-16 : v1.4.0 — aplicação, fronteiras e heurística
++        2026-07-17 : v1.5.0 — estratégia Minimax
++        2026-07-17 : v1.6.0 — apresentação e estados
++        2026-07-17 : v1.7.0 — recursos audiovisuais
++        2026-07-18 : v1.8.0 — persistência e exportação
+     section Planejado
+-        Data a definir : v1.4.0 — estratégia heurística
+-        Data a definir : v1.5.0 — estratégia Minimax
+-        Data a definir : v1.6.0 — apresentação e estados
+-        Data a definir : v1.7.0 — recursos audiovisuais
+-        Data a definir : v1.8.0 — persistência e exportação
+         Data a definir : v1.9.0 — experimentação e consolidação
+         Data a definir : v2.0.0 — refatoração completa
+ ```
+diff --git a/docs/04-modelo-conceitual.md b/docs/04-modelo-conceitual.md
+--- a/docs/04-modelo-conceitual.md
++++ b/docs/04-modelo-conceitual.md
+@@ -132,10 +132,9 @@
+     MatchController --> Match
+ ```
+ 
+-`Match` é o limite de consistência pretendido para a partida. Contudo, como
+-`Board` é exposto publicamente e possui operações mutáveis públicas, esse limite
+-ainda pode ser contornado. Essa restrição deve ser corrigida antes das etapas de
+-persistência e simulação intensiva.
++`Match` é o limite de consistência da partida. O tabuleiro é exposto externamente
++por `IReadOnlyBoard`, enquanto a instância mutável permanece encapsulada pelo
++agregado. Strategies e adaptadores consultam o estado sem reabrir mutação pública.
+ 
+ ## 4. Invariantes consolidadas
+ 
+@@ -154,19 +153,15 @@
+ 
+ ## 5. Estado de implementação
+ 
+-| Conceito | Situação em 2026-07-16 |
++| Conceito | Situação em `v1.8.0` |
+ |---|---|
+-| `Board`, objetos de valor e enumerações | Implementado |
+-| `GameRules` e `GameEvaluation` | Implementado |
+-| `Player`, `HumanPlayer`, `ComputerPlayer` | Implementado |
+-| `Match` | Implementado |
+-| Strategy aleatória e gerador injetável | Implementado |
+-| Fluxo básico de aplicação | Implementado em `Unreleased` |
+-| Estratégia heurística | Planejada |
+-| Minimax | Planejada |
+-| Console e navegação | Planejados |
+-| Persistência JSON/CSV | Planejada |
+-| Experimentação automatizada | Planejada |
++| domínio, regras e agregado `Match` | Implementado |
++| Strategies aleatória, heurística e Minimax | Implementadas |
++| portas e fluxo da camada `Application` | Implementados |
++| Console, temas e máquina de estados | Implementados |
++| configurações e histórico JSON | Implementados |
++| estatísticas JSON e exportadores CSV | Implementados |
++| experimentação automatizada | Planejada para `v1.9.0` |
+ 
+ ## 6. Testabilidade
+ 
+diff --git a/docs/06-match-aggregate.md b/docs/06-match-aggregate.md
+--- a/docs/06-match-aggregate.md
++++ b/docs/06-match-aggregate.md
+@@ -102,10 +102,11 @@
+ 
+ ## 6. Evolução após a versão 1.2.0
+ 
+-Na versão `1.3.0`, `ComputerPlayer` passou a possuir uma `IMoveStrategy`, e a
+-estratégia aleatória foi implementada. Após o Prompt 10, `DefaultMoveSelector`
+-resolve a origem da posição: participantes humanos usam `IGameInput` e
+-participantes computacionais delegam à Strategy.
++Na versão `1.3.0`, foi introduzido o contrato `IMoveStrategy` e a Strategy
++aleatória. Após a correção das fronteiras arquiteturais, `ComputerPlayer` não
++possui referência direta ao módulo de IA. `DefaultMoveSelector` resolve a origem
++da posição: participantes humanos usam `IGameInput`, enquanto participantes
++computacionais usam uma Strategy obtida por `IComputerMoveStrategyResolver`.
+ 
+ `Match` permanece independente da origem da jogada e continua recebendo apenas
+ uma `BoardPosition`. Essa decisão mantém as regras de turno e histórico no
+diff --git a/docs/15-audio.md b/docs/15-audio.md
+--- a/docs/15-audio.md
++++ b/docs/15-audio.md
+@@ -97,8 +97,10 @@
+ `PresentationPreferences.AudioEnabled` controla a seleção inicial. A tela de
+ configurações oferece a opção `Áudio: ativado/desativado`.
+ 
+-A configuração atual vale para a composição da execução. Persistência e
+-recomposição dinâmica serão tratadas na etapa de configurações JSON.
++O valor inicial é carregado de `data/settings.json`. A tela de configurações
++altera a preferência em memória, mas a implementação `v1.8.0` ainda não
++recompõe o serviço de áudio nem salva automaticamente a alteração durante a
++mesma execução.
+ 
+ ## 6. Integração com a partida
+ 
+diff --git a/docs/20-configuracoes-json.md b/docs/20-configuracoes-json.md
+--- a/docs/20-configuracoes-json.md
++++ b/docs/20-configuracoes-json.md
+@@ -135,7 +135,9 @@
+ áudio. `PresentationPreferences.from_settings` converte os campos relevantes.
+ 
+ O atraso configurado passa a ser utilizado pelo texto progressivo e pelo
+-indicador de análise da IA.
++indicador de análise da IA. Em `v1.8.0`, alterações feitas em `SettingsScreen`
++permanecem apenas em memória; a gravação automática dessas alterações ainda não
++foi integrada à navegação.
+ 
+ ## 8. Testes
+ 
+diff --git a/src/TicTacToe.Console/Audio/ConsoleBeepAudioService.cs b/src/TicTacToe.Console/Audio/ConsoleBeepAudioService.cs
+--- a/src/TicTacToe.Console/Audio/ConsoleBeepAudioService.cs
++++ b/src/TicTacToe.Console/Audio/ConsoleBeepAudioService.cs
+@@ -12,6 +12,12 @@
+     /// <inheritdoc />
+     public void play(AudioCue cue)
+     {
++        if (!OperatingSystem.IsWindows())
++        {
++            throw new PlatformNotSupportedException(
++                "Console.Beep é suportado somente no Windows.");
++        }
++
+         (int frequency, int duration) = cue switch
+         {
+             AudioCue.Move => (660, 70),
+diff --git a/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs b/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
+--- a/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
++++ b/src/TicTacToe.Console/Presentation/CitationMetadataLoader.cs
+@@ -1,3 +1,5 @@
++using System.Reflection;
++
+ namespace TicTacToe.Presentation;
+ 
+ /// <summary>
+@@ -59,11 +61,23 @@
+             .Trim('"');
+     }
+ 
++    private static string get_application_version()
++    {
++        Version? version =
++            Assembly.GetExecutingAssembly()
++                .GetName()
++                .Version;
++
++        return version is null
++            ? "unknown"
++            : $"{version.Major}.{version.Minor}.{version.Build}";
++    }
++
+     private static CitationMetadata create_fallback()
+     {
+         return new CitationMetadata(
+             "Tic-Tac-Toe Console AI",
+-            "1.6.0",
++            get_application_version(),
+             "Marcelo Dornbusch Lopes",
+             "Apache-2.0",
+             "https://github.com/m4rc3lo/Tic-Tac-Toe");
+diff --git a/src/TicTacToe.Console/Presentation/PresentationPreferences.cs b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+--- a/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
++++ b/src/TicTacToe.Console/Presentation/PresentationPreferences.cs
+@@ -14,6 +14,8 @@
+     /// <param name="use_unicode">Habilita caracteres Unicode.</param>
+     /// <param name="clear_screen">Habilita limpeza do terminal entre telas.</param>
+     /// <param name="visual_effects">Habilita artes e efeitos visuais.</param>
++    /// <param name="audio_enabled">Habilita sinais sonoros.</param>
++    /// <param name="animation_delay_milliseconds">Atraso-base das animações.</param>
+     public PresentationPreferences(
+         bool use_ansi_colors = false,
+         bool use_unicode = true,
+diff --git a/src/TicTacToe.Console/TicTacToe.Console.csproj b/src/TicTacToe.Console/TicTacToe.Console.csproj
+--- a/src/TicTacToe.Console/TicTacToe.Console.csproj
++++ b/src/TicTacToe.Console/TicTacToe.Console.csproj
+@@ -4,4 +4,9 @@
+         <RootNamespace>TicTacToe</RootNamespace>
+         <AssemblyName>TicTacToe.Console</AssemblyName>
+     </PropertyGroup>
++    <ItemGroup>
++        <None Include="..\..\CITATION.cff"
++              Link="CITATION.cff"
++              CopyToOutputDirectory="PreserveNewest" />
++    </ItemGroup>
+ </Project>
+diff --git a/tests/TicTacToe.Tests/Presentation/CitationMetadataLoaderTests.cs b/tests/TicTacToe.Tests/Presentation/CitationMetadataLoaderTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/Presentation/CitationMetadataLoaderTests.cs
+@@ -0,0 +1,40 @@
++using TicTacToe.Presentation;
++using Xunit;
++
++namespace TicTacToe.Tests.Presentation;
++
++public sealed class CitationMetadataLoaderTests : IDisposable
++{
++    private readonly string directory =
++        Path.Combine(
++            Path.GetTempPath(),
++            $"tictactoe-citation-tests-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void load_should_use_current_assembly_version_when_file_is_missing()
++    {
++        string missing_path =
++            Path.Combine(directory, "CITATION.cff");
++
++        CitationMetadata metadata =
++            new CitationMetadataLoader().load(missing_path);
++
++        Version? version =
++            typeof(CitationMetadataLoader).Assembly
++                .GetName()
++                .Version;
++        string expected = version is null
++            ? "unknown"
++            : $"{version.Major}.{version.Minor}.{version.Build}";
++
++        Assert.Equal(expected, metadata.Version);
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(directory, recursive: true);
++        }
++    }
++}

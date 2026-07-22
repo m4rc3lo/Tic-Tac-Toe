@@ -1,0 +1,770 @@
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -5,9 +5,12 @@
+ 
+ ## Estado do projeto
+ 
+-- `v1.0.0`: estado legado preservado;
+-- `v1.1.0`: solução .NET 9, projeto Console e infraestrutura inicial de testes;
+-- `v2.0.0`: versão final planejada da refatoração.
++- `v1.0.0` — 2026-07-15: estado legado preservado;
++- `v1.1.0` — 2026-07-15: solução .NET 9, governança e infraestrutura inicial;
++- `v1.2.0` — 2026-07-16: domínio, regras e agregado de partida;
++- `v1.3.0` — 2026-07-16: padrão Strategy e estratégia aleatória;
++- `Unreleased` — desde 2026-07-16: fluxo básico da camada de aplicação;
++- `v2.0.0` — data a definir: consolidação final da refatoração.
+ 
+ O código legado foi movido para `legacy/` e não participa da compilação. A nova
+ implementação será construída em `src/`, com testes em `tests/`.
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -9,23 +9,28 @@
+ 
+ ## Linha do tempo
+ 
+-O diagrama apresenta o planejamento geral da evolução entre a preservação
+-do sistema legado e a conclusão da refatoração arquitetural.
++O diagrama distingue o histórico original, os marcos efetivamente concluídos
++e as versões futuras, cujas datas ainda não foram definidas.
+ 
+ ```mermaid
+ timeline
+     title Evolução do Tic-Tac-Toe Console AI
+-    v1.0.0 : Preservação do projeto legado
+-    v1.1.0 : Estrutura e documentação inicial
+-    v1.2.0 : Domínio e regras
+-    v1.3.0 : Aplicação e estratégia aleatória
+-    v1.4.0 : Estratégia heurística
+-    v1.5.0 : Estratégia Minimax
+-    v1.6.0 : Interface e estados
+-    v1.7.0 : ASCII art, animações e áudio
+-    v1.8.0 : Persistência JSON e CSV
+-    v1.9.0 : Experimentação e consolidação
+-    v2.0.0 : Refatoração completa
++    section Histórico original
++        2020-11-23 : Código legado publicado no repositório
++    section Marcos concluídos
++        2026-07-15 : v1.0.0 — estado legado preservado
++        2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
++        2026-07-16 : v1.2.0 — domínio, regras e agregado Match
++        2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
++        2026-07-16 : Unreleased — fluxo básico de aplicação
++    section Marcos planejados
++        Data a definir : v1.4.0 — estratégia heurística
++        Data a definir : v1.5.0 — estratégia Minimax
++        Data a definir : v1.6.0 — apresentação e estados
++        Data a definir : v1.7.0 — recursos audiovisuais
++        Data a definir : v1.8.0 — persistência e exportação
++        Data a definir : v1.9.0 — experimentação e consolidação
++        Data a definir : v2.0.0 — refatoração completa
+ ```
+ 
+ As versões intermediárias poderão ser ajustadas conforme a granularidade
+@@ -35,6 +40,7 @@
+ 
+ ### Added
+ 
++- Revisão documental após o Prompt 10, com datas na timeline e atualização do estado do projeto.
+ - Camada `Application` com controlador mínimo de partidas.
+ - Portas `IGameInput`, `IGameOutput` e `IMoveSelector`.
+ - `DefaultMoveSelector` para participantes humanos e computacionais.
+diff --git a/docs/00-decisoes-e-escopo.md b/docs/00-decisoes-e-escopo.md
+--- a/docs/00-decisoes-e-escopo.md
++++ b/docs/00-decisoes-e-escopo.md
+@@ -171,22 +171,25 @@
+ 
+ A versão `v1.0.0` preserva o legado. A série `1.x` registra a refatoração incremental. A versão `v2.0.0` indicará a consolidação da nova arquitetura.
+ 
+-O diagrama apresenta os marcos planejados. Versões intermediárias podem ser ajustadas, mas os extremos são fixos.
++O diagrama registra datas apenas para marcos concluídos. As versões futuras permanecem com data a definir, evitando transformar estimativas em compromissos artificiais.
+ 
+ ```mermaid
+ timeline
+-    title Evolução planejada do Tic-Tac-Toe Console AI
+-    v1.0.0 : Estado legado preservado
+-    v1.1.0 : Estrutura .NET 9 e governança
+-    v1.2.0 : Domínio e regras
+-    v1.3.0 : Aplicação e estratégia aleatória
+-    v1.4.0 : Estratégia heurística
+-    v1.5.0 : Estratégia Minimax
+-    v1.6.0 : Apresentação e estados
+-    v1.7.0 : Recursos audiovisuais
+-    v1.8.0 : Persistência e exportação
+-    v1.9.0 : Experimentação e consolidação
+-    v2.0.0 : Refatoração completa
++    title Marcos concluídos e planejados
++    section Concluído
++        2026-07-15 : v1.0.0 — preservação do legado
++        2026-07-15 : v1.1.0 — estrutura .NET 9 e governança
++        2026-07-16 : v1.2.0 — domínio e regras
++        2026-07-16 : v1.3.0 — Strategy e estratégia aleatória
++        2026-07-16 : Unreleased — fluxo básico de aplicação
++    section Planejado
++        Data a definir : v1.4.0 — estratégia heurística
++        Data a definir : v1.5.0 — estratégia Minimax
++        Data a definir : v1.6.0 — apresentação e estados
++        Data a definir : v1.7.0 — recursos audiovisuais
++        Data a definir : v1.8.0 — persistência e exportação
++        Data a definir : v1.9.0 — experimentação e consolidação
++        Data a definir : v2.0.0 — refatoração completa
+ ```
+ 
+ O `CHANGELOG.md`, o `CITATION.cff`, a versão da aplicação e as tags Git deverão permanecer coerentes entre si.
+diff --git a/docs/03-arquitetura.md b/docs/03-arquitetura.md
+--- a/docs/03-arquitetura.md
++++ b/docs/03-arquitetura.md
+@@ -490,3 +490,29 @@
+ - introdução de nova dependência externa;
+ - divergência entre diagrama e código;
+ - dificuldade para executar o modo experimental sem efeitos periféricos.
++
++## 19. Situação arquitetural após o Prompt 10
++
++A implementação disponível em 2026-07-16 materializa `Domain`, `AI` e parte de
++`Application`. As portas `IGameInput`, `IGameOutput` e `IMoveSelector` já foram
++introduzidas, enquanto apresentação, persistência e áudio ainda não possuem
++implementações concretas.
++
++Existe uma divergência arquitetural a corrigir antes da expansão da inteligência
++artificial: `Domain.ComputerPlayer` referencia `AI.IMoveStrategy`, ao mesmo tempo
++em que o módulo `AI` depende de `Domain`. Embora os tipos estejam atualmente no
++mesmo projeto .NET, essa relação constitui um ciclo conceitual `Domain ↔ AI` e
++contraria a regra de que o domínio deve permanecer no centro.
++
++A correção recomendada é retirar a estratégia de `ComputerPlayer` e associar
++participantes computacionais às estratégias na camada `Application`, por meio de
++um seletor ou registro de estratégias. Alternativamente, a fronteira abstrata
++precisaria ser reposicionada em um módulo interno que não dependa de `AI`.
++
++Outro ponto de atenção é a exposição pública de `Match.Board`. Como `Board`
++também expõe `apply_move` e `undo_move`, consumidores externos podem modificar o
++tabuleiro sem atualizar histórico, turno, estado e resultado. Antes de
++persistência ou Minimax, recomenda-se introduzir uma visão somente para leitura
++do tabuleiro e restringir as operações mutáveis ao agregado e às simulações
++controladas.
++
+diff --git a/docs/04-modelo-conceitual.md b/docs/04-modelo-conceitual.md
+--- a/docs/04-modelo-conceitual.md
++++ b/docs/04-modelo-conceitual.md
+@@ -2,146 +2,56 @@
+ 
+ ## 1. Finalidade
+ 
+-Este documento descreve o modelo conceitual inicial do domínio do **Tic-Tac-Toe Console AI**. O modelo identifica entidades, objetos de valor, enumerações e serviços de domínio sem antecipar detalhes completos de implementação.
++Este documento descreve o modelo conceitual implementado até 2026-07-16, após o
++Prompt 10. O núcleo já contém tabuleiro, regras, participantes, agregado de
++partida, Strategy aleatória e fluxo básico de aplicação.
+ 
+-Nesta etapa, somente as enumerações `Symbol`, `GameState` e `GameResult`, além dos objetos de valor `BoardPosition` e `Move`, são implementados. Os demais conceitos serão materializados nos prompts posteriores.
++## 2. Conceitos implementados
+ 
+-## 2. Conceitos centrais
++### 2.1 Domínio
+ 
+-### 2.1 `Board`
++- `Board`: encapsula as nove casas e controla aplicação e desfazimento;
++- `BoardPosition`: objeto de valor para coordenadas entre zero e dois;
++- `Move`: objeto de valor com posição, símbolo e número do turno;
++- `Player`: abstração de participante;
++- `HumanPlayer`: participante humano, sem dependência de entrada;
++- `ComputerPlayer`: participante computacional associado a uma estratégia;
++- `Match`: agregado que controla tabuleiro, turnos, histórico, estado e resultado;
++- `GameRules`: serviço puro para vitória, empate e partida em andamento;
++- `GameEvaluation`: resultado imutável da avaliação;
++- `Symbol`, `GameState` e `GameResult`: enumerações do domínio.
+ 
+-Representa o tabuleiro 3 × 3 e é responsável por preservar suas invariantes.
++### 2.2 Inteligência artificial
+ 
+-Responsabilidades previstas:
++- `IMoveStrategy`: contrato do padrão Strategy;
++- `RandomMoveStrategy`: linha de base aleatória;
++- `IRandomSource`: abstração do gerador pseudoaleatório;
++- `SystemRandomSource`: implementação com semente opcional.
+ 
+-- armazenar o conteúdo das nove casas;
+-- consultar símbolos por posição;
+-- informar posições disponíveis;
+-- verificar se uma posição está livre;
+-- aplicar uma jogada válida;
+-- desfazer uma jogada para simulações;
+-- indicar se o tabuleiro está completo;
+-- impedir exposição mutável de seu armazenamento interno.
++### 2.3 Aplicação
+ 
+-`Board` não deverá decidir sozinho o resultado global da partida nem executar entrada e saída.
++- `MatchController`: coordena uma partida até seu encerramento;
++- `IGameInput`: porta para jogadas humanas;
++- `IGameOutput`: porta para apresentação;
++- `IMoveSelector`: porta para seleção da próxima posição;
++- `DefaultMoveSelector`: encaminha humanos à entrada e computadores à Strategy.
+ 
+-### 2.2 `BoardPosition`
++## 3. Diagrama conceitual atual
+ 
+-Objeto de valor que representa uma coordenada válida do tabuleiro.
+-
+-As coordenadas utilizam índices de zero a dois:
+-
+-- linha `0`, `1` ou `2`;
+-- coluna `0`, `1` ou `2`.
+-
+-A validação ocorre no construtor, impedindo a criação de posições inválidas. A igualdade é determinada pelos valores de linha e coluna.
+-
+-### 2.3 `Move`
+-
+-Objeto de valor imutável que registra:
+-
+-- posição;
+-- símbolo;
+-- número do turno.
+-
+-Uma jogada não pode utilizar `Symbol.Empty`, e sua numeração começa em um. Informações experimentais, como tempo de decisão e estados avaliados, deverão ser registradas em modelos específicos de telemetria, não no objeto básico `Move`.
+-
+-### 2.4 `Match`
+-
+-Agregado que representa uma partida completa.
+-
+-Responsabilidades previstas:
+-
+-- possuir um `Board`;
+-- associar dois participantes;
+-- controlar o participante atual;
+-- manter o histórico de `Move`;
+-- controlar `GameState`;
+-- consolidar `GameResult`;
+-- aceitar jogadas válidas;
+-- alternar turnos;
+-- impedir jogadas após o encerramento.
+-
+-`Match` será o limite principal de consistência do domínio.
+-
+-### 2.5 `Player`
+-
+-Abstração conceitual de um participante.
+-
+-Propriedades previstas:
+-
+-- nome;
+-- símbolo;
+-- tipo de participante.
+-
+-O participante não armazenará um booleano redundante de turno. A responsabilidade de determinar o participante atual pertence a `Match`.
+-
+-### 2.6 `HumanPlayer`
+-
+-Especialização de `Player` que representa uma pessoa. A obtenção da entrada não deverá ocorrer dentro dessa classe; a camada de apresentação fornecerá a jogada selecionada.
+-
+-### 2.7 `ComputerPlayer`
+-
+-Especialização de `Player` que representa um agente computacional. A escolha da jogada será delegada a um contrato de estratégia, posteriormente denominado `IMoveStrategy`.
+-
+-### 2.8 `Symbol`
+-
+-Enumeração que representa:
+-
+-- `Empty`;
+-- `X`;
+-- `O`.
+-
+-O valor padrão é `Empty`, reduzindo o risco de uma casa recém-criada assumir implicitamente um símbolo jogável.
+-
+-### 2.9 `GameState`
+-
+-Enumeração que representa o ciclo de vida:
+-
+-- `NotStarted`;
+-- `InProgress`;
+-- `Finished`.
+-
+-O estado indica a fase da partida, enquanto `GameResult` descreve seu desfecho.
+-
+-### 2.10 `GameResult`
+-
+-Enumeração que representa:
+-
+-- `None`;
+-- `XWins`;
+-- `OWins`;
+-- `Draw`.
+-
+-`None` é utilizado enquanto não existe resultado consolidado.
+-
+-### 2.11 `GameRules`
+-
+-Serviço de domínio responsável por avaliar um estado de tabuleiro.
+-
+-Responsabilidades previstas:
+-
+-- detectar vitória de `X`;
+-- detectar vitória de `O`;
+-- detectar empate;
+-- indicar partida em andamento;
+-- retornar as posições da sequência vencedora.
+-
+-`GameRules` não deverá modificar o tabuleiro.
+-
+-## 3. Diagrama conceitual
+-
+-O diagrama apresenta as relações planejadas entre os conceitos centrais. As operações listadas possuem caráter conceitual e poderão ser refinadas quando as classes forem implementadas.
++O diagrama apresenta os conceitos efetivamente existentes. Ele também torna
++visível a dependência atual de `ComputerPlayer` para `IMoveStrategy`, registrada
++como dívida arquitetural em `docs/03-arquitetura.md`.
+ 
+ ```mermaid
+ classDiagram
+     class Board {
++        +int OccupiedCount
++        +bool IsFull
+         +get_symbol(position) Symbol
+         +get_available_positions() IReadOnlyList
+         +is_position_available(position) bool
+         +apply_move(move)
+-        +undo_move(position)
+-        +is_full() bool
++        +undo_move(position) Symbol
+     }
+ 
+     class BoardPosition {
+@@ -157,12 +67,15 @@
+ 
+     class Match {
+         +Board Board
++        +Player FirstPlayer
++        +Player SecondPlayer
+         +Player CurrentPlayer
++        +IReadOnlyList~Move~ Moves
+         +GameState State
+         +GameResult Result
+-        +IReadOnlyList~Move~ Moves
+-        +start()
+-        +apply_move(move)
++        +IReadOnlyList~BoardPosition~ WinningPositions
++        +apply_move(position) Move
++        +get_player(symbol) Player
+     }
+ 
+     class Player {
+@@ -175,123 +88,88 @@
+ 
+     class ComputerPlayer {
+         +IMoveStrategy Strategy
++        +choose_move(board) BoardPosition
+     }
+ 
+     class IMoveStrategy {
+         <<interface>>
+-        +choose_move(board) Move
++        +choose_move(board, symbol) BoardPosition
+     }
+ 
++    class RandomMoveStrategy
++
+     class GameRules {
+-        +evaluate(board) GameResult
+-        +get_winning_positions(board) IReadOnlyList
++        <<static>>
++        +evaluate(board) GameEvaluation
+     }
+ 
+-    class Symbol {
+-        <<enumeration>>
+-        Empty
+-        X
+-        O
++    class GameEvaluation {
++        +GameResult Result
++        +IReadOnlyList~BoardPosition~ WinningPositions
++        +bool IsInProgress
++        +bool HasWinner
+     }
+ 
+-    class GameState {
+-        <<enumeration>>
+-        NotStarted
+-        InProgress
+-        Finished
++    class MatchController {
++        +run(match) Match
+     }
+ 
+-    class GameResult {
+-        <<enumeration>>
+-        None
+-        XWins
+-        OWins
+-        Draw
+-    }
++    Player <|-- HumanPlayer
++    Player <|-- ComputerPlayer
++    ComputerPlayer --> IMoveStrategy
++    IMoveStrategy <|.. RandomMoveStrategy
+ 
+     Match *-- Board
+     Match *-- Player
+     Match *-- Move
+     Match --> GameRules
+-
+-    Player <|-- HumanPlayer
+-    Player <|-- ComputerPlayer
+-    ComputerPlayer --> IMoveStrategy
++    GameRules --> GameEvaluation
+ 
+     Board --> BoardPosition
+     Board --> Symbol
+     Move --> BoardPosition
+     Move --> Symbol
+-    Match --> GameState
+-    Match --> GameResult
++    MatchController --> Match
+ ```
+ 
+-`Match` agrega o tabuleiro, os participantes e o histórico. `BoardPosition` e `Move` são objetos de valor. `GameRules` avalia o tabuleiro sem modificá-lo. A decisão de um participante computacional fica fora de `Match` e é delegada à estratégia.
++`Match` é o limite de consistência pretendido para a partida. Contudo, como
++`Board` é exposto publicamente e possui operações mutáveis públicas, esse limite
++ainda pode ser contornado. Essa restrição deve ser corrigida antes das etapas de
++persistência e simulação intensiva.
+ 
+-## 4. Classificação dos conceitos
++## 4. Invariantes consolidadas
+ 
+-| Conceito | Classificação | Implementação nesta etapa |
+-|---|---|---|
+-| `Board` | Entidade de domínio | Não |
+-| `BoardPosition` | Objeto de valor | Sim |
+-| `Move` | Objeto de valor | Sim |
+-| `Match` | Agregado e entidade | Não |
+-| `Player` | Entidade abstrata | Não |
+-| `HumanPlayer` | Entidade especializada | Não |
+-| `ComputerPlayer` | Entidade especializada | Não |
+-| `Symbol` | Enumeração | Sim |
+-| `GameState` | Enumeração | Sim |
+-| `GameResult` | Enumeração | Sim |
+-| `GameRules` | Serviço de domínio | Não |
+-| `IMoveStrategy` | Contrato de estratégia | Não |
++1. posições pertencem ao intervalo válido do tabuleiro;
++2. jogadas usam `X` ou `O` e possuem turno positivo;
++3. casas ocupadas não podem ser sobrescritas;
++4. participantes da mesma partida possuem símbolos distintos;
++5. somente jogadas válidas entram no histórico;
++6. o turno alterna apenas após jogada válida;
++7. vitória ou empate encerram a partida;
++8. partidas encerradas não aceitam novas jogadas;
++9. avaliações de vitória possuem exatamente três posições;
++10. Strategy não modifica permanentemente o tabuleiro;
++11. sementes iguais reproduzem a mesma sequência pseudoaleatória;
++12. o controlador de aplicação não depende de Console.
+ 
+-## 5. Invariantes iniciais
++## 5. Estado de implementação
+ 
+-As invariantes implementadas nesta etapa são:
++| Conceito | Situação em 2026-07-16 |
++|---|---|
++| `Board`, objetos de valor e enumerações | Implementado |
++| `GameRules` e `GameEvaluation` | Implementado |
++| `Player`, `HumanPlayer`, `ComputerPlayer` | Implementado |
++| `Match` | Implementado |
++| Strategy aleatória e gerador injetável | Implementado |
++| Fluxo básico de aplicação | Implementado em `Unreleased` |
++| Estratégia heurística | Planejada |
++| Minimax | Planejada |
++| Console e navegação | Planejados |
++| Persistência JSON/CSV | Planejada |
++| Experimentação automatizada | Planejada |
+ 
+-1. uma posição deve estar dentro do tabuleiro 3 × 3;
+-2. uma jogada deve utilizar `X` ou `O`;
+-3. a numeração do turno deve ser maior ou igual a um;
+-4. objetos de valor equivalentes devem possuir igualdade por valor;
+-5. o valor padrão de `Symbol` deve ser `Empty`;
+-6. o valor padrão de `GameState` deve ser `NotStarted`;
+-7. o valor padrão de `GameResult` deve ser `None`.
++## 6. Testabilidade
+ 
+-## 6. Decisões de modelagem
+-
+-### 6.1 Coordenadas iniciadas em zero
+-
+-O domínio utiliza coordenadas de zero a dois, alinhadas à indexação de estruturas em C#. A apresentação poderá converter números de um a nove para coordenadas sem transferir essa convenção ao núcleo.
+-
+-### 6.2 Imutabilidade dos objetos de valor
+-
+-`BoardPosition` e `Move` são `readonly record struct`. Essa escolha oferece:
+-
+-- semântica de valor;
+-- imutabilidade;
+-- igualdade estrutural;
+-- baixo custo para objetos pequenos;
+-- ausência de dependência externa.
+-
+-### 6.3 Separação entre estado e resultado
+-
+-`GameState` representa o ciclo de vida, enquanto `GameResult` representa o desfecho. Uma partida pode estar `InProgress` com resultado `None`, ou `Finished` com vitória ou empate.
+-
+-### 6.4 Ausência de classes prematuras
+-
+-`Board`, `Match`, `Player` e `GameRules` não são implementados nesta etapa. Antecipar essas classes antes dos requisitos específicos poderia produzir APIs especulativas e aumentar o retrabalho.
+-
+-## 7. Testes básicos
+-
+-Os testes desta etapa verificam:
+-
+-- aceitação de coordenadas válidas;
+-- rejeição de coordenadas inválidas;
+-- igualdade de posições;
+-- criação de jogadas válidas;
+-- rejeição de símbolo vazio;
+-- rejeição de turno zero;
+-- igualdade de jogadas;
+-- valores padrão das enumerações.
+-
+-Os testes não verificam regras de vitória, ocupação do tabuleiro ou alternância de turnos, pois essas responsabilidades pertencem aos próximos prompts.
++A suíte cobre objetos de valor, tabuleiro, regras, agregado, Strategy,
++reprodutibilidade e fluxo de aplicação com portas falsas. Os testes podem ser
++executados sem teclado, terminal, áudio ou arquivos.
+diff --git a/docs/06-match-aggregate.md b/docs/06-match-aggregate.md
+--- a/docs/06-match-aggregate.md
++++ b/docs/06-match-aggregate.md
+@@ -100,6 +100,13 @@
+ 
+ Ao receber uma avaliação de vitória ou empate, `Match` altera `State` para `Finished`. O `CurrentPlayer` permanece como o autor da última jogada, o que permite identificar diretamente quem encerrou a partida.
+ 
+-## 6. Limites desta versão
++## 6. Evolução após a versão 1.2.0
+ 
+-`ComputerPlayer` ainda não possui uma estratégia. A interface de estratégia e os agentes aleatórios serão introduzidos na versão `1.3.0`. O agregado continuará recebendo posições, independentemente da origem humana ou computacional.
++Na versão `1.3.0`, `ComputerPlayer` passou a possuir uma `IMoveStrategy`, e a
++estratégia aleatória foi implementada. Após o Prompt 10, `DefaultMoveSelector`
++resolve a origem da posição: participantes humanos usam `IGameInput` e
++participantes computacionais delegam à Strategy.
++
++`Match` permanece independente da origem da jogada e continua recebendo apenas
++uma `BoardPosition`. Essa decisão mantém as regras de turno e histórico no
++agregado.
+diff --git a/docs/08-revisao-prompt-10.md b/docs/08-revisao-prompt-10.md
+new file mode 100644
+--- /dev/null
++++ b/docs/08-revisao-prompt-10.md
+@@ -0,0 +1,219 @@
++# Revisão técnica após o Prompt 10
++
++**Projeto analisado:** Tic-Tac-Toe Console AI  
++**Data da revisão:** 2026-07-16  
++**Versão declarada:** 1.3.0  
++**Estado adicional:** alterações de Application em `Unreleased`
++
++## 1. Síntese executiva
++
++O projeto apresenta evolução consistente em relação ao legado: o domínio foi
++separado de Console, regras foram isoladas, o agregado `Match` controla o ciclo
++da partida, a Strategy aleatória é reproduzível e o fluxo de aplicação pode ser
++testado sem interação humana.
++
++A base é adequada para continuidade, mas há duas dívidas arquiteturais de alta
++prioridade:
++
++1. dependência conceitual circular entre `Domain` e `AI`;
++2. possibilidade de modificar `Match.Board` por fora do agregado.
++
++Também havia documentação conceitual desatualizada e timelines sem datas. O
++patch desta revisão corrige a documentação e registra explicitamente as dívidas.
++
++## 2. Evidências do repositório
++
++- 25 arquivos C# em `src`;
++- 19 arquivos C# em `tests`;
++- 9 documentos Markdown em `docs` antes desta revisão;
++- 70 métodos `[Fact]`;
++- 3 métodos `[Theory]`;
++- 8 casos declarados com `[InlineData]`;
++- tags presentes: `v1.0.0`, `v1.1.0`, `v1.2.0` e `v1.3.0`;
++- commits dos marcos atuais concentrados em 15 e 16 de julho de 2026;
++- artefatos `bin/` e `obj/` aparecem no ZIP, mas não estão versionados no Git.
++
++O ambiente usado nesta revisão não possui o SDK do .NET, portanto não foi
++possível repetir `dotnet build` e `dotnet test`. A revisão de código foi estática.
++O ZIP contém artefatos de compilação Release e o usuário havia informado
++execução anterior bem-sucedida da suíte.
++
++## 3. Avaliação do código
++
++### 3.1 Pontos fortes
++
++- `BoardPosition` e `Move` são pequenos, imutáveis e validam invariantes;
++- `Board` encapsula o array bidimensional;
++- `GameRules` é puro e não altera o tabuleiro;
++- `GameEvaluation` copia defensivamente a sequência vencedora;
++- `Match` centraliza turno, histórico, estado e resultado;
++- `RandomMoveStrategy` usa fonte pseudoaleatória injetável;
++- sementes controláveis favorecem experimentação reproduzível;
++- `MatchController` depende de portas, não de `System.Console`;
++- testes usam filas, fakes e estratégias determinísticas;
++- nomenclatura segue o padrão acordado: tipos em CamelCase e métodos/variáveis em `snake_case`;
++- comentários XML estão em português do Brasil.
++
++### 3.2 Achado crítico: limite do agregado pode ser contornado
++
++`Match` expõe `Board` publicamente, e `Board` expõe `apply_move` e `undo_move`.
++Um consumidor pode alterar o tabuleiro sem atualizar:
++
++- `Moves`;
++- `CurrentPlayer`;
++- `State`;
++- `Result`;
++- `WinningPositions`.
++
++Isso contradiz o comentário XML de `Match`, segundo o qual jogadas não devem ser
++aplicadas diretamente ao tabuleiro.
++
++**Recomendação:** criar `IReadOnlyBoard` ou uma visão imutável para consumidores.
++As mutações devem ficar internas ao agregado. Para Minimax, usar clone/snapshot
++ou um tabuleiro de simulação separado.
++
++### 3.3 Achado alto: ciclo conceitual Domain ↔ AI
++
++`AI` depende de `Domain`, como esperado. Porém `Domain.ComputerPlayer` importa
++`TicTacToe.AI` e armazena `IMoveStrategy`. Isso cria:
++
++- `AI → Domain`;
++- `Domain → AI`.
++
++A relação contraria `docs/03-arquitetura.md`, que afirma que o domínio não
++conhece estratégias.
++
++**Recomendação preferencial:** manter `ComputerPlayer` como marcador de domínio e
++associar estratégias na camada `Application`, por exemplo em um registro
++`IComputerStrategyResolver`.
++
++### 3.4 Achado alto: exceção de saída pode ser interpretada como jogada inválida
++
++Em `MatchController.run`, o bloco `try` abrange tanto `match.apply_move` quanto
++`game_output.show_match`. Se uma implementação de saída lançar
++`InvalidOperationException`, o controlador poderá tratá-la como posição inválida.
++
++**Recomendação:** restringir o `try/catch` apenas à chamada
++`match.apply_move(position)` e chamar `show_match` depois do bloco.
++
++### 3.5 Achado médio: `GameState.NotStarted` ainda não participa do fluxo
++
++`Match` nasce diretamente em `InProgress`. A enumeração contém `NotStarted`, mas
++não há operação `start`. Isso não quebra o fluxo atual, porém existe diferença
++entre modelo e comportamento.
++
++**Recomendação:** ou remover `NotStarted` enquanto não necessário, ou introduzir
++um ciclo explícito de criação e início quando a configuração de partidas existir.
++
++### 3.6 Achado médio: responsabilidades de `ComputerPlayer`
++
++`ComputerPlayer` é simultaneamente entidade de domínio e contexto Strategy. Essa
++combinação simplifica o estágio atual, mas acopla identidade do jogador ao
++algoritmo.
++
++**Recomendação:** permitir trocar estratégia por configuração de partida, não por
++mutação da entidade, especialmente nos experimentos AI versus AI.
++
++### 3.7 Achado médio: snapshots de saída nos testes
++
++`RecordingOutput` armazena repetidamente a mesma referência de `Match`. Assim,
++todos os itens de `ShownMatches` apontam para o estado final, e não para o estado
++observado em cada chamada.
++
++**Recomendação:** quando os testes precisarem validar evolução visual, registrar
++snapshots ou DTOs imutáveis com turno, tabuleiro, estado e resultado.
++
++### 3.8 Achado baixo: alocações de coleções somente leitura
++
++`Board.get_available_positions()` cria lista e `AsReadOnly()` em cada chamada;
++`Match.Moves` cria um novo wrapper a cada acesso. Para jogo da velha, o custo é
++irrelevante. Para Minimax, muitas avaliações podem amplificar alocações.
++
++**Recomendação:** medir antes de otimizar. Em Minimax, considerar API de enumeração
++ou spans/snapshots apenas se os experimentos mostrarem necessidade.
++
++## 4. Avaliação dos testes
++
++A cobertura comportamental é boa para o estágio atual:
++
++- coordenadas e jogadas;
++- aplicação e desfazimento;
++- linhas, colunas e diagonais;
++- empate e falsos positivos;
++- turnos e encerramento;
++- aleatoriedade reproduzível;
++- delegação Strategy;
++- fluxo de aplicação sem interação humana.
++
++Lacunas recomendadas:
++
++1. teste que demonstre a mutação indevida de `Match.Board`;
++2. teste de exceção lançada por `IGameOutput`;
++3. teste de exceção lançada por `IMoveSelector`;
++4. teste de snapshot de estados apresentados;
++5. teste de múltiplas partidas com mesma semente;
++6. teste de integridade arquitetural entre namespaces/camadas.
++
++## 5. Avaliação da documentação
++
++### 5.1 Pontos fortes
++
++- todos os diagramas Mermaid possuem contextualização textual;
++- requisitos, arquitetura, modelo, regras, Match, IA e Application possuem
++  documentos próprios;
++- `CHANGELOG.md`, `CITATION.cff` e `Directory.Build.props` estão alinhados em
++  `1.3.0`;
++- o histórico de versões está organizado segundo versionamento semântico.
++
++### 5.2 Problemas encontrados
++
++- `README.md` parava em `v1.1.0`;
++- timelines não possuíam datas;
++- `docs/04-modelo-conceitual.md` ainda dizia que `Board`, `Match`, `Player` e
++  `GameRules` não estavam implementados;
++- o diagrama conceitual apresentava assinaturas antigas;
++- `docs/06-match-aggregate.md` dizia que `ComputerPlayer` ainda não possuía
++  Strategy;
++- a divergência `Domain ↔ AI` não estava registrada;
++- a numeração salta de `docs/07` para `docs/10`, o que deve ser explicado em um
++  índice documental futuro.
++
++## 6. Timeline revisada
++
++Datas confirmadas pelo histórico Git:
++
++- 2020-11-23: publicação inicial do código legado;
++- 2026-07-15: `v1.0.0`;
++- 2026-07-15: `v1.1.0`;
++- 2026-07-16: `v1.2.0`;
++- 2026-07-16: `v1.3.0`;
++- 2026-07-16: início de `Unreleased` com fluxo básico de aplicação.
++
++As versões `v1.4.0` a `v2.0.0` permanecem com **data a definir**. Não foram
++inventadas datas futuras.
++
++## 7. Prioridades recomendadas
++
++### Antes do Prompt 11
++
++1. corrigir o `try/catch` de `MatchController`;
++2. decidir como eliminar `Domain → AI`;
++3. restringir mutação externa de `Match.Board`;
++4. aplicar o patch documental desta revisão;
++5. executar build e testes em ambiente .NET 9.
++
++### Antes do Minimax
++
++1. definir snapshot/clone de tabuleiro;
++2. definir API segura para simulação e desfazimento;
++3. medir alocações de casas livres;
++4. criar testes de não alteração do estado original;
++5. registrar métricas de nós avaliados e tempo de decisão fora de `Move`.
++
++## 8. Conclusão
++
++O projeto está em bom estado para dez prompts de refatoração: há separação
++substancial do legado, testes numerosos e documentação acima da média. A
++continuidade deve priorizar a coerência das fronteiras arquiteturais antes de
++adicionar complexidade às estratégias. Corrigidas essas fronteiras, a base será
++adequada para heurística, Minimax, apresentação e experimentação.

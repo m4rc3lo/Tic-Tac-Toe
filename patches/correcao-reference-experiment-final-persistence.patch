@@ -1,0 +1,213 @@
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -39,6 +39,15 @@
+ 
+ ### Fixed
+ 
++- Experimento de referência passou a regravar obrigatoriamente o resultado
++  completo de cada cenário antes da validação e dos hashes.
++- Gravações finais possuem tentativas limitadas para falhas transitórias de
++  infraestrutura.
++- Manifesto não é produzido quando JSON, CSV e resultado em memória divergem.
++
++
++### Fixed
++
+ - Validação do experimento de referência agora detecta divergências entre
+   resultado em memória, JSON e CSV antes de gerar o manifesto.
+ - Script de análise passou a informar cenário e contagens inconsistentes.
+diff --git a/docs/13-resultados.md b/docs/13-resultados.md
+--- a/docs/13-resultados.md
++++ b/docs/13-resultados.md
+@@ -124,3 +124,16 @@
+     .\artifacts\experiments\reference\reference-manifest.json `
+     -Algorithm SHA256
+ ```
++
++
++## Garantia de consistência final
++
++O modo experimental comum tolera falhas isoladas de um repositório para que um
++lote não seja perdido integralmente. O protocolo de referência acrescenta uma
++regra mais estrita: ao final de cada cenário, o resultado completo em memória é
++gravado novamente em todos os repositórios.
++
++A gravação final admite até três tentativas para falhas operacionais
++transitórias. Somente depois são comparadas as contagens do resultado em
++memória, do JSON e do CSV. O manifesto e os hashes não são produzidos quando
++essas contagens divergem.
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
+--- a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentRunner.cs
+@@ -32,14 +32,16 @@
+             string scenario_directory = Path.Combine(
+                 plan.OutputDirectory,
+                 scenario.Id);
++            IExperimentResultRepository[] repositories =
++            [
++                new JsonExperimentResultRepository(),
++                new CsvExperimentResultRepository(new CsvWriter())
++            ];
+             ExperimentController controller = new(
+                 new ExperimentStrategyFactory(),
+                 new SequentialSeedSequence(),
+                 new StopwatchExperimentTimerFactory(),
+-                [
+-                    new JsonExperimentResultRepository(),
+-                    new CsvExperimentResultRepository(new CsvWriter())
+-                ]);
++                repositories);
+             ExperimentResult result = controller.run(
+                 new ExperimentConfiguration(
+                 scenario.XStrategy,
+@@ -52,6 +54,12 @@
+                 scenario_directory,
+                 ContinueOnFailure: true,
+                 PersistMatchesToHistory: false));
++
++            persist_final_result(
++                scenario.Id,
++                scenario_directory,
++                result,
++                repositories);
+ 
+             string json_path = Path.Combine(
+                 scenario_directory,
+@@ -107,6 +115,62 @@
+     }
+ 
+ 
++
++    private static void persist_final_result(
++        string scenario_id,
++        string scenario_directory,
++        ExperimentResult result,
++        IReadOnlyList<IExperimentResultRepository> repositories)
++    {
++        const int max_attempts = 3;
++
++        foreach (IExperimentResultRepository repository in repositories)
++        {
++            Exception? last_exception = null;
++
++            for (int attempt = 1; attempt <= max_attempts; attempt++)
++            {
++                try
++                {
++                    repository.save(
++                        scenario_directory,
++                        result);
++                    last_exception = null;
++                    break;
++                }
++                catch (Exception exception)
++                    when (is_expected_persistence_failure(exception))
++                {
++                    last_exception = exception;
++
++                    if (attempt < max_attempts)
++                    {
++                        Thread.Sleep(
++                            TimeSpan.FromMilliseconds(50 * attempt));
++                    }
++                }
++            }
++
++            if (last_exception is not null)
++            {
++                throw new InfrastructureOperationException(
++                    "persistir resultado final do experimento de referência",
++                    $"O cenário '{scenario_id}' terminou, mas o resultado final " +
++                    $"não pôde ser persistido por " +
++                    $"{repository.GetType().Name}.",
++                    last_exception);
++            }
++        }
++    }
++
++    private static bool is_expected_persistence_failure(
++        Exception exception)
++    {
++        return exception is InfrastructureOperationException
++            or IOException
++            or UnauthorizedAccessException;
++    }
++
+     private static void validate_scenario_artifacts(
+         string scenario_id,
+         ExperimentResult result,
+diff --git a/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentRunnerTests.cs b/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentRunnerTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/ReferenceExperiment/ReferenceExperimentRunnerTests.cs
+@@ -0,0 +1,69 @@
++
++using System.Text.Json;
++using TicTacToe.ReferenceExperiment;
++using Xunit;
++
++namespace TicTacToe.Tests.ReferenceExperiment;
++
++public sealed class ReferenceExperimentRunnerTests : IDisposable
++{
++    private readonly string directory = Path.Combine(
++        Path.GetTempPath(),
++        $"tictactoe-reference-runner-{Guid.NewGuid():N}");
++
++    [Fact]
++    public void run_should_persist_final_consistent_artifacts()
++    {
++        ReferenceExperimentPlan plan = new(
++            RepetitionsPerScenario: 2,
++            BaseSeed: 100,
++            AlternateSymbols: true,
++            AlternateFirstParticipant: true,
++            OutputDirectory: directory);
++
++        ReferenceExperimentManifest manifest =
++            new ReferenceExperimentRunner().run(
++                plan,
++                "test-commit");
++
++        Assert.Equal(6, manifest.Scenarios.Count);
++
++        foreach (ReferenceScenarioArtifact scenario in manifest.Scenarios)
++        {
++            string scenario_directory = Path.Combine(
++                directory,
++                scenario.Directory);
++            string json_path = Path.Combine(
++                scenario_directory,
++                scenario.JsonFile);
++            string csv_path = Path.Combine(
++                scenario_directory,
++                scenario.CsvFile);
++
++            using JsonDocument document =
++                JsonDocument.Parse(File.ReadAllText(json_path));
++
++            int total_runs = document.RootElement
++                .GetProperty("summary")
++                .GetProperty("totalRuns")
++                .GetInt32();
++            int metrics = document.RootElement
++                .GetProperty("metrics")
++                .GetArrayLength();
++            int csv_rows =
++                File.ReadLines(csv_path).Count() - 1;
++
++            Assert.Equal(2, total_runs);
++            Assert.Equal(total_runs, metrics);
++            Assert.Equal(total_runs, csv_rows);
++        }
++    }
++
++    public void Dispose()
++    {
++        if (Directory.Exists(directory))
++        {
++            Directory.Delete(directory, recursive: true);
++        }
++    }
++}

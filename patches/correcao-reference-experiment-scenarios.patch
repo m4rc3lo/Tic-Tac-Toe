@@ -1,0 +1,47 @@
+diff --git a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentPlan.cs b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentPlan.cs
+--- a/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentPlan.cs
++++ b/src/TicTacToe.Console/ReferenceExperiment/ReferenceExperimentPlan.cs
+@@ -24,15 +24,35 @@
+ 
+     public IReadOnlyList<ReferenceExperimentScenario> get_scenarios()
+     {
+-        return Array.AsReadOnly(
++        ReferenceExperimentScenario[] scenarios =
+         [
+-            new("random-random", ExperimentStrategy.Random, ExperimentStrategy.Random),
+-            new("random-heuristic", ExperimentStrategy.Random, ExperimentStrategy.Heuristic),
+-            new("random-minimax", ExperimentStrategy.Random, ExperimentStrategy.Minimax),
+-            new("heuristic-heuristic", ExperimentStrategy.Heuristic, ExperimentStrategy.Heuristic),
+-            new("heuristic-minimax", ExperimentStrategy.Heuristic, ExperimentStrategy.Minimax),
+-            new("minimax-minimax", ExperimentStrategy.Minimax, ExperimentStrategy.Minimax)
+-        ]);
++            new(
++                "random-random",
++                ExperimentStrategy.Random,
++                ExperimentStrategy.Random),
++            new(
++                "random-heuristic",
++                ExperimentStrategy.Random,
++                ExperimentStrategy.Heuristic),
++            new(
++                "random-minimax",
++                ExperimentStrategy.Random,
++                ExperimentStrategy.Minimax),
++            new(
++                "heuristic-heuristic",
++                ExperimentStrategy.Heuristic,
++                ExperimentStrategy.Heuristic),
++            new(
++                "heuristic-minimax",
++                ExperimentStrategy.Heuristic,
++                ExperimentStrategy.Minimax),
++            new(
++                "minimax-minimax",
++                ExperimentStrategy.Minimax,
++                ExperimentStrategy.Minimax)
++        ];
++
++        return Array.AsReadOnly(scenarios);
+     }
+ }
+ 

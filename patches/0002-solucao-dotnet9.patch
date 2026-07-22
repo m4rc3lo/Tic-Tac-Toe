@@ -1,0 +1,389 @@
+diff --git a/Atualizacao.cs b/legacy/Atualizacao.cs
+similarity index 100%
+rename from Atualizacao.cs
+rename to legacy/Atualizacao.cs
+diff --git a/Desenho.cs b/legacy/Desenho.cs
+similarity index 100%
+rename from Desenho.cs
+rename to legacy/Desenho.cs
+diff --git a/Entrada.cs b/legacy/Entrada.cs
+similarity index 100%
+rename from Entrada.cs
+rename to legacy/Entrada.cs
+diff --git a/Jogador.cs b/legacy/Jogador.cs
+similarity index 100%
+rename from Jogador.cs
+rename to legacy/Jogador.cs
+diff --git a/Jogo.cs b/legacy/Jogo.cs
+similarity index 100%
+rename from Jogo.cs
+rename to legacy/Jogo.cs
+diff --git a/Program.cs b/legacy/Program.cs
+similarity index 100%
+rename from Program.cs
+rename to legacy/Program.cs
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -33,12 +33,26 @@
+ 
+ ## [Unreleased]
+ 
++## [1.1.0] - 2026-07-15
++
+ ### Added
+ 
++- Solução `TicTacToe.sln` configurada para .NET 9.
++- Projeto Console em `src/TicTacToe.Console`.
++- Projeto de testes xUnit em `tests/TicTacToe.Tests`.
++- Configuração compartilhada de nullable, implicit usings, UTF-8 e documentação XML.
++- `.editorconfig` com indentação de quatro espaços e proibição de tabulações.
++- `.gitignore` para C#/.NET, ambientes de desenvolvimento, testes, cobertura, publicação e dados locais.
++- Diretórios iniciais para documentação, dados, exportações, patches e prompts.
+ - Inventário técnico do projeto legado em `docs/01-projeto-original.md`.
+ - Registro das responsabilidades, dependências, riscos e oportunidades de reutilização.
+ - Classificação inicial dos arquivos para a refatoração.
+ - Diagrama de dependências do código legado.
++
++### Changed
++
++- Arquivos C# legados movidos para `legacy/`, fora da compilação da nova solução.
++- `README.md` ampliado com requisitos, estrutura e comandos básicos.
+ 
+ ## [1.0.0] - 2026-07-15
+ 
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1,51 @@
+-# Tic-Tac-Toe
++# Tic-Tac-Toe Console AI
++
++Refatoração didática de uma implementação legada de jogo da velha, desenvolvida
++em C# para .NET 9.
++
++## Estado do projeto
++
++- `v1.0.0`: estado legado preservado;
++- `v1.1.0`: solução .NET 9, projeto Console e infraestrutura inicial de testes;
++- `v2.0.0`: versão final planejada da refatoração.
++
++O código legado foi movido para `legacy/` e não participa da compilação. A nova
++implementação será construída em `src/`, com testes em `tests/`.
++
++## Requisitos
++
++- SDK do .NET 9;
++- Git.
++
++## Restaurar dependências
++
++```bash
++dotnet restore
++```
++
++## Compilar
++
++```bash
++dotnet build
++```
++
++## Executar
++
++```bash
++dotnet run --project src/TicTacToe.Console
++```
++
++## Executar os testes
++
++```bash
++dotnet test
++```
++
++## Convenções iniciais
++
++- identificadores em inglês;
++- tipos em `CamelCase`;
++- métodos e variáveis em `snake_case`;
++- comentários e documentação em português do Brasil;
++- indentação com quatro espaços, sem tabulações;
++- arquivos de texto em UTF-8 e finais de linha LF.
+diff --git a/.editorconfig b/.editorconfig
+new file mode 100644
+--- /dev/null
++++ b/.editorconfig
+@@ -0,0 +1,16 @@
++root = true
++
++[*]
++charset = utf-8
++end_of_line = lf
++insert_final_newline = true
++indent_style = space
++indent_size = 4
++trim_trailing_whitespace = true
++
++[*.{cs,csproj,props,targets,sln}]
++indent_style = space
++indent_size = 4
++
++[*.md]
++trim_trailing_whitespace = false
+diff --git a/.gitignore b/.gitignore
+new file mode 100644
+--- /dev/null
++++ b/.gitignore
+@@ -0,0 +1,67 @@
++# Compilação do .NET
++[Bb]in/
++[Oo]bj/
++artifacts/
++
++# Publicação
++publish/
++*.publish.xml
++*.pubxml
++*.pubxml.user
++
++# Visual Studio
++.vs/
++*.suo
++*.user
++*.userosscache
++*.sln.docstates
++
++# Visual Studio Code
++.vscode/*
++!.vscode/extensions.json
++!.vscode/settings.json
++
++# JetBrains Rider e IntelliJ
++.idea/
++*.sln.iml
++
++# ReSharper
++_ReSharper*/
++*.[Rr]e[Ss]harper
++*.DotSettings.user
++
++# NuGet
++*.nupkg
++*.snupkg
++packages/
++.nuget/
++
++# Testes e cobertura
++TestResults/
++coverage/
++coverage.*
++*.coverage
++*.coveragexml
++*.trx
++
++# Logs e arquivos temporários
++*.log
++*.tmp
++*.temp
++*.bak
++*.swp
++*~
++
++# Sistema operacional
++.DS_Store
++Thumbs.db
++desktop.ini
++
++# Dados locais gerados pela aplicação
++data/*.json
++data/experiments/
++exports/*.csv
++
++# Preservar arquivos de orientação dos diretórios
++!data/README.md
++!exports/README.md
+diff --git a/Directory.Build.props b/Directory.Build.props
+new file mode 100644
+--- /dev/null
++++ b/Directory.Build.props
+@@ -0,0 +1,14 @@
++<Project>
++    <PropertyGroup>
++        <TargetFramework>net9.0</TargetFramework>
++        <Nullable>enable</Nullable>
++        <ImplicitUsings>enable</ImplicitUsings>
++        <GenerateDocumentationFile>true</GenerateDocumentationFile>
++        <NoWarn>$(NoWarn);1591</NoWarn>
++        <LangVersion>latest</LangVersion>
++        <Version>1.1.0</Version>
++        <Authors>Marcelo Dornbusch Lopes</Authors>
++        <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
++        <RepositoryType>git</RepositoryType>
++    </PropertyGroup>
++</Project>
+diff --git a/TicTacToe.sln b/TicTacToe.sln
+new file mode 100644
+--- /dev/null
++++ b/TicTacToe.sln
+@@ -0,0 +1,27 @@
++Microsoft Visual Studio Solution File, Format Version 12.00
++# Visual Studio Version 17
++VisualStudioVersion = 17.0.31903.59
++MinimumVisualStudioVersion = 10.0.40219.1
++Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TicTacToe.Console", "src\TicTacToe.Console\TicTacToe.Console.csproj", "{8309DDC8-01ED-47ED-BD0A-A014F20CF614}"
++EndProject
++Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TicTacToe.Tests", "tests\TicTacToe.Tests\TicTacToe.Tests.csproj", "{7DDC0C95-F739-47D5-8945-FC57E94819CF}"
++EndProject
++Global
++    GlobalSection(SolutionConfigurationPlatforms) = preSolution
++        Debug|Any CPU = Debug|Any CPU
++        Release|Any CPU = Release|Any CPU
++    EndGlobalSection
++    GlobalSection(ProjectConfigurationPlatforms) = postSolution
++        {8309DDC8-01ED-47ED-BD0A-A014F20CF614}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
++        {8309DDC8-01ED-47ED-BD0A-A014F20CF614}.Debug|Any CPU.Build.0 = Debug|Any CPU
++        {8309DDC8-01ED-47ED-BD0A-A014F20CF614}.Release|Any CPU.ActiveCfg = Release|Any CPU
++        {8309DDC8-01ED-47ED-BD0A-A014F20CF614}.Release|Any CPU.Build.0 = Release|Any CPU
++        {7DDC0C95-F739-47D5-8945-FC57E94819CF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
++        {7DDC0C95-F739-47D5-8945-FC57E94819CF}.Debug|Any CPU.Build.0 = Debug|Any CPU
++        {7DDC0C95-F739-47D5-8945-FC57E94819CF}.Release|Any CPU.ActiveCfg = Release|Any CPU
++        {7DDC0C95-F739-47D5-8945-FC57E94819CF}.Release|Any CPU.Build.0 = Release|Any CPU
++    EndGlobalSection
++    GlobalSection(SolutionProperties) = preSolution
++        HideSolutionNode = FALSE
++    EndGlobalSection
++EndGlobal
+diff --git a/data/README.md b/data/README.md
+new file mode 100644
+--- /dev/null
++++ b/data/README.md
+@@ -0,0 +1,6 @@
++# Dados locais
++
++Este diretório receberá arquivos JSON produzidos pela aplicação.
++
++Os dados gerados em execução são ignorados pelo Git. Somente exemplos
++explicitamente selecionados para documentação deverão ser versionados.
+diff --git a/exports/README.md b/exports/README.md
+new file mode 100644
+--- /dev/null
++++ b/exports/README.md
+@@ -0,0 +1,7 @@
++# Exportações
++
++Este diretório receberá arquivos CSV produzidos pelas partidas e pelos
++experimentos.
++
++As exportações locais são ignoradas pelo Git. Resultados de referência somente
++serão versionados quando uma etapa documental exigir isso explicitamente.
+diff --git a/legacy/README.md b/legacy/README.md
+new file mode 100644
+--- /dev/null
++++ b/legacy/README.md
+@@ -0,0 +1,10 @@
++# Código legado
++
++Este diretório preserva os arquivos C# da implementação anterior à refatoração.
++O estado histórico completo também permanece disponível pela tag `v1.0.0`.
++
++Os arquivos deste diretório não pertencem aos projetos da solução .NET 9 e não
++serão compilados. Eles são mantidos exclusivamente para consulta, comparação e
++rastreabilidade didática.
++
++A nova implementação será desenvolvida em `src/` e testada em `tests/`.
+diff --git a/patches/README.md b/patches/README.md
+new file mode 100644
+--- /dev/null
++++ b/patches/README.md
+@@ -0,0 +1,4 @@
++# Patches
++
++Este diretório poderá armazenar patches aplicados durante a refatoração
++incremental do projeto.
+diff --git a/prompts/README.md b/prompts/README.md
+new file mode 100644
+--- /dev/null
++++ b/prompts/README.md
+@@ -0,0 +1,4 @@
++# Prompts
++
++Este diretório armazenará o roteiro de prompts utilizado para conduzir a
++refatoração incremental do projeto.
+diff --git a/src/TicTacToe.Console/Program.cs b/src/TicTacToe.Console/Program.cs
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/Program.cs
+@@ -0,0 +1,16 @@
++namespace TicTacToe;
++
++/// <summary>
++/// Define o ponto de entrada da nova aplicação.
++/// </summary>
++public static class Program
++{
++    /// <summary>
++    /// Inicia a aplicação Console.
++    /// </summary>
++    /// <param name="args">Argumentos recebidos pela linha de comando.</param>
++    public static void Main(string[] args)
++    {
++        global::System.Console.WriteLine("Tic-Tac-Toe Console AI — estrutura inicial da versão 1.1.0");
++    }
++}
+diff --git a/src/TicTacToe.Console/TicTacToe.Console.csproj b/src/TicTacToe.Console/TicTacToe.Console.csproj
+new file mode 100644
+--- /dev/null
++++ b/src/TicTacToe.Console/TicTacToe.Console.csproj
+@@ -0,0 +1,7 @@
++<Project Sdk="Microsoft.NET.Sdk">
++    <PropertyGroup>
++        <OutputType>Exe</OutputType>
++        <RootNamespace>TicTacToe</RootNamespace>
++        <AssemblyName>TicTacToe.Console</AssemblyName>
++    </PropertyGroup>
++</Project>
+diff --git a/tests/TicTacToe.Tests/SolutionStructureTests.cs b/tests/TicTacToe.Tests/SolutionStructureTests.cs
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/SolutionStructureTests.cs
+@@ -0,0 +1,16 @@
++namespace TicTacToe.Tests;
++
++/// <summary>
++/// Contém a verificação inicial da infraestrutura de testes.
++/// </summary>
++public class SolutionStructureTests
++{
++    /// <summary>
++    /// Confirma que o projeto de testes pode ser descoberto e executado.
++    /// </summary>
++    [Fact]
++    public void test_infrastructure_should_execute()
++    {
++        Assert.True(true);
++    }
++}
+diff --git a/tests/TicTacToe.Tests/TicTacToe.Tests.csproj b/tests/TicTacToe.Tests/TicTacToe.Tests.csproj
+new file mode 100644
+--- /dev/null
++++ b/tests/TicTacToe.Tests/TicTacToe.Tests.csproj
+@@ -0,0 +1,20 @@
++<Project Sdk="Microsoft.NET.Sdk">
++    <PropertyGroup>
++        <IsPackable>false</IsPackable>
++        <IsTestProject>true</IsTestProject>
++        <RootNamespace>TicTacToe.Tests</RootNamespace>
++    </PropertyGroup>
++
++    <ItemGroup>
++        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
++        <PackageReference Include="xunit.v3" Version="3.2.2" />
++        <PackageReference Include="coverlet.collector" Version="10.0.1">
++            <PrivateAssets>all</PrivateAssets>
++            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
++        </PackageReference>
++    </ItemGroup>
++
++    <ItemGroup>
++        <ProjectReference Include="..\..\src\TicTacToe.Console\TicTacToe.Console.csproj" />
++    </ItemGroup>
++</Project>
