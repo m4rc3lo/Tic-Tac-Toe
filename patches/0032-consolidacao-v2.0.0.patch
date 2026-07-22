@@ -1,0 +1,1635 @@
+diff --git a/.gitignore b/.gitignore
+index 510240f..d2e2623 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -37,6 +37,12 @@ _ReSharper*/
+ packages/
+ .nuget/
+ 
++# Ambientes locais de Python
++__pycache__/
++*.py[cod]
++.venv*/
++venv/
++
+ # Testes e cobertura
+ TestResults/
+ coverage/
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 0a482d0..42f2107 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -9,8 +9,7 @@ a conclusão da nova arquitetura.
+ 
+ ## Linha do tempo
+ 
+-O diagrama distingue o histórico original, os marcos efetivamente concluídos
+-e as versões futuras, cujas datas ainda não foram definidas.
++O diagrama distingue o histórico original e os marcos efetivamente concluídos até a versão consolidada `2.0.0`.
+ 
+ ```mermaid
+ timeline
+@@ -27,28 +26,50 @@ timeline
+         2026-07-17 : v1.6.0 — apresentação e estados
+         2026-07-17 : v1.7.0 — recursos audiovisuais
+         2026-07-18 : v1.8.0 — persistência e exportação
+-    section Marcos planejados
+-        2026-07-21 : v1.9.0 — experimentação e consolidação
+-        Data a definir : v2.0.0 — refatoração completa
++    section Marcos concluídos finais
++        2026-07-21 : v1.9.0 — candidata de experimentação e publicação
++        2026-07-22 : v2.0.0 — arquitetura e fluxos consolidados
+ ```
+ 
+-As versões intermediárias poderão ser ajustadas conforme a granularidade
+-real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
++Os marcos registram a trajetória efetivamente concluída entre o legado preservado em `v1.0.0` e a arquitetura consolidada em `v2.0.0`.
+ 
+ ## [Unreleased]
+ 
++Nenhuma alteração registrada após a release `2.0.0`.
++
++## [2.0.0] - 2026-07-22
++
++### Added
++
++- documentação de consolidação da release, auditoria final e migração da v1.9.0;
++- validador `scripts/validate-release-v2.0.0.ps1` para o checklist final;
++- referências acadêmicas e técnicas consolidadas no final do README;
++- registro versionado dos prompts e patches usados na refatoração.
++
++### Changed
++
++- versão da aplicação, metadados de citação, timeline, índices e instruções de
++  publicação atualizados para `2.0.0`;
++- todos os documentos antes marcados como `Unreleased` passaram a integrar a
++  versão consolidada `2.0.0`;
++- README passou a tratar a arquitetura, modos automático e experimental,
++  exportações e perfis de publicação como funcionalidades concluídas;
++- `.gitignore` passou a excluir explicitamente ambientes virtuais Python locais.
++
+ ### Fixed
+ 
+-- Auditoria de conteúdo sensível da candidata passou a usar expressões
+-  regulares do PowerShell, evitando incompatibilidade com `git grep -E`;
+-- auditoria passou a distinguir identificadores públicos e caminhos fictícios
+-  de caminhos pessoais reais da máquina;
+-- saída do checklist passou a configurar UTF-8 explicitamente no Windows;
+-- scripts PowerShell passaram a usar UTF-8 com BOM para compatibilidade com
+-  Windows PowerShell 5.1;
+-- publicações passaram a executar restore específico para cada RID;
+-- relatório da candidata passou a usar `File.WriteAllText` com UTF-8 sem BOM,
+-  compatível com Windows PowerShell 5.1.
++- comandos quebrados por quebra de linha em referências ao script da candidata;
++- inconsistências documentais entre versão de assembly, `CITATION.cff`,
++  changelog e testes de publicação;
++- descrição de marcos ainda planejados após a conclusão funcional da refatoração.
++
++### Release scope
++
++A versão `2.0.0` encerra o escopo funcional definido para a refatoração. Ideias
++como interface gráfica, rede, tabuleiros alternativos, novos agentes e
++telemetria visual permanecem como extensões futuras opcionais, não como itens
++bloqueadores desta release.
++
+ 
+ ## [1.9.0] - 2026-07-21
+ 
+diff --git a/CITATION.cff b/CITATION.cff
+index fbb2797..947836b 100644
+--- a/CITATION.cff
++++ b/CITATION.cff
+@@ -2,8 +2,8 @@ cff-version: 1.2.0
+ message: "Se este software for utilizado em atividades acadêmicas, cite-o conforme os metadados abaixo."
+ title: "Tic-Tac-Toe Console AI"
+ type: software
+-version: "1.9.0"
+-date-released: "2026-07-21"
++version: "2.0.0"
++date-released: "2026-07-22"
+ license: Apache-2.0
+ repository-code: "https://github.com/m4rc3lo/Tic-Tac-Toe"
+ authors:
+diff --git a/Directory.Build.props b/Directory.Build.props
+index 13db39c..b8dcfd9 100644
+--- a/Directory.Build.props
++++ b/Directory.Build.props
+@@ -6,7 +6,7 @@
+         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+         <NoWarn>$(NoWarn);1591</NoWarn>
+         <LangVersion>latest</LangVersion>
+-        <Version>1.9.0</Version>
++        <Version>2.0.0</Version>
+         <Authors>Marcelo Dornbusch Lopes</Authors>
+         <RepositoryUrl>https://github.com/m4rc3lo/Tic-Tac-Toe</RepositoryUrl>
+         <RepositoryType>git</RepositoryType>
+diff --git a/README.md b/README.md
+index aee2624..11c8826 100644
+--- a/README.md
++++ b/README.md
+@@ -44,7 +44,7 @@ demonstrativo, experimentação reproduzível e publicação multiplataforma.
+ | `v1.7.0` | 2026-07-17 | recursos audiovisuais |
+ | `v1.8.0` | 2026-07-18 | persistência e CSV |
+ | `v1.9.0` | 2026-07-21 | experimentação, robustez e publicação candidata |
+-| `v2.0.0` | a definir | consolidação final |
++| `v2.0.0` | 2026-07-22 | arquitetura e fluxos consolidados |
+ 
+ ## Estrutura
+ 
+@@ -186,25 +186,33 @@ Consulte [`docs/13-resultados.md`](docs/13-resultados.md) e
+ | [`docs/29-revisao-arquitetural-final.md`](docs/29-revisao-arquitetural-final.md) | Auditoria final de dependências, composição e imutabilidade. |
+ | [`docs/30-revisao-legal-documental.md`](docs/30-revisao-legal-documental.md) | Revisão legal, metadados e consistência documental. |
+ | [`docs/31-matriz-documentacao.md`](docs/31-matriz-documentacao.md) | Relação entre documentos, versões e componentes. |
+-| [`docs/32-release-v1.9.0.md`](docs/32-release-v1.9.0.md) | Checklist e validação da candidata v1.9.0. |
++| [`docs/32-release-v1.9.0.md`](docs/32-release-v1.9.0.md) | Checklist histórico da candidata v1.9.0. |
++| [`docs/34-release-v2.0.0.md`](docs/34-release-v2.0.0.md) | Consolidação, validação e publicação da v2.0.0. |
++| [`docs/35-migracao-v1.9.0-v2.0.0.md`](docs/35-migracao-v1.9.0-v2.0.0.md) | Preservação de dados e atualização da v1.9.0. |
++| [`docs/36-auditoria-release-v2.0.0.md`](docs/36-auditoria-release-v2.0.0.md) | Auditoria de arquivos, legalidade, dados e privacidade. |
+ 
+ Também há um índice dedicado em [`docs/README.md`](docs/README.md).
+ 
+ 
+-## Candidata v1.9.0
++## Versão 2.0.0
+ 
+-A versão `1.9.0` está preparada como candidata final. A tag só deve ser criada
+-após a execução e aprovação do checklist em
+-[`docs/32-release-v1.9.0.md`](docs/32-release-v1.9.0.md).
++A versão `2.0.0` conclui o escopo funcional da refatoração e consolida domínio,
++aplicação, Strategies, apresentação, persistência, exportação, modos automático
++e experimental, testes, documentação e publicação multiplataforma.
++
++Antes de criar a tag, execute o checklist completo descrito em
++[`docs/34-release-v2.0.0.md`](docs/34-release-v2.0.0.md):
+ 
+ ```powershell
+ powershell.exe `
+     -NoProfile `
+     -ExecutionPolicy Bypass `
+-    -File .\scripts
+-alidate-release-v1.9.0.ps1
++    -File .\scripts\validate-release-v2.0.0.ps1
+ ```
+ 
++As instruções de migração estão em
++[`docs/35-migracao-v1.9.0-v2.0.0.md`](docs/35-migracao-v1.9.0-v2.0.0.md).
++
+ ## Licença e citação
+ 
+ O projeto usa Apache License 2.0. Consulte:
+@@ -213,3 +221,89 @@ O projeto usa Apache License 2.0. Consulte:
+ - [`LICENSE.md`](LICENSE.md);
+ - [`NOTICE`](NOTICE);
+ - [`CITATION.cff`](CITATION.cff).
++
++## Referências
++
++As referências abaixo consolidam as obras e documentações empregadas nos
++materiais técnicos e nas apresentações associadas ao projeto. A ordenação é
++alfabética e a formatação procura se aproximar das normas da ABNT para os dados
++disponíveis.
++
++BASS, Len; CLEMENTS, Paul; KAZMAN, Rick. *Software architecture in practice*. 4. ed. Boston: Addison-Wesley, 2021.
++
++BRENNAN, Karen; RESNICK, Mitchel. New frameworks for studying and assessing the development of computational thinking. In: **AMERICAN EDUCATIONAL RESEARCH ASSOCIATION ANNUAL MEETING**, 2012. Proceedings [...]. Vancouver: AERA, 2012.
++
++CHACON, Scott; STRAUB, Ben. *Pro Git*. 2. ed. New York: Apress, 2014. Disponível em: <https://git-scm.com/book/en/v2>. Acesso em: 22 jul. 2026.
++
++CHOOSE A LICENSE. *Choose an open source license*. Disponível em: <https://choosealicense.com/>. Acesso em: 22 jul. 2026.
++
++CITATION FILE FORMAT. *Citation File Format*. Disponível em: <https://citation-file-format.github.io/>. Acesso em: 22 jul. 2026.
++
++CORMEN, Thomas H. et al. *Introduction to algorithms*. Cambridge: MIT Press, 2022.
++
++DENNING, Peter J.; TEDRE, Matti. *Computational thinking*. Cambridge: MIT Press, 2019.
++
++FOWLER, Martin. *Patterns of enterprise application architecture*. Boston: Addison-Wesley, 2002.
++
++FOWLER, Martin. *UML distilled: a brief guide to the standard object modeling language*. 3. ed. Boston: Addison-Wesley, 2004.
++
++FREEMAN, Eric; ROBSON, Elisabeth. *Head first design patterns*. 2. ed. Sebastopol: O'Reilly, 2020.
++
++FULLERTON, Tracy. *Game design workshop: a playcentric approach to creating innovative games*. 4. ed. Boca Raton: CRC Press, 2018.
++
++GAMMA, Erich et al. *Design patterns: elements of reusable object-oriented software*. Boston: Addison-Wesley, 1994.
++
++GIT PROJECT. *Git documentation*. Disponível em: <https://git-scm.com/>. Acesso em: 22 jul. 2026.
++
++
++GIL, Antonio Carlos. *Como elaborar projetos de pesquisa*. 6. ed. São Paulo: Atlas, 2017.
++
++GITHUB. *About CITATION files*. Disponível em: <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-citation-files>. Acesso em: 22 jul. 2026.
++
++GITHUB. *Licensing a repository*. Disponível em: <https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/licensing-a-repository>. Acesso em: 22 jul. 2026.
++
++GOODRICH, Michael T.; TAMASSIA, Roberto; GOLDWASSER, Michael H. *Data structures and algorithms in C++*. 2. ed. Hoboken: Wiley, 2011.
++
++GREGORY, Jason. *Game engine architecture*. 3. ed. Boca Raton: CRC Press, 2018.
++
++JSON. *Introducing JSON*. Disponível em: <https://www.json.org/json-en.html>. Acesso em: 22 jul. 2026.
++
++LARMAN, Craig. *Applying UML and patterns*. 3. ed. Upper Saddle River: Prentice Hall, 2004.
++
++MARTIN, Robert C. *Clean architecture: a craftsman's guide to software structure and design*. Boston: Prentice Hall, 2017.
++
++MICROSOFT. *.NET documentation*. Disponível em: <https://learn.microsoft.com/dotnet/>. Acesso em: 22 jul. 2026.
++
++MICROSOFT. *C# language reference*. Disponível em: <https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/>. Acesso em: 22 jul. 2026.
++
++MICROSOFT. *PowerShell documentation*. Disponível em: <https://learn.microsoft.com/powershell/>. Acesso em: 22 jul. 2026.
++
++NYSTROM, Robert. *Game programming patterns*. 2014. Disponível em: <https://gameprogrammingpatterns.com/>. Acesso em: 22 jul. 2026.
++
++
++OPENAI. *GPT-5.6 no ChatGPT*. Disponível em: <https://help.openai.com/pt-br/articles/20001354-gpt-56-in-chatgpt>. Acesso em: 22 jul. 2026.
++
++OPEN SOURCE INITIATIVE. *Licenses*. Disponível em: <https://opensource.org/licenses>. Acesso em: 22 jul. 2026.
++
++PYTHON PACKAGING AUTHORITY. *Python Packaging User Guide*. Disponível em: <https://packaging.python.org/>. Acesso em: 22 jul. 2026.
++
++PYTHON SOFTWARE FOUNDATION. *Python*. Disponível em: <https://www.python.org/>. Acesso em: 22 jul. 2026.
++
++PYTHON SOFTWARE FOUNDATION. *venv — creation of virtual environments*. Disponível em: <https://docs.python.org/3/library/venv.html>. Acesso em: 22 jul. 2026.
++
++RESNICK, Mitchel. *Lifelong kindergarten: cultivating creativity through projects, passion, peers, and play*. Cambridge: MIT Press, 2017.
++
++SCHELL, Jesse. *The art of game design: a book of lenses*. 3. ed. Boca Raton: CRC Press, 2019.
++
++SEDGEWICK, Robert; WAYNE, Kevin. *Algorithms*. 4. ed. Boston: Addison-Wesley, 2011.
++
++SEMANTIC VERSIONING. *Versionamento Semântico 2.0.0*. Disponível em: <https://semver.org/lang/pt-BR/>. Acesso em: 22 jul. 2026.
++
++SOFTWARE PACKAGE DATA EXCHANGE. *SPDX License List*. Disponível em: <https://spdx.org/licenses/>. Acesso em: 22 jul. 2026.
++
++SOMMERVILLE, Ian. *Software engineering*. 10. ed. Boston: Pearson, 2016.
++
++
++WAZLAWICK, Raul Sidnei. *Metodologia de pesquisa para ciência da computação*. 3. ed. Rio de Janeiro: GEN LTC, 2020.
++
++WING, Jeannette M. Computational thinking. *Communications of the ACM*, New York, v. 49, n. 3, p. 33–35, 2006.
+diff --git a/docs/14-limitacoes.md b/docs/14-limitacoes.md
+index b4bd8c4..aeff1f4 100644
+--- a/docs/14-limitacoes.md
++++ b/docs/14-limitacoes.md
+@@ -158,3 +158,10 @@ Os diretórios de publicação permanecem ignorados pelo Git.
+ - publicação autocontida aumenta significativamente o tamanho;
+ - validação real em dois sistemas continua necessária, pois testes simulados
+   não substituem execução no ambiente final.
++
++## Estado na versão 2.0.0
++
++As limitações descritas neste documento são restrições conhecidas e decisões de
++escopo da versão consolidada, não pendências funcionais obrigatórias para a
++release. Expansões como interface gráfica, rede, novos tabuleiros ou agentes
++podem iniciar uma nova linha de evolução sem invalidar a arquitetura entregue.
+diff --git a/docs/26-publicacao.md b/docs/26-publicacao.md
+index c368fee..26b478f 100644
+--- a/docs/26-publicacao.md
++++ b/docs/26-publicacao.md
+@@ -257,7 +257,7 @@ Get-ChildItem `
+ confirme o caminho com `Resolve-Path`, `Test-Path` e `Get-ChildItem`.
+ 
+ 
+-## 14. Publicações da candidata v1.9.0
++## 14. Publicações da candidata v1.9.0 — registro histórico
+ 
+ A validação integrada é executada por:
+ 
+@@ -271,3 +271,18 @@ alidate-release-v1.9.0.ps1
+ 
+ O script publica e inspeciona os quatro perfis. A tag só pode ser criada depois
+ que todos os pacotes forem validados e o relatório da candidata for aprovado.
++
++## 15. Publicação da versão v2.0.0
++
++A versão final usa os mesmos quatro perfis de publicação documentados, agora
++identificados como `2.0.0`. Execute o validador final:
++
++```powershell
++powershell.exe `
++    -NoProfile `
++    -ExecutionPolicy Bypass `
++    -File .\scripts\validate-release-v2.0.0.ps1
++```
++
++As instruções de checksums, tag e GitHub Release estão em
++[`34-release-v2.0.0.md`](34-release-v2.0.0.md).
+diff --git a/docs/31-matriz-documentacao.md b/docs/31-matriz-documentacao.md
+index ec2f0e0..d223212 100644
+--- a/docs/31-matriz-documentacao.md
++++ b/docs/31-matriz-documentacao.md
+@@ -3,15 +3,14 @@
+ ## 1. Finalidade
+ 
+ A matriz relaciona cada documento ao marco de versão e ao componente que ele
+-descreve. `Unreleased` identifica conteúdo implementado depois de `v1.9.0` e
+-ainda não associado a uma tag formal.
++descreve. A versão `2.0.0` consolida o conteúdo que, durante a candidata `v1.9.0`, estava identificado como `2.0.0`.
+ 
+ | Documento | Versão ou período | Componente | Finalidade |
+ |---|---|---|---|
+ | `00-decisoes-e-escopo.md` | 1.2.0+ | Governança | convenções, Git, idioma e versões |
+ | `01-projeto-original.md` | 1.0.0 | Legado | inventário histórico |
+ | `02-requisitos.md` | 1.2.0+ | Projeto | requisitos e critérios |
+-| `03-arquitetura.md` | 1.2.0–Unreleased | Arquitetura | camadas e composition root |
++| `03-arquitetura.md` | 1.2.0–2.0.0 | Arquitetura | camadas e composition root |
+ | `04-modelo-conceitual.md` | 1.2.0 | Domain | entidades e relações |
+ | `05-game-rules.md` | 1.2.0 | Domain | regras e avaliação |
+ | `06-match-aggregate.md` | 1.2.0 | Domain | agregado e invariantes |
+@@ -19,28 +18,32 @@ ainda não associado a uma tag formal.
+ | `08-revisao-prompt-10.md` | 1.3.0 | Governança | revisão histórica intermediária |
+ | `09-correcao-fronteiras-arquiteturais.md` | 1.4.0 | Domain/AI/Application | fronteiras corrigidas |
+ | `10-inteligencia-artificial.md` | 1.3.0–1.5.0 | AI | Strategies e Minimax |
+-| `11-experimentacao.md` | Unreleased | Application/Persistence | protocolo experimental |
+-| `12-testes.md` | Unreleased | Tests | estratégia e cobertura |
+-| `13-resultados.md` | Unreleased | Experiment | experimento de referência |
+-| `14-limitacoes.md` | Unreleased | Compatibility | plataformas e terminal |
++| `11-experimentacao.md` | 2.0.0 | Application/Persistence | protocolo experimental |
++| `12-testes.md` | 2.0.0 | Tests | estratégia e cobertura |
++| `13-resultados.md` | 2.0.0 | Experiment | experimento de referência |
++| `14-limitacoes.md` | 2.0.0 | Compatibility | plataformas e terminal |
+ | `15-audio.md` | 1.7.0 | Audio | beep, bell e fallback |
+ | `16-apresentacao-console.md` | 1.6.0 | Presentation | adaptadores Console |
+-| `17-screen-manager.md` | 1.6.0–Unreleased | Presentation | navegação e ciclos |
+-| `18-temas-e-creditos.md` | 1.7.0–Unreleased | Presentation | ASCII, Unicode e citação |
++| `17-screen-manager.md` | 1.6.0–2.0.0 | Presentation | navegação e ciclos |
++| `18-temas-e-creditos.md` | 1.7.0–2.0.0 | Presentation | ASCII, Unicode e citação |
+ | `19-feedback-visual-e-animacoes.md` | 1.7.0 | Presentation | feedback e atraso |
+ | `20-configuracoes-json.md` | 1.8.0 | Persistence | settings e esquema |
+-| `21-partidas-e-estatisticas-json.md` | 1.8.0–Unreleased | Persistence | histórico, estatísticas e recuperação |
++| `21-partidas-e-estatisticas-json.md` | 1.8.0–2.0.0 | Persistence | histórico, estatísticas e recuperação |
+ | `22-exportacao-csv.md` | 1.8.0 | Persistence | CSV e esquemas |
+-| `23-modo-automatico.md` | Unreleased | Application/Presentation | IA contra IA demonstrativa |
+-| `24-modo-experimental.md` | Unreleased | Application/Persistence | lotes sem apresentação |
+-| `25-robustez-fronteiras-externas.md` | Unreleased | Infrastructure | falhas e recuperação |
+-| `26-publicacao.md` | Unreleased | Publication | perfis e empacotamento |
+-| `27-glossario.md` | Unreleased | Projeto | vocabulário |
+-| `28-uso-ia-generativa.md` | Unreleased | Governança | transparência de IA |
+-| `29-revisao-arquitetural-final.md` | Unreleased | Arquitetura | auditoria final |
+-| `30-revisao-legal-documental.md` | Unreleased | Governança/Legal | auditoria legal e documental |
++| `23-modo-automatico.md` | 2.0.0 | Application/Presentation | IA contra IA demonstrativa |
++| `24-modo-experimental.md` | 2.0.0 | Application/Persistence | lotes sem apresentação |
++| `25-robustez-fronteiras-externas.md` | 2.0.0 | Infrastructure | falhas e recuperação |
++| `26-publicacao.md` | 2.0.0 | Publication | perfis e empacotamento |
++| `27-glossario.md` | 2.0.0 | Projeto | vocabulário |
++| `28-uso-ia-generativa.md` | 2.0.0 | Governança | transparência de IA |
++| `29-revisao-arquitetural-final.md` | 2.0.0 | Arquitetura | auditoria final |
++| `30-revisao-legal-documental.md` | 2.0.0 | Governança/Legal | auditoria legal e documental |
+ | `31-matriz-documentacao.md` | 1.9.0 | Governança | rastreabilidade documental |
+-| `32-release-v1.9.0.md` | 1.9.0 | Release | checklist e validação da candidata |
++| `32-release-v1.9.0.md` | 1.9.0 | Release | checklist histórico da candidata |
++| `33-analise-estatistica-experimentos.md` | 1.9.0–2.0.0 | Experiment | análise estatística avançada |
++| `34-release-v2.0.0.md` | 2.0.0 | Release | consolidação e publicação final |
++| `35-migracao-v1.9.0-v2.0.0.md` | 2.0.0 | Compatibility | migração e preservação de dados |
++| `36-auditoria-release-v2.0.0.md` | 2.0.0 | Governança | auditoria final |
+ 
+ ## 2. Leitura da matriz
+ 
+@@ -51,11 +54,11 @@ do estado atual; sua função é preservar rastreabilidade.
+ 
+ ```mermaid
+ flowchart LR
+-    A[Versão ou Unreleased] --> B[Documento]
++    A[Versão ou 2.0.0] --> B[Documento]
+     C[Componente] --> B
+     B --> D[Decisão, esquema ou procedimento]
+     D --> E[Teste, código ou artefato]
+ ```
+ 
+ A matriz deve ser atualizada quando um documento novo for criado ou quando uma
+-release mover conteúdo de `Unreleased` para uma versão numerada.
++release mover conteúdo de `2.0.0` para uma versão numerada.
+diff --git a/docs/34-release-v2.0.0.md b/docs/34-release-v2.0.0.md
+new file mode 100644
+index 0000000..aa13679
+--- /dev/null
++++ b/docs/34-release-v2.0.0.md
+@@ -0,0 +1,151 @@
++# Consolidação da versão v2.0.0
++
++## 1. Finalidade
++
++A versão `2.0.0`, datada de 22 de julho de 2026, conclui a refatoração do
++Tic-Tac-Toe Console AI. Ela representa a arquitetura modular e os fluxos
++funcionais documentados, e não apenas uma alteração nominal de versão.
++
++O escopo funcional planejado está encerrado. Interface gráfica, rede,
++tabuleiros alternativos, novos agentes e telemetria visual são possibilidades
++posteriores independentes, sem bloquear esta release.
++
++## 2. Escopo consolidado
++
++- domínio e regras independentes da infraestrutura;
++- Strategies Random, Heuristic e Minimax;
++- partida interativa, modo automático e modo experimental;
++- apresentação Console, temas, animações e áudio com fallback;
++- configurações, partidas e estatísticas em JSON;
++- exportações CSV;
++- experimento de referência reproduzível;
++- testes automatizados e cobertura;
++- publicações Windows e Linux, dependentes e autocontidas;
++- documentação técnica, legal, experimental e acadêmica;
++- histórico de prompts e patches.
++
++## 3. Fluxo de validação
++
++O fluxo abaixo deve ser concluído antes da tag.
++
++```mermaid
++flowchart TD
++    A[Branch release/v2.0.0] --> B[Árvore Git limpa]
++    B --> C[Restore e build sem warnings]
++    C --> D[Testes e cobertura]
++    D --> E[Teste de preservação de dados]
++    E --> F[Experimento curto reproduzível]
++    F --> G[Quatro publicações]
++    G --> H[Auditorias de arquivos, legal e privacidade]
++    H --> I[Links e comandos]
++    I --> J[Commit de release]
++    J --> K[Merge em main]
++    K --> L[Tag anotada v2.0.0]
++    L --> M[GitHub Release]
++```
++
++A tag só deve ser criada quando todas as verificações aplicáveis forem
++aprovadas. Resultados não executáveis no ambiente atual precisam ser realizados
++em Windows e, quando disponível, em Linux.
++
++## 4. Comando principal
++
++No Windows PowerShell:
++
++```powershell
++powershell.exe `
++    -NoProfile `
++    -ExecutionPolicy Bypass `
++    -File .\scripts\validate-release-v2.0.0.ps1
++```
++
++O script centraliza versão, restore, build, testes, auditoria e publicações. A
++saída deve ser preservada como evidência da release, mas não precisa ser
++versionada quando contiver artefatos volumosos ou informações locais.
++
++## 5. Validações obrigatórias
++
++1. `dotnet restore`;
++2. `dotnet build --configuration Release -warnaserror`;
++3. `dotnet test --configuration Release --no-build`;
++4. cobertura conforme `tests/coverage.runsettings`;
++5. teste de atualização com dados produzidos pela v1.9.0;
++6. experimento curto repetido com as mesmas sementes;
++7. publicação `win-x64` e `linux-x64`, framework-dependent e self-contained;
++8. smoke test das publicações executáveis no ambiente disponível;
++9. auditoria de arquivos sensíveis e resíduos locais;
++10. auditoria de licença, `NOTICE` e `CITATION.cff`;
++11. auditoria de dados e privacidade;
++12. verificação dos links locais e comandos documentados.
++
++## 6. Artefatos e checksums
++
++Após publicar, calcule SHA-256:
++
++```powershell
++Get-ChildItem .\artifacts\release\v2.0.0 -File -Recurse |
++    Get-FileHash -Algorithm SHA256 |
++    Sort-Object Path |
++    Format-Table -AutoSize
++```
++
++Para um arquivo consolidado de checksums:
++
++```powershell
++Get-ChildItem .\artifacts\release\v2.0.0 -File -Recurse |
++    Get-FileHash -Algorithm SHA256 |
++    ForEach-Object { "{0}  {1}" -f $_.Hash.ToLowerInvariant(), $_.Path } |
++    Set-Content .\artifacts\release\v2.0.0\SHA256SUMS.txt -Encoding UTF8
++```
++
++Os checksums permitem verificar integridade após download.
++
++## 7. Commit, merge e tag
++
++```powershell
++git switch release/v2.0.0
++git status
++git add Directory.Build.props CITATION.cff CHANGELOG.md README.md .gitignore
++git add docs scripts tests
++git commit -m "release: consolidar versão 2.0.0"
++
++git switch main
++git pull --ff-only origin main
++git merge --no-ff release/v2.0.0 -m "merge: integrar versão 2.0.0"
++git push origin main
++
++git tag -a v2.0.0 -m "release: v2.0.0"
++git push origin v2.0.0
++```
++
++A branch de release pode ser enviada para revisão antes do merge:
++
++```powershell
++git push -u origin release/v2.0.0
++```
++
++## 8. GitHub Release
++
++Crie uma release a partir da tag `v2.0.0` e use como notas:
++
++- resumo da arquitetura consolidada;
++- funcionalidades principais;
++- plataformas suportadas;
++- instruções de atualização;
++- limitações conhecidas;
++- licença e citação;
++- checksums.
++
++Anexos recomendados, conforme disponibilidade:
++
++- quatro pacotes publicados;
++- `SHA256SUMS.txt`;
++- resultados de referência e manifesto;
++- relatório de validação;
++- documentação adicional em PDF, se desejado.
++
++## 9. Critério de conclusão
++
++A release está concluída quando a tag `v2.0.0` aponta para o commit integrado em
++`main`, os metadados estão coerentes, os artefatos possuem checksums e as notas
++de release informam claramente instalação, migração, limitações e citação.
+diff --git a/docs/35-migracao-v1.9.0-v2.0.0.md b/docs/35-migracao-v1.9.0-v2.0.0.md
+new file mode 100644
+index 0000000..e1d54b3
+--- /dev/null
++++ b/docs/35-migracao-v1.9.0-v2.0.0.md
+@@ -0,0 +1,66 @@
++# Migração da v1.9.0 para a v2.0.0
++
++## 1. Visão geral
++
++A versão `2.0.0` consolida a candidata `1.9.0`. Não há mudança intencionalmente
++incompatível nos formatos públicos de configurações, histórico, estatísticas e
++resultados experimentais produzidos pela candidata.
++
++A alteração de versão principal representa a conclusão arquitetural da
++refatoração iniciada sobre o legado, e não uma decisão de descartar dados da
++v1.9.0.
++
++## 2. Procedimento recomendado
++
++1. encerre a aplicação v1.9.0;
++2. faça backup do diretório local de dados;
++3. instale ou extraia a build v2.0.0 em um novo diretório;
++4. mantenha os dados no diretório local esperado pela aplicação;
++5. inicie a v2.0.0;
++6. confira configurações, histórico e estatísticas;
++7. execute uma partida e uma exportação curta;
++8. preserve o backup até concluir a verificação.
++
++## 3. Dados que devem ser preservados
++
++- configurações JSON;
++- histórico de partidas;
++- estatísticas agregadas;
++- resultados experimentais escolhidos pelo usuário;
++- exportações que ainda sejam necessárias.
++
++Dados locais não devem ser copiados para o repositório Git.
++
++## 4. Teste de atualização
++
++O teste mínimo utiliza uma cópia temporária dos dados da v1.9.0:
++
++```text
++cópia dos dados v1.9.0
++→ inicialização da v2.0.0
++→ leitura das configurações
++→ consulta de histórico e estatísticas
++→ nova partida
++→ nova exportação
++→ comparação com o backup
++```
++
++Arquivos inválidos devem seguir a política de quarentena e recuperação, sem
++apagamento silencioso.
++
++## 5. Retorno à versão anterior
++
++Se houver falha:
++
++1. encerre a v2.0.0;
++2. preserve os arquivos gerados durante o teste;
++3. restaure o backup em um diretório separado;
++4. execute a v1.9.0 somente sobre a cópia restaurada;
++5. registre versão, plataforma, build e passos de reprodução.
++
++## 6. Compatibilidade experimental
++
++Resultados antigos preservam o campo `application_version` original. Eles não
++devem ser reescritos como se tivessem sido gerados pela v2.0.0. Novas execuções
++registram a versão `2.0.0` e podem ser comparadas desde que o protocolo, as
++sementes e o ambiente sejam considerados.
+diff --git a/docs/36-auditoria-release-v2.0.0.md b/docs/36-auditoria-release-v2.0.0.md
+new file mode 100644
+index 0000000..47648a5
+--- /dev/null
++++ b/docs/36-auditoria-release-v2.0.0.md
+@@ -0,0 +1,85 @@
++# Auditoria da release v2.0.0
++
++## 1. Escopo
++
++Este documento registra a auditoria da cópia local recebida em 22 de julho de
++2026 e separa o conteúdo versionado dos resíduos locais presentes no arquivo
++compactado.
++
++## 2. Estado inicial
++
++- branch recebida: `main`;
++- working tree Git: limpa;
++- último commit observado: registro dos prompts e patches;
++- diretórios locais de build presentes: `bin/`, `obj/` e `artifacts/`;
++- ambiente virtual local presente: `.venv-experiments/`;
++- arquivo local volumoso presente: `output.txt`;
++- um bytecode Python em `scripts/__pycache__/` estava rastreado e foi removido;
++- esses itens estavam ignorados, foram removidos do rastreamento ou passaram a ser explicitamente ignorados.
++
++## 3. Arquivos que não devem ser versionados
++
++| Categoria | Exemplos observados | Tratamento |
++|---|---|---|
++| build .NET | `bin/`, `obj/` | ignorar e regenerar |
++| publicação | `artifacts/` | anexar à release, não ao Git |
++| ambiente Python | `.venv-experiments/` | ignorar e recriar por requirements |
++| cache Python | `__pycache__/`, `*.pyc` | remover e regenerar automaticamente |
++| saída local | `output.txt` | ignorar ou arquivar fora do Git |
++| dados de execução | `data/*.json`, `exports/*.csv` | manter locais |
++
++A presença no ZIP local não implica rastreamento no Git. O pacote versionável
++final exclui esses itens.
++
++## 4. Auditoria funcional e documental
++
++A versão foi atualizada em:
++
++- `Directory.Build.props`;
++- `CITATION.cff`;
++- `CHANGELOG.md`;
++- README e índices;
++- teste de consistência legal;
++- validador de release.
++
++Foram criados documentos de consolidação, migração e auditoria.
++
++## 5. Auditoria legal
++
++- licença principal: Apache License 2.0;
++- `LICENSE`, `LICENSE.md` e `NOTICE` preservados;
++- `CITATION.cff` atualizado para `2.0.0`;
++- dependências de teste permanecem separadas do projeto de produção;
++- referências acadêmicas e técnicas foram consolidadas no README.
++
++## 6. Dados e privacidade
++
++Não devem integrar commit ou pacote público:
++
++- caminhos pessoais;
++- tokens e chaves;
++- dados pessoais;
++- histórico local não curado;
++- resultados brutos não selecionados;
++- diretórios sincronizados ou temporários.
++
++Resultados de referência podem ser anexados opcionalmente à GitHub Release,
++acompanhados de manifesto, hashes, protocolo e versão.
++
++## 7. Limitação da auditoria executada neste ambiente
++
++O ambiente usado para preparar este patch não possui SDK .NET nem PowerShell.
++Consequentemente, build, testes, cobertura, publicação e execução dos scripts
++PowerShell não foram realizados aqui. Eles permanecem obrigatórios antes da
++tag e devem ser executados na máquina de desenvolvimento conforme
++`34-release-v2.0.0.md`.
++
++As verificações estáticas realizadas incluem:
++
++- leitura do estado Git;
++- inventário de arquivos;
++- coerência textual de versões;
++- índice documental;
++- links locais Markdown;
++- auditoria de resíduos locais;
++- geração do patch e do pacote versionável.
+diff --git a/docs/README.md b/docs/README.md
+index 1d68f83..669dab5 100644
+--- a/docs/README.md
++++ b/docs/README.md
+@@ -8,7 +8,7 @@ ao estado real do código.
+ | [00-decisoes-e-escopo.md](00-decisoes-e-escopo.md) | 1.2.0+ | Governança | convenções, Git, idioma e versões |
+ | [01-projeto-original.md](01-projeto-original.md) | 1.0.0 | Legado | inventário histórico |
+ | [02-requisitos.md](02-requisitos.md) | 1.2.0+ | Projeto | requisitos e critérios |
+-| [03-arquitetura.md](03-arquitetura.md) | 1.2.0–Unreleased | Arquitetura | camadas e composition root |
++| [03-arquitetura.md](03-arquitetura.md) | 1.2.0–2.0.0 | Arquitetura | camadas e composition root |
+ | [04-modelo-conceitual.md](04-modelo-conceitual.md) | 1.2.0 | Domain | entidades e relações |
+ | [05-game-rules.md](05-game-rules.md) | 1.2.0 | Domain | regras e avaliação |
+ | [06-match-aggregate.md](06-match-aggregate.md) | 1.2.0 | Domain | agregado e invariantes |
+@@ -16,30 +16,32 @@ ao estado real do código.
+ | [08-revisao-prompt-10.md](08-revisao-prompt-10.md) | 1.3.0 | Governança | revisão histórica intermediária |
+ | [09-correcao-fronteiras-arquiteturais.md](09-correcao-fronteiras-arquiteturais.md) | 1.4.0 | Domain/AI/Application | fronteiras corrigidas |
+ | [10-inteligencia-artificial.md](10-inteligencia-artificial.md) | 1.3.0–1.5.0 | AI | Strategies e Minimax |
+-| [11-experimentacao.md](11-experimentacao.md) | Unreleased | Application/Persistence | protocolo experimental |
+-| [12-testes.md](12-testes.md) | Unreleased | Tests | estratégia e cobertura |
+-| [13-resultados.md](13-resultados.md) | Unreleased | Experiment | experimento de referência |
+-| [14-limitacoes.md](14-limitacoes.md) | Unreleased | Compatibility | plataformas e terminal |
++| [11-experimentacao.md](11-experimentacao.md) | 2.0.0 | Application/Persistence | protocolo experimental |
++| [12-testes.md](12-testes.md) | 2.0.0 | Tests | estratégia e cobertura |
++| [13-resultados.md](13-resultados.md) | 2.0.0 | Experiment | experimento de referência |
++| [14-limitacoes.md](14-limitacoes.md) | 2.0.0 | Compatibility | plataformas e terminal |
+ | [15-audio.md](15-audio.md) | 1.7.0 | Audio | beep, bell e fallback |
+ | [16-apresentacao-console.md](16-apresentacao-console.md) | 1.6.0 | Presentation | adaptadores Console |
+-| [17-screen-manager.md](17-screen-manager.md) | 1.6.0–Unreleased | Presentation | navegação e ciclos |
+-| [18-temas-e-creditos.md](18-temas-e-creditos.md) | 1.7.0–Unreleased | Presentation | ASCII, Unicode e citação |
++| [17-screen-manager.md](17-screen-manager.md) | 1.6.0–2.0.0 | Presentation | navegação e ciclos |
++| [18-temas-e-creditos.md](18-temas-e-creditos.md) | 1.7.0–2.0.0 | Presentation | ASCII, Unicode e citação |
+ | [19-feedback-visual-e-animacoes.md](19-feedback-visual-e-animacoes.md) | 1.7.0 | Presentation | feedback e atraso |
+ | [20-configuracoes-json.md](20-configuracoes-json.md) | 1.8.0 | Persistence | settings e esquema |
+-| [21-partidas-e-estatisticas-json.md](21-partidas-e-estatisticas-json.md) | 1.8.0–Unreleased | Persistence | histórico, estatísticas e recuperação |
++| [21-partidas-e-estatisticas-json.md](21-partidas-e-estatisticas-json.md) | 1.8.0–2.0.0 | Persistence | histórico, estatísticas e recuperação |
+ | [22-exportacao-csv.md](22-exportacao-csv.md) | 1.8.0 | Persistence | CSV e esquemas |
+-| [23-modo-automatico.md](23-modo-automatico.md) | Unreleased | Application/Presentation | IA contra IA demonstrativa |
+-| [24-modo-experimental.md](24-modo-experimental.md) | Unreleased | Application/Persistence | lotes sem apresentação |
+-| [25-robustez-fronteiras-externas.md](25-robustez-fronteiras-externas.md) | Unreleased | Infrastructure | falhas e recuperação |
+-| [26-publicacao.md](26-publicacao.md) | Unreleased | Publication | perfis e empacotamento |
+-| [27-glossario.md](27-glossario.md) | Unreleased | Projeto | vocabulário |
+-| [28-uso-ia-generativa.md](28-uso-ia-generativa.md) | Unreleased | Governança | transparência de IA |
+-| [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | Unreleased | Arquitetura | auditoria final |
+-| [30-revisao-legal-documental.md](30-revisao-legal-documental.md) | Unreleased | Governança/Legal | auditoria legal e documental |
+-| [31-matriz-documentacao.md](31-matriz-documentacao.md) | Unreleased | Governança | rastreabilidade documental |
+-| [32-release-v1.9.0.md](32-release-v1.9.0.md) | 1.9.0 | Release | checklist e validação da candidata |
++| [23-modo-automatico.md](23-modo-automatico.md) | 2.0.0 | Application/Presentation | IA contra IA demonstrativa |
++| [24-modo-experimental.md](24-modo-experimental.md) | 2.0.0 | Application/Persistence | lotes sem apresentação |
++| [25-robustez-fronteiras-externas.md](25-robustez-fronteiras-externas.md) | 2.0.0 | Infrastructure | falhas e recuperação |
++| [26-publicacao.md](26-publicacao.md) | 2.0.0 | Publication | perfis e empacotamento |
++| [27-glossario.md](27-glossario.md) | 2.0.0 | Projeto | vocabulário |
++| [28-uso-ia-generativa.md](28-uso-ia-generativa.md) | 2.0.0 | Governança | transparência de IA |
++| [29-revisao-arquitetural-final.md](29-revisao-arquitetural-final.md) | 2.0.0 | Arquitetura | auditoria final |
++| [30-revisao-legal-documental.md](30-revisao-legal-documental.md) | 2.0.0 | Governança/Legal | auditoria legal e documental |
++| [31-matriz-documentacao.md](31-matriz-documentacao.md) | 2.0.0 | Governança | rastreabilidade documental |
++| [32-release-v1.9.0.md](32-release-v1.9.0.md) | 1.9.0 | Release | checklist histórico da candidata |
++| [33-analise-estatistica-experimentos.md](33-analise-estatistica-experimentos.md) | 1.9.0–2.0.0 | Experiment | análise estatística avançada |
++| [34-release-v2.0.0.md](34-release-v2.0.0.md) | 2.0.0 | Release | consolidação e publicação final |
++| [35-migracao-v1.9.0-v2.0.0.md](35-migracao-v1.9.0-v2.0.0.md) | 2.0.0 | Compatibility | migração e preservação de dados |
++| [36-auditoria-release-v2.0.0.md](36-auditoria-release-v2.0.0.md) | 2.0.0 | Governança | auditoria final da release |
+ 
+ A matriz detalhada está em
+-[`31-matriz-documentacao.md`](31-matriz-documentacao.md). Documentos históricos
+-preservam o contexto da versão em que foram produzidos; documentos marcados
+-como `Unreleased` pertencem à próxima release ainda não versionada.
++[`31-matriz-documentacao.md`](31-matriz-documentacao.md). Documentos históricos preservam o contexto da versão em que foram produzidos. Os documentos antes marcados como `Unreleased` foram consolidados na versão `2.0.0`.
+diff --git a/patches/README.md b/patches/README.md
+index e39f8ef..1ba3336 100644
+--- a/patches/README.md
++++ b/patches/README.md
+@@ -1,4 +1,15 @@
+ # Patches
+ 
+-Este diretório armazena os patchs aplicados durante a refatoração
+-incremental do projeto.
++Este diretório preserva os patches produzidos e aplicados durante a refatoração
++incremental do projeto. Os arquivos históricos podem conter revisões, correções
++e tentativas intermediárias; por isso, não devem ser reaplicados em sequência
++sobre a versão `2.0.0`.
++
++O patch final da consolidação é:
++
++- `0032-consolidacao-v2.0.0.patch`: versão, documentação, auditoria, migração e
++  preparação da release final.
++
++A presença dos patches no repositório tem finalidade de rastreabilidade e
++estudo do processo de desenvolvimento. O histórico Git continua sendo a fonte
++principal para reconstrução das alterações.
+diff --git a/prompts/README.md b/prompts/README.md
+index 1349c5b..b6a4fcb 100644
+--- a/prompts/README.md
++++ b/prompts/README.md
+@@ -1,4 +1,9 @@
+ # Prompts
+ 
+-Este diretório armazena os prompts utilizado para conduzir a
+-refatoração incremental do projeto.
++Este diretório preserva os prompts utilizados para conduzir a refatoração
++incremental do projeto. Eles documentam objetivos, restrições, branches e
++prefixos de patches empregados entre o inventário do legado e a consolidação
++da versão `2.0.0`.
++
++O Prompt 32, presente nas versões revisadas do roteiro incremental, encerra o
++escopo funcional da refatoração e orienta a release `v2.0.0`.
+diff --git a/scripts/__pycache__/analyze-reference-experiment-advanced.cpython-314.pyc b/scripts/__pycache__/analyze-reference-experiment-advanced.cpython-314.pyc
+deleted file mode 100644
+index 6fbeca469ac8b5ad8c0c9b939a4fc89084d96f4e..0000000000000000000000000000000000000000
+GIT binary patch
+literal 0
+HcmV?d00001
+
+literal 33321
+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
+A?f?J)
+
+diff --git a/scripts/validate-release-v2.0.0.ps1 b/scripts/validate-release-v2.0.0.ps1
+new file mode 100644
+index 0000000..ea0cfe8
+--- /dev/null
++++ b/scripts/validate-release-v2.0.0.ps1
+@@ -0,0 +1,446 @@
++﻿param(
++    [string]$OutputRoot = (
++        Join-Path `
++            $env:LOCALAPPDATA `
++            "TicTacToe\release\v2.0.0"
++    ),
++    [switch]$SkipPublish
++)
++
++$ErrorActionPreference = "Stop"
++$utf8_no_bom = New-Object System.Text.UTF8Encoding($false)
++[Console]::InputEncoding = $utf8_no_bom
++[Console]::OutputEncoding = $utf8_no_bom
++$OutputEncoding = $utf8_no_bom
++
++if ($env:OS -eq "Windows_NT") {
++    & chcp.com 65001 > $null
++}
++$projectRoot = (
++    Resolve-Path (
++        Join-Path $PSScriptRoot ".."
++    )
++).Path
++$solution = Join-Path $projectRoot "TicTacToe.sln"
++$project = Join-Path `
++    $projectRoot `
++    "src\TicTacToe.Console\TicTacToe.Console.csproj"
++$coverageDirectory = Join-Path $OutputRoot "coverage"
++$experimentDirectory = Join-Path $OutputRoot "experiment-short"
++$publishDirectory = Join-Path $projectRoot "artifacts\publish"
++$reportPath = Join-Path $OutputRoot "release-validation.json"
++
++function Invoke-Checked {
++    param(
++        [Parameter(Mandatory = $true)]
++        [scriptblock]$Command,
++        [Parameter(Mandatory = $true)]
++        [string]$Description
++    )
++
++    Write-Host ""
++    Write-Host "==> $Description"
++
++    & $Command
++
++    if ($LASTEXITCODE -ne 0) {
++        throw "$Description falhou com código $LASTEXITCODE."
++    }
++}
++
++function Assert-NoTrackedLocalData {
++    $tracked = @(
++        git -C $projectRoot ls-files
++    )
++    $forbidden = @(
++        $tracked | Where-Object {
++            $_ -match '(^|/)(bin|obj|artifacts|TestResults|coverage|publish)/' -or
++            $_ -match '(^|/)data/.*\.json$' -or
++            $_ -match '(^|/)exports/.*\.csv$' -or
++            $_ -match '\.(user|suo|nupkg|snupkg|trx|coverage)$'
++        }
++    )
++
++    if ($forbidden.Count -gt 0) {
++        throw (
++            "Arquivos locais ou binários rastreados: " +
++            ($forbidden -join ", ")
++        )
++    }
++}
++
++function Assert-NoSensitiveContent {
++    # URLs públicas, autoria e caminhos fictícios de teste não são dados
++    # locais. A auditoria procura somente o perfil e a raiz reais desta máquina.
++    $excludedPaths = @(
++        "README.md",
++        "docs/13-resultados.md",
++        "docs/26-publicacao.md",
++        "scripts/validate-release-v2.0.0.ps1"
++    )
++    $textExtensions = @(
++        ".cs",
++        ".csproj",
++        ".props",
++        ".targets",
++        ".json",
++        ".md",
++        ".cff",
++        ".txt",
++        ".csv",
++        ".xml",
++        ".ps1",
++        ".sh",
++        ".yml",
++        ".yaml",
++        ".gitignore",
++        ".gitattributes"
++    )
++    $userProfile = [Environment]::GetFolderPath(
++        [Environment+SpecialFolder]::UserProfile
++    )
++    $patterns = @(
++        [pscustomobject]@{
++            Name = "caminho pessoal real"
++            Regex = [regex]::new(
++                [regex]::Escape($userProfile),
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        },
++        [pscustomobject]@{
++            Name = "caminho absoluto do repositório local"
++            Regex = [regex]::new(
++                [regex]::Escape($projectRoot),
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        },
++        [pscustomobject]@{
++            Name = "identificador de chave AWS"
++            Regex = [regex]::new(
++                'AKIA[0-9A-Z]{16}',
++                [Text.RegularExpressions.RegexOptions]::None
++            )
++        },
++        [pscustomobject]@{
++            Name = "chave privada"
++            Regex = [regex]::new(
++                'BEGIN (RSA |EC |OPENSSH )?PRIVATE KEY',
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        },
++        [pscustomobject]@{
++            Name = "segredo atribuído em texto"
++            Regex = [regex]::new(
++                '(password|passwd|secret|token|api[_-]?key)\s*[:=]\s*[^\s<>{}]+',
++                [Text.RegularExpressions.RegexOptions]::IgnoreCase
++            )
++        }
++    )
++    $findings = [System.Collections.Generic.List[string]]::new()
++    $trackedFiles = @(
++        git -C $projectRoot ls-files
++    )
++
++    foreach ($relativePath in $trackedFiles) {
++        $normalizedPath = $relativePath.Replace("\", "/")
++
++        if ($excludedPaths -contains $normalizedPath) {
++            continue
++        }
++
++        $extension = [IO.Path]::GetExtension($normalizedPath).ToLowerInvariant()
++        $fileName = [IO.Path]::GetFileName($normalizedPath).ToLowerInvariant()
++
++        if (
++            $textExtensions -notcontains $extension -and
++            $textExtensions -notcontains $fileName
++        ) {
++            continue
++        }
++
++        $absolutePath = Join-Path $projectRoot $relativePath
++
++        try {
++            $lineNumber = 0
++
++            foreach ($line in Get-Content -LiteralPath $absolutePath) {
++                $lineNumber++
++
++                foreach ($pattern in $patterns) {
++                    if ($pattern.Regex.IsMatch($line)) {
++                        $findings.Add(
++                            "$normalizedPath`:$lineNumber " +
++                            "[$($pattern.Name)]"
++                        )
++                    }
++                }
++            }
++        }
++        catch {
++            throw (
++                "Não foi possível auditar o arquivo " +
++                "'$normalizedPath': $($_.Exception.Message)"
++            )
++        }
++    }
++
++    if ($findings.Count -gt 0) {
++        throw (
++            "Conteúdo potencialmente sensível encontrado:`n" +
++            ($findings -join "`n")
++        )
++    }
++}
++
++function Assert-VersionConsistency {
++    [xml]$props = Get-Content (
++        Join-Path $projectRoot "Directory.Build.props"
++    )
++    $version = [string]$props.Project.PropertyGroup.Version
++    $citation = Get-Content (
++        Join-Path $projectRoot "CITATION.cff"
++    )
++
++    if ($version -ne "2.0.0") {
++        throw "Directory.Build.props não contém a versão 2.0.0."
++    }
++
++    if ($citation -notcontains 'version: "2.0.0"') {
++        throw "CITATION.cff não contém a versão 2.0.0."
++    }
++}
++
++Remove-Item `
++    $OutputRoot `
++    -Recurse `
++    -Force `
++    -ErrorAction SilentlyContinue
++New-Item `
++    -ItemType Directory `
++    -Path $OutputRoot `
++    -Force |
++    Out-Null
++
++Push-Location $projectRoot
++
++try {
++    Assert-VersionConsistency
++    Assert-NoTrackedLocalData
++    Assert-NoSensitiveContent
++
++    Invoke-Checked `
++        { git diff --check } `
++        "Verificação de whitespace"
++
++    Invoke-Checked `
++        { dotnet restore $solution } `
++        "Restore"
++
++    Invoke-Checked `
++        {
++            dotnet build `
++                $solution `
++                --configuration Release `
++                --no-restore `
++                -warnaserror
++        } `
++        "Build Release sem warnings"
++
++    Invoke-Checked `
++        {
++            dotnet test `
++                $solution `
++                --configuration Release `
++                --no-build
++        } `
++        "Suíte completa"
++
++    Remove-Item `
++        $coverageDirectory `
++        -Recurse `
++        -Force `
++        -ErrorAction SilentlyContinue
++
++    Invoke-Checked `
++        {
++            dotnet test `
++                $solution `
++                --configuration Release `
++                --no-build `
++                --collect "XPlat Code Coverage" `
++                --settings (
++                    Join-Path `
++                        $projectRoot `
++                        "tests\coverage.runsettings"
++                ) `
++                --results-directory $coverageDirectory
++        } `
++        "Relatório de cobertura"
++
++    Invoke-Checked `
++        {
++            dotnet test `
++                (
++                    Join-Path `
++                        $projectRoot `
++                        "tests\TicTacToe.Tests\TicTacToe.Tests.csproj"
++                ) `
++                --configuration Release `
++                --no-build `
++                --filter "FullyQualifiedName~AutomaticMatchRunnerTests"
++        } `
++        "Execução curta do runner automático"
++
++    $commit = (
++        git -C $projectRoot rev-parse HEAD
++    ).Trim()
++
++    Remove-Item `
++        $experimentDirectory `
++        -Recurse `
++        -Force `
++        -ErrorAction SilentlyContinue
++
++    Invoke-Checked `
++        {
++            dotnet run `
++                --project $project `
++                --configuration Release `
++                --no-build `
++                -- `
++                --reference-experiment `
++                --commit $commit `
++                --output $experimentDirectory `
++                --repetitions 2 `
++                --base-seed 1900
++        } `
++        "Experimento curto reproduzível"
++
++    Invoke-Checked `
++        {
++            python `
++                (
++                    Join-Path `
++                        $projectRoot `
++                        "scripts\analyze-reference-experiment.py"
++                ) `
++                $experimentDirectory
++        } `
++        "Validação dos JSON e CSV experimentais"
++
++    if (-not $SkipPublish) {
++        $profiles = @(
++            "win-x64-framework-dependent",
++            "win-x64-self-contained",
++            "linux-x64-framework-dependent",
++            "linux-x64-self-contained"
++        )
++
++        foreach ($profile in $profiles) {
++            Invoke-Checked `
++                {
++                    dotnet publish `
++                        $project `
++                        /p:PublishProfile=$profile
++                } `
++                "Publicação $profile"
++
++            & (
++                Join-Path `
++                    $projectRoot `
++                    "scripts\validate-publish.ps1"
++            ) (
++                Join-Path `
++                    $publishDirectory `
++                    $profile
++            )
++        }
++    }
++
++    $ignored = @(
++        git -C $projectRoot status --ignored --short
++    )
++    $coverageReport = Get-ChildItem `
++        $coverageDirectory `
++        -Filter "coverage.cobertura.xml" `
++        -File `
++        -Recurse |
++        Select-Object -First 1
++
++    if ($null -eq $coverageReport) {
++        throw "Relatório de cobertura não encontrado."
++    }
++
++    [xml]$coverage = Get-Content $coverageReport.FullName
++    $manifestPath = Join-Path `
++        $experimentDirectory `
++        "reference-manifest.json"
++    $summaryPath = Join-Path `
++        $experimentDirectory `
++        "reference-summary.json"
++    $svgPath = Join-Path `
++        $experimentDirectory `
++        "reference-results.svg"
++
++    foreach ($requiredPath in @(
++        $manifestPath,
++        $summaryPath,
++        $svgPath
++    )) {
++        if (-not (Test-Path $requiredPath -PathType Leaf)) {
++            throw "Arquivo esperado ausente: $requiredPath"
++        }
++    }
++
++    $report = [ordered]@{
++        version = "2.0.0"
++        candidateDate = "2026-07-22"
++        commit = $commit
++        branch = (
++            git -C $projectRoot branch --show-current
++        ).Trim()
++        dotnet = (
++            dotnet --version
++        ).Trim()
++        coverage = [ordered]@{
++            report = $coverageReport.FullName
++            lineRate = $coverage.coverage.'line-rate'
++            branchRate = $coverage.coverage.'branch-rate'
++            linesCovered = $coverage.coverage.'lines-covered'
++            linesValid = $coverage.coverage.'lines-valid'
++            branchesCovered = $coverage.coverage.'branches-covered'
++            branchesValid = $coverage.coverage.'branches-valid'
++        }
++        experiment = [ordered]@{
++            directory = $experimentDirectory
++            repetitionsPerScenario = 2
++            baseSeed = 1900
++            manifestSha256 = (
++                Get-FileHash `
++                    $manifestPath `
++                    -Algorithm SHA256
++            ).Hash.ToLowerInvariant()
++        }
++        publishSkipped = [bool]$SkipPublish
++        ignoredEntries = $ignored
++        completedAt = (
++            Get-Date
++        ).ToUniversalTime().ToString("O")
++    }
++
++    $reportJson = $report |
++        ConvertTo-Json -Depth 8
++
++    [IO.File]::WriteAllText(
++        $reportPath,
++        $reportJson,
++        $utf8_no_bom
++    )
++
++    Write-Host ""
++    Write-Host "Release v2.0.0 validada."
++    Write-Host "Relatório: $reportPath"
++}
++finally {
++    Pop-Location
++}
+diff --git a/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs b/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
+index 63dc330..6b39d3b 100644
+--- a/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
++++ b/tests/TicTacToe.Tests/Publication/LegalDocumentationConsistencyTests.cs
+@@ -31,7 +31,7 @@ public class LegalDocumentationConsistencyTests
+ 
+ 
+     [Fact]
+-    public void release_candidate_should_use_expected_version_and_date()
++    public void release_should_use_expected_version_and_date()
+     {
+         string citation = File.ReadAllText(
+             Path.Combine(
+@@ -43,13 +43,13 @@ public class LegalDocumentationConsistencyTests
+                 "CHANGELOG.md"));
+ 
+         Assert.Contains(
+-            "version: \"1.9.0\"",
++            "version: \"2.0.0\"",
+             citation);
+         Assert.Contains(
+-            "date-released: \"2026-07-21\"",
++            "date-released: \"2026-07-22\"",
+             citation);
+         Assert.Contains(
+-            "## [1.9.0] - 2026-07-21",
++            "## [2.0.0] - 2026-07-22",
+             changelog);
+     }
+ 

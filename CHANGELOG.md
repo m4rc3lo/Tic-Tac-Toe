@@ -9,8 +9,7 @@ a conclusão da nova arquitetura.
 
 ## Linha do tempo
 
-O diagrama distingue o histórico original, os marcos efetivamente concluídos
-e as versões futuras, cujas datas ainda não foram definidas.
+O diagrama distingue o histórico original e os marcos efetivamente concluídos até a versão consolidada `2.0.0`.
 
 ```mermaid
 timeline
@@ -27,28 +26,50 @@ timeline
         2026-07-17 : v1.6.0 — apresentação e estados
         2026-07-17 : v1.7.0 — recursos audiovisuais
         2026-07-18 : v1.8.0 — persistência e exportação
-    section Marcos planejados
-        2026-07-21 : v1.9.0 — experimentação e consolidação
-        Data a definir : v2.0.0 — refatoração completa
+    section Marcos concluídos finais
+        2026-07-21 : v1.9.0 — candidata de experimentação e publicação
+        2026-07-22 : v2.0.0 — arquitetura e fluxos consolidados
 ```
 
-As versões intermediárias poderão ser ajustadas conforme a granularidade
-real das implementações, sem modificar os marcos `v1.0.0` e `v2.0.0`.
+Os marcos registram a trajetória efetivamente concluída entre o legado preservado em `v1.0.0` e a arquitetura consolidada em `v2.0.0`.
 
 ## [Unreleased]
 
+Nenhuma alteração registrada após a release `2.0.0`.
+
+## [2.0.0] - 2026-07-22
+
+### Added
+
+- documentação de consolidação da release, auditoria final e migração da v1.9.0;
+- validador `scripts/validate-release-v2.0.0.ps1` para o checklist final;
+- referências acadêmicas e técnicas consolidadas no final do README;
+- registro versionado dos prompts e patches usados na refatoração.
+
+### Changed
+
+- versão da aplicação, metadados de citação, timeline, índices e instruções de
+  publicação atualizados para `2.0.0`;
+- todos os documentos antes marcados como `Unreleased` passaram a integrar a
+  versão consolidada `2.0.0`;
+- README passou a tratar a arquitetura, modos automático e experimental,
+  exportações e perfis de publicação como funcionalidades concluídas;
+- `.gitignore` passou a excluir explicitamente ambientes virtuais Python locais.
+
 ### Fixed
 
-- Auditoria de conteúdo sensível da candidata passou a usar expressões
-  regulares do PowerShell, evitando incompatibilidade com `git grep -E`;
-- auditoria passou a distinguir identificadores públicos e caminhos fictícios
-  de caminhos pessoais reais da máquina;
-- saída do checklist passou a configurar UTF-8 explicitamente no Windows;
-- scripts PowerShell passaram a usar UTF-8 com BOM para compatibilidade com
-  Windows PowerShell 5.1;
-- publicações passaram a executar restore específico para cada RID;
-- relatório da candidata passou a usar `File.WriteAllText` com UTF-8 sem BOM,
-  compatível com Windows PowerShell 5.1.
+- comandos quebrados por quebra de linha em referências ao script da candidata;
+- inconsistências documentais entre versão de assembly, `CITATION.cff`,
+  changelog e testes de publicação;
+- descrição de marcos ainda planejados após a conclusão funcional da refatoração.
+
+### Release scope
+
+A versão `2.0.0` encerra o escopo funcional definido para a refatoração. Ideias
+como interface gráfica, rede, tabuleiros alternativos, novos agentes e
+telemetria visual permanecem como extensões futuras opcionais, não como itens
+bloqueadores desta release.
+
 
 ## [1.9.0] - 2026-07-21
 

@@ -158,3 +158,10 @@ Os diretórios de publicação permanecem ignorados pelo Git.
 - publicação autocontida aumenta significativamente o tamanho;
 - validação real em dois sistemas continua necessária, pois testes simulados
   não substituem execução no ambiente final.
+
+## Estado na versão 2.0.0
+
+As limitações descritas neste documento são restrições conhecidas e decisões de
+escopo da versão consolidada, não pendências funcionais obrigatórias para a
+release. Expansões como interface gráfica, rede, novos tabuleiros ou agentes
+podem iniciar uma nova linha de evolução sem invalidar a arquitetura entregue.

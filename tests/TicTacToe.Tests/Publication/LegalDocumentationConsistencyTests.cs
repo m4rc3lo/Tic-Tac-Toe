@@ -31,7 +31,7 @@ public class LegalDocumentationConsistencyTests
 
 
     [Fact]
-    public void release_candidate_should_use_expected_version_and_date()
+    public void release_should_use_expected_version_and_date()
     {
         string citation = File.ReadAllText(
             Path.Combine(
@@ -43,13 +43,13 @@ public class LegalDocumentationConsistencyTests
                 "CHANGELOG.md"));
 
         Assert.Contains(
-            "version: \"1.9.0\"",
+            "version: \"2.0.0\"",
             citation);
         Assert.Contains(
-            "date-released: \"2026-07-21\"",
+            "date-released: \"2026-07-22\"",
             citation);
         Assert.Contains(
-            "## [1.9.0] - 2026-07-21",
+            "## [2.0.0] - 2026-07-22",
             changelog);
     }
 

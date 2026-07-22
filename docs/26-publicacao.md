@@ -257,7 +257,7 @@ Get-ChildItem `
 confirme o caminho com `Resolve-Path`, `Test-Path` e `Get-ChildItem`.
 
 
-## 14. Publicações da candidata v1.9.0
+## 14. Publicações da candidata v1.9.0 — registro histórico
 
 A validação integrada é executada por:
 
@@ -271,3 +271,18 @@ alidate-release-v1.9.0.ps1
 
 O script publica e inspeciona os quatro perfis. A tag só pode ser criada depois
 que todos os pacotes forem validados e o relatório da candidata for aprovado.
+
+## 15. Publicação da versão v2.0.0
+
+A versão final usa os mesmos quatro perfis de publicação documentados, agora
+identificados como `2.0.0`. Execute o validador final:
+
+```powershell
+powershell.exe `
+    -NoProfile `
+    -ExecutionPolicy Bypass `
+    -File .\scripts\validate-release-v2.0.0.ps1
+```
+
+As instruções de checksums, tag e GitHub Release estão em
+[`34-release-v2.0.0.md`](34-release-v2.0.0.md).
