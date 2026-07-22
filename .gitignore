@@ -37,6 +37,12 @@ _ReSharper*/
 packages/
 .nuget/
 
+# Ambientes locais de Python
+__pycache__/
+*.py[cod]
+.venv*/
+venv/
+
 # Testes e cobertura
 TestResults/
 coverage/
